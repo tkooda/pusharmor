@@ -989,7 +989,8 @@ private val Modifier.rowPad get() = this.padding(horizontal = 16.dp)
 /** Send: field, counter and "Send as URL" (a phone number: its caption and "Send as text" above it), then the device chips just above the green Send pinned at the bottom (above the keyboard). */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null, title: String? = null, inDialog: Boolean = false, onPair: () -> Unit = {}, onSent: (AppViewModel.SendResult) -> Unit = {}) {
+fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null, title: String? = null, inDialog: Boolean = false, onPair: () -> Unit = {},
+               initialFile: Uri? = null, onSent: (AppViewModel.SendResult) -> Unit = {}) {
     val shots = BuildConfig.SCREENSHOT_MODE && ScreenshotMode.on && title != null
     var text by rememberSaveable { mutableStateOf(if (shots) ScreenshotMode.sendText else initial) }
     var asText by rememberSaveable { mutableStateOf(false) }
@@ -1019,6 +1020,11 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
         }
     }
     val scope = rememberCoroutineScope()
+    // One type per message: a chosen file takes the place of the message box until it is removed.
+    val chosen by vm.files.chosen.collectAsState()
+    val pickFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) vm.files.choose(uri) }
+    var fileTaken by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(initialFile) { if (initialFile != null && !fileTaken) { fileTaken = true; vm.files.choose(initialFile) } }
     val bytes = SendAsUrl.bytes(text, asText)
     val prefs by vm.prefs.collectAsState()
     // Hidden until the settings load, so the chip does not flash on for a user who turned it off.
@@ -1058,21 +1064,27 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
                 Column(if (scrolls) Modifier else Modifier.weight(1f, fill = !inDialog)) {
                     // The field starts at 4 lines and grows with its text up to the free space, then scrolls inside;
                     // with the keyboard up it shrinks first, to 2 lines while the chips still fit.
-                    OutlinedTextField(text, { asText = SendAsUrl.afterEdit(text, it, asText); text = it }, modifier = Modifier.rowPad.fillMaxWidth().then(if (scrolls) Modifier else Modifier.weight(1f, fill = false))
-                        .padding(top = if (title == null) 16.dp else 0.dp), minLines = 4, label = { Text("Message") },
-                        shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = ex.tile, unfocusedContainerColor = ex.tile,
-                            focusedBorderColor = cs.primary, unfocusedBorderColor = cs.outline))
-                    val counter = UiText.showCounter(bytes)
+                    val file = chosen
+                    if (file != null) FileCard(file.name, file.size, Modifier.rowPad.padding(top = if (title == null) 16.dp else 0.dp)) { vm.files.chosen.value = null }
+                    else Box(Modifier.rowPad.fillMaxWidth().then(if (scrolls) Modifier else Modifier.weight(1f, fill = false))
+                        .padding(top = if (title == null) 16.dp else 0.dp)) {
+                        OutlinedTextField(text, { asText = SendAsUrl.afterEdit(text, it, asText); text = it }, modifier = Modifier.fillMaxWidth(), minLines = 4, label = { Text("Message") },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = ex.tile, unfocusedContainerColor = ex.tile,
+                                focusedBorderColor = cs.primary, unfocusedBorderColor = cs.outline))
+                        // Shown while the box is empty, at its bottom right.
+                        if (text.isEmpty()) ChooseFileButton(Modifier.align(Alignment.BottomEnd).padding(end = 8.dp, bottom = 8.dp)) { pickFile.launch(arrayOf("*/*")) }
+                    }
+                    val counter = file == null && UiText.showCounter(bytes)
                     if (extras) Column(Modifier.onSizeChanged { extrasPx = it.height }) {
                         // The type caption at the left and the counter at the right of it; "Send as text" at the far right, only for a detected URL or phone number.
                         Row(Modifier.padding(start = 32.dp, end = 16.dp).fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             FlowRow(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Box(Modifier.align(Alignment.CenterVertically)) { TypeCaption(SendAsUrl.effective(text, asText)) }
+                                Box(Modifier.align(Alignment.CenterVertically)) { if (file != null) FileCaption() else TypeCaption(SendAsUrl.effective(text, asText)) }
                                 if (counter) Text(UiText.counter(bytes), Modifier.weight(1f).align(Alignment.CenterVertically), style = MaterialTheme.typography.bodySmall, color = cs.error, textAlign = TextAlign.End)
                             }
-                            if (SendAsUrl.offersText(text)) Row(Modifier.heightIn(min = 48.dp).toggleable(asText, role = Role.Checkbox) { asText = it },
+                            if (file == null && SendAsUrl.offersText(text)) Row(Modifier.heightIn(min = 48.dp).toggleable(asText, role = Role.Checkbox) { asText = it },
                                 verticalAlignment = Alignment.CenterVertically) {
                                 Checkbox(asText, null)
                                 Spacer(Modifier.width(12.dp))
@@ -1145,13 +1157,14 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
                     vm.sendStep = 0
                     vm.sendRetry = 0
                     vm.sendNames = sendTo.mapNotNull { id -> peers.firstOrNull { it.id == id } }.map(::label)
-                    val sendType = if (asText) ContentType.TEXT else com.pusharmor.protocol.Detect.type(text)
-                    vm.sendCaption = if (vm.sendNames.size > 1) UiText.directSendingList(sendType) else UiText.directSending(sendType, vm.sendNames)
+                    val sendType = if (asText || chosen != null) ContentType.TEXT else com.pusharmor.protocol.Detect.type(text)
+                    vm.sendCaption = (if (vm.sendNames.size > 1) UiText.directSendingList(sendType) else UiText.directSending(sendType, vm.sendNames))
+                        .let { if (chosen != null) it.replaceFirst("Sending text", "Sending file") else it }
                     vm.sendFromScreen(sendTo, text, asText)
                 }
             }, text = UiText.sendLabel(sendTo.size, sendTo.singleOrNull()?.let { id -> peers.firstOrNull { it.id == id } }?.let(::label)), icon = PaIcons.Send,
                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 16.dp).fillMaxWidth().heightIn(min = 56.dp),
-                enabled = sendTo.isNotEmpty() && text.isNotEmpty() && bytes <= SizeCap.MAX_CONTENT_BYTES && "send" !in running)
+                enabled = sendTo.isNotEmpty() && (chosen != null || (text.isNotEmpty() && bytes <= SizeCap.MAX_CONTENT_BYTES)) && "send" !in running)
         }
         if (shared == null) SnackbarHost(snack, Modifier.align(Alignment.BottomCenter).padding(bottom = 80.dp))
     }
@@ -1200,6 +1213,16 @@ private fun DeviceChip(icon: ImageVector, name: String, selected: Boolean, enabl
 fun HistoryScreen(vm: AppViewModel, onPair: () -> Unit = {}, onSend: () -> Unit = {}) {
     val stored by vm.history.collectAsState()
     val rows = remember(stored) { withoutStatus(stored) }
+    // Received files: decrypts run only while History shows; its rows follow the download jobs.
+    val owner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(owner) {
+        val o = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_START) vm.files.setShown(true) else if (e == androidx.lifecycle.Lifecycle.Event.ON_STOP) vm.files.setShown(false)
+        }
+        owner.lifecycle.addObserver(o)
+        onDispose { owner.lifecycle.removeObserver(o); vm.files.setShown(false) }
+    }
+    LaunchedEffect(stored) { vm.files.refresh() }
     val peers by vm.peers.collectAsState()
     val me by vm.self.collectAsState()
     var chip by rememberSaveable(stateSaver = chipSaver) { mutableStateOf<HistoryFilter.Chip>(HistoryFilter.Chip.All) }
@@ -1397,7 +1420,7 @@ internal fun PaChip(selected: Boolean, text: String, onClick: () -> Unit) {
         border = FilterChipDefaults.filterChipBorder(enabled = true, selected = selected, borderColor = cs.outline, selectedBorderColor = Color.Transparent))
 }
 
-private val CONTENT_TYPES = setOf("url", "text", "tel", com.pusharmor.protocol.engine.HistoryRow.UNKNOWN)
+private val CONTENT_TYPES = setOf("url", "text", "tel", com.pusharmor.protocol.engine.HistoryRow.UNKNOWN, com.pusharmor.protocol.engine.HistoryRow.FILE)
 
 /** Shown in place of a message whose type this version does not know. */
 internal const val UNKNOWN_TYPE_TEXT = "Unknown message type, please update"
@@ -1416,6 +1439,8 @@ private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, e
     val cs = MaterialTheme.colorScheme
     val event = h.type !in CONTENT_TYPES
     val unknown = h.type == com.pusharmor.protocol.engine.HistoryRow.UNKNOWN
+    val file = com.pusharmor.app.files.ReceivedFiles.fileOf(h)
+    val fileRow = if (file != null) vm.files.rows.collectAsState().value[h.id] else null
     val unread = !h.read && !event
     val who = h.peerId?.let { nameOf(it) } ?: if (h.direction == "SENT") UiText.sentTitle(h.toRow().results, nameOf) else "Unknown sender"
     val time = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(h.at))
@@ -1439,8 +1464,10 @@ private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, e
             if (selecting) Checkbox(checked = checked, onCheckedChange = null, modifier = Modifier.align(Alignment.CenterVertically))
             if (event) Box(Modifier.size(40.dp), Alignment.Center) {
                 Icon(when (h.type) { "logged_out" -> PaIcons.Pause; "logged_in" -> PaIcons.Check; else -> PaIcons.Info }, null, tint = cs.onSurfaceVariant)
-            } else IconTile(when {
+            } else if (fileRow?.image == true && fileRow.plain != null) FileThumb(fileRow.plain, fileRow.name)
+            else IconTile(when {
                 h.direction == "SENT" -> PaIcons.NorthEast
+                file != null -> fileIcon(file.name)
                 h.type == "url" -> PaIcons.Link
                 h.type == "tel" -> PaIcons.Call
                 else -> PaIcons.Notes
@@ -1473,6 +1500,7 @@ private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, e
                             Icon(PaIcons.Cancel, null, Modifier.size(18.dp), tint = cs.error)
                             Text(body, Modifier.padding(start = 4.dp), style = style, color = cs.error, maxLines = 2, overflow = TextOverflow.Ellipsis)
                         }
+                        file != null -> FileRowBody(vm, h, file, style, System.currentTimeMillis())
                         expanded && hc != null && messageKind(h.type, hc) == MessageKind.TEXT -> TextBox(hc, style)
                         expanded && hc != null -> SelectionContainer { Text(hc, style = style) }
                         h.type == "url" -> MiddleEllipsisText(body, style, Modifier.fillMaxWidth())
@@ -1483,8 +1511,9 @@ private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, e
                 }
             }
         }
+        if (!selecting && fileRow?.status == com.pusharmor.app.files.FileUi.Status.Ready) FileActions(vm, fileRow)
         val hc = h.content
-        if (expanded && !selecting && hc != null && !unknown) {
+        if (expanded && !selecting && hc != null && !unknown && file == null) {
             val kind = messageKind(h.type, hc)
             var reading by rememberSaveable(h.id) { mutableStateOf(false) }
             val saver = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
@@ -1619,6 +1648,7 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
     val running by vm.running.collectAsState()
     var pickDays by rememberSaveable { mutableStateOf(false) }
+    var pickFile by rememberSaveable { mutableStateOf<String?>(null) }
     var pickTheme by rememberSaveable { mutableStateOf(false) }
     var pickPush by rememberSaveable { mutableStateOf(false) }
     var getApp by rememberSaveable { mutableStateOf(false) }
@@ -1696,6 +1726,15 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
                 { m -> SwitchRow("Sync deletions", b(Settings.K.SYNC_DELETIONS, true), sub = "Deleting on this device will also delete on your other devices.",
                     modifier = m.then(pad)) { vm.setPref(Settings.K.SYNC_DELETIONS, it) } },
             ))
+            SectionHeader("Files")
+            Text(com.pusharmor.app.files.FileUi.HELPER, Modifier.padding(start = 32.dp, end = 16.dp, bottom = 8.dp),
+                style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant)
+            val fu = com.pusharmor.app.files.FileUi
+            GroupedList(listOf<@Composable (Modifier) -> Unit>(
+                { m -> SettingRow(fu.ON_WIFI, modifier = m, value = fu.pickerLabel(fu.picker(prefs?.get(Settings.K.FILE_WIFI)))) { pickFile = "wifi" } },
+                { m -> SettingRow(fu.ON_MOBILE, modifier = m, value = fu.pickerLabel(fu.picker(prefs?.get(Settings.K.FILE_MOBILE)))) { pickFile = "mobile" } },
+                { m -> SettingRow(fu.STORAGE_TITLE, fu.STORAGE_HELPER, modifier = m, value = fu.storageLabel(fu.storageLimit(prefs?.get(Settings.K.FILE_STORAGE), vm.g.files.totalBytes()))) { pickFile = "storage" } },
+            ))
             SectionHeader("Account")
             me?.email?.let { email ->
                 // Dim label, then the email on its own line; a long address ends in an ellipsis.
@@ -1729,6 +1768,17 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
     }
     if (pickDays) ChoiceDialog("Delete messages older than", listOf(1, 7, 14, 30, 90, 180, 365), days, { UiText.days(it) }, onDismiss = { pickDays = false }) {
         vm.setPref(Settings.K.HISTORY_DAYS, it)
+    }
+    pickFile?.let { which ->
+        val fu = com.pusharmor.app.files.FileUi
+        if (which == "storage") {
+            ChoiceDialog(fu.STORAGE_TITLE, fu.storageOptions(vm.g.files.totalBytes()), fu.storageLimit(prefs?.get(Settings.K.FILE_STORAGE), vm.g.files.totalBytes()),
+                fu::storageLabel, onDismiss = { pickFile = null }) { vm.setFileStorage(it) }
+        } else {
+            val key = if (which == "wifi") Settings.K.FILE_WIFI else Settings.K.FILE_MOBILE
+            ChoiceDialog(if (which == "wifi") fu.ON_WIFI else fu.ON_MOBILE, com.pusharmor.protocol.FileRules.PICKER_SIZES.toList(), fu.picker(prefs?.get(key)),
+                fu::pickerLabel, onDismiss = { pickFile = null }) { vm.setPref(key, it) }
+        }
     }
     if (pickTheme) ChoiceDialog("Theme", ThemePref.entries, themePref, { it.label }, note = "Dark uses a true black background.",
         onDismiss = { pickTheme = false }) { vm.setTheme(it) }

@@ -37,13 +37,14 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** Share sheet entry (section 7): ACTION_SEND text/plain. */
+/** Share sheet entry (section 7): ACTION_SEND text/plain, or any file (EXTRA_STREAM) up to the file cap. */
 class ShareActivity : ComponentActivity() {
     private val vm: AppViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val text = intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString() ?: intent.getCharSequenceExtra(Intent.EXTRA_SUBJECT)?.toString()
+        val file = sharedFile(intent)
+        val text = if (file != null) "" else intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString() ?: intent.getCharSequenceExtra(Intent.EXTRA_SUBJECT)?.toString()
         if (text == null) { Toast.makeText(this, UiText.brief(UiText.SHARE_NOTHING), Toast.LENGTH_LONG).show(); finish(); return }
         // The dialog shows at once: a placeholder until the peer read returns, never a blank box.
         setContent { Frame { LinearProgressIndicator(Modifier.fillMaxWidth().padding(24.dp), color = BrandGreen) } }
@@ -69,13 +70,13 @@ class ShareActivity : ComponentActivity() {
                 if (loggedOut) Toast.makeText(this@ShareActivity, UiText.brief(UiText.SHARE_LOGGED_OUT), Toast.LENGTH_LONG).show()
                 startActivity(Intent(this@ShareActivity, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); finish()
             }
-            else show(text, all)
+            else show(text, all, file)
         }
     }
 
-    private fun show(text: String, all: List<Peer>) {
-        // A Direct Share target (a device's shortcut) sends at once; the app icon opens the Send screen.
-        val shortcut = directShortcut(intent.getStringExtra(ShortcutManagerCompat.EXTRA_SHORTCUT_ID), all.map { it.id }, text)
+    private fun show(text: String, all: List<Peer>, file: android.net.Uri? = null) {
+        // A Direct Share target (a device's shortcut) sends at once; the app icon opens the Send screen. A file always opens the Send screen.
+        val shortcut = if (file != null) null else directShortcut(intent.getStringExtra(ShortcutManagerCompat.EXTRA_SHORTCUT_ID), all.map { it.id }, text)
         if (shortcut != null) { sendDirect(all.first { it.id == shortcut }, text); return }
         // The app icon (no shortcut id) only preselects the target; the user must tap Send.
         val direct = directTarget(intent.getStringExtra(ShortcutManagerCompat.EXTRA_SHORTCUT_ID), all.map { it.id })
@@ -87,7 +88,7 @@ class ShareActivity : ComponentActivity() {
                     Column(Modifier.padding(horizontal = 8.dp, vertical = 8.dp)) {
                         SendScreen(vm, text, preselect = direct, inDialog = true, onPair = {
                             startActivity(MainActivity.openIntent(this@ShareActivity, "peers").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); finish()
-                        }) { r -> if (r.text.endsWith(ErrorText.UPDATE)) showUpdate() else if (r.ok) toastAndFinish(r.text) }
+                        }, initialFile = file) { r -> if (r.text.endsWith(ErrorText.UPDATE)) showUpdate() else if (r.ok) toastAndFinish(r.text) }
                     }
                 }
             }
@@ -105,6 +106,13 @@ class ShareActivity : ComponentActivity() {
     }
 
     companion object {
+        /** The shared file: EXTRA_STREAM of a share that is not plain text; null for text. */
+        fun sharedFile(i: Intent): android.net.Uri? {
+            if (i.type == "text/plain" && i.hasExtra(Intent.EXTRA_TEXT)) return null
+            @Suppress("DEPRECATION")
+            return i.getParcelableExtra<android.net.Uri>(Intent.EXTRA_STREAM)
+        }
+
         /** The share sheet shows Send only for a registered device that is not logged out. */
         fun canShare(registered: Boolean, signedOut: Boolean): Boolean = registered && !signedOut
 

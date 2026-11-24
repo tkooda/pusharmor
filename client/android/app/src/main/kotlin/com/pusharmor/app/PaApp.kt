@@ -114,6 +114,9 @@ class Graph(val app: PaApp) {
 
     val fileDownload by lazy { FileDownload(fileStore, fileClient::fetch) }
 
+    /** Received files: download jobs, catch-up, the storage limit, and the wipe. */
+    val files by lazy { com.pusharmor.app.files.ReceivedFiles(app, settings, dao, fileStore) }
+
     /**
      * 401 "unknown peer": the removal check runs (false = not confirmed, the call reads as no reply);
      * 401 "logged out": signed out. Applies to every signed call.

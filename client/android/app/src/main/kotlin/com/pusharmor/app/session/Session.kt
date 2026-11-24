@@ -213,6 +213,7 @@ class Session(private val g: Graph) {
         g.notifier.cancelAll()
         ShortcutManagerCompat.removeAllDynamicShortcuts(g.app)
         WorkManager.getInstance(g.app).cancelAllWork()
+        g.files.wipe()
         val prefs = g.slots.load(target, Settings.ACCOUNT_STATE)
         s.putAccountPrefs(prefs)
         if (target == null) s.set(Settings.K.KEY_ALIAS, KeystoreKeyOps.newBase())

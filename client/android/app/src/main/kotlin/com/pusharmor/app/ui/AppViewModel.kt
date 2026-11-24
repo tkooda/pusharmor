@@ -432,12 +432,21 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Set when that Direct Share send is done and its result shown; the dialog then closes. */
     val directDone = MutableStateFlow(false)
 
+    /** Files on the Send screen and in History. */
+    val files = FileModel(g, viewModelScope) { message.value = it }
+
+    /** Catch-up of received files on app open (and open from a notification). */
+    fun fileCatchUp() = io(null) { g.files.catchUp() }
+
     /** The Send screen's send: it runs here, so a rotation does not stop it; its result goes to [sendDone]. */
     fun sendFromScreen(to: List<String>, text: String, asText: Boolean) {
+        val file = files.chosen.value
         viewModelScope.launch {
             try {
                 g.client.onRetry = { a -> sendRetry = a }
-                val r = try { send(to, text, asText) { st -> if (st > sendStep) sendStep = st } } finally { g.client.onRetry = null }
+                val r = try {
+                    if (file != null) sendFile(to, file) { st -> if (st > sendStep) sendStep = st } else send(to, text, asText) { st -> if (st > sendStep) sendStep = st }
+                } finally { g.client.onRetry = null }
                 sendDone.value = r
             }
             finally { running.update { it - "send" } }
@@ -476,6 +485,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** The send of a chosen file: seal, upload, then the file message; errors as for [send], plus the file errors. */
+    suspend fun sendFile(recipients: List<String>, c: FileModel.Chosen, onStep: (Int) -> Unit = {}): SendResult = withContext(Dispatchers.IO) {
+        try {
+            g.client.onProgress = onStep
+            val out = try { files.sendFile(recipients, c, onStep) } finally { g.client.onProgress = null }
+            if (out.error != null) return@withContext SendResult(ErrorText.of(UiText.UNABLE_SEND, out.error!!, UiText.pushHost(g.settings.get(Settings.K.UP_ENDPOINT))))
+            sendResult(recipients.size, out, recipients.singleOrNull()) { id -> g.store.peer(id)?.let(::label) }
+        } catch (e: CancellationException) { throw e } catch (e: Exception) {
+            Log.w("PushArmor", "file send failed", e)
+            SendResult(files.sendError(e, c) ?: ErrorText.text(UiText.UNABLE_SEND, localReason(e)))
+        }
+    }
+
     /**
      * Snackbar text for [out]; a send that reached a device carries its History row and is posted to [sent]. One
      * picked device ([only]) that did not get it says why.
@@ -495,6 +517,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (key == Settings.K.HISTORY_DAYS) g.session.purgeHistory()
     }
 
+    /** Saves the storage limit for received files; the oldest files go at once when the rest do not fit. */
+    fun setFileStorage(bytes: Long) = io(UiText.UNABLE_CHANGE_SETTING) {
+        g.settings.set(Settings.K.FILE_STORAGE, bytes)
+        g.files.enforceLimit()
+        files.refresh(decrypt = false)
+    }
+
     /** Saves the Theme choice and tells the system, so the splash screen and window follow it (no white flash). */
     fun setTheme(t: com.pusharmor.app.ui.theme.ThemePref) {
         setPref(Settings.K.THEME, t.key)
@@ -503,6 +532,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun deleteHistory(ids: List<Long>) = io(UiText.UNABLE_DELETE_MESSAGES) {
         if (!syncDelete(g.dao.historyRows(ids))) ids.chunked(500).forEach { g.dao.deleteHistory(it) }
+        files.forget(ids)
     }
 
     /** The delete progress bar of a delete in several del calls: its part done and caption; null when none shows. */

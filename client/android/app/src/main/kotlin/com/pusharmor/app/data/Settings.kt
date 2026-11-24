@@ -63,7 +63,8 @@ class Settings(private val context: Context, private val dao: PaDao) {
 
         /** The settings file keys that belong to the active account; push, theme, channels, and notices stay with the device. */
         val ACCOUNT_PREFS: List<Preferences.Key<*>> = listOf(K.SHOW_ALL, K.TAP_OPENS_LINK, K.HISTORY_DAYS, K.SHARE_OFF, K.LOCK_SCREEN, K.WATCH,
-            K.SHOW_CONTENT, K.PUSH_MISSING, K.PATCH_BAD_ID, K.PUSH_ERROR, K.PAIR_ERROR, K.RELAY_FAULT, K.BANNER, K.LAST_FETCH, K.LAST_REFRESH, K.LAST_SEND_TO)
+            K.SHOW_CONTENT, K.PUSH_MISSING, K.PATCH_BAD_ID, K.PUSH_ERROR, K.PAIR_ERROR, K.RELAY_FAULT, K.BANNER, K.LAST_FETCH, K.LAST_REFRESH, K.LAST_SEND_TO,
+            K.FILE_WIFI, K.FILE_MOBILE, K.FILE_STORAGE)
 
         /** One lock in the process: a deferred move never interleaves with a [set] of the keys it moves. */
         private val dbLock = Any()
@@ -74,6 +75,10 @@ class Settings(private val context: Context, private val dao: PaDao) {
 
     object K {
         val SHOW_ALL = booleanPreferencesKey("show_all")
+        /** Auto-download pickers in bytes (0 = Off) on Wi-Fi and on mobile data; storage for received files in bytes. */
+        val FILE_WIFI = longPreferencesKey("file_wifi")
+        val FILE_MOBILE = longPreferencesKey("file_mobile")
+        val FILE_STORAGE = longPreferencesKey("file_storage")
         val TAP_OPENS_LINK = booleanPreferencesKey("tap_opens_link")
         val HISTORY_DAYS = intPreferencesKey("history_days")
         /** "Sync deletions" (this device only); absent = on. */

@@ -98,6 +98,12 @@ class MainActivity : ComponentActivity() {
         setContent { AppTheme(vm) { Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) { App(vm) } } }
     }
 
+    /** App open (also from a notification): received files the pickers allow start downloading. */
+    override fun onStart() {
+        super.onStart()
+        vm.fileCatchUp()
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)

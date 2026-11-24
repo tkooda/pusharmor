@@ -242,7 +242,25 @@ class Notifier(private val context: Context, private val settings: Settings, pri
     }
 
     /** url / text / tel: the sender's device name in quotes over the message ("New message from $peer" when hidden). */
-    fun content(historyId: Long, peerId: String, c: ShownContent) {
+    fun content(historyId: Long, peerId: String, c: ShownContent) = post(historyId, peerId) { b, open ->
+        val body = if (c.type == ContentType.URL && !c.showAsText) c.href ?: c.value else c.value
+        b.setContentText(body).setStyle(NotificationCompat.BigTextStyle().bigText(body))
+        when {
+            c.type == ContentType.URL && !c.showAsText -> {
+                b.setContentIntent(if (settings.tapOpensLink) action(historyId, "open") else open)
+                b.addAction(0, "Open", action(historyId, "open")).addAction(0, "Copy", action(historyId, "copy")).addAction(0, "Share", action(historyId, "share"))
+            }
+            c.type == ContentType.TEL && c.canDial -> {
+                b.setContentIntent(open).addAction(0, "Call", action(historyId, "dial")).addAction(0, "Copy", action(historyId, "copy"))
+            }
+            else -> b.setContentIntent(open).addAction(0, "Copy", action(historyId, "copy")).addAction(0, "Share", action(historyId, "share"))
+        }
+    }
+
+    /** A received file: its name as the text; a tap opens it in History. */
+    fun file(historyId: Long, peerId: String, name: String) = post(historyId, peerId) { b, open -> b.setContentText(name).setContentIntent(open) }
+
+    private fun post(historyId: Long, peerId: String, fill: (NotificationCompat.Builder, android.app.PendingIntent) -> Unit) {
         val peer = dao.peer(peerId)
         val policy = Policy.of(settings.lockScreen, peer?.lockScreen ?: true, settings.watch, peer?.watch ?: true, !settings.showContent, !(peer?.showContent ?: true))
         val channel = peer?.channelId?.takeIf { nm.getNotificationChannel(it) != null } ?: messagesChannel
@@ -252,18 +270,8 @@ class Notifier(private val context: Context, private val settings: Settings, pri
         if (policy.hideAll) {
             b.setContentTitle(UiText.newMessageFrom(peer?.name)).setContentIntent(open)
         } else {
-            val body = if (c.type == ContentType.URL && !c.showAsText) c.href ?: c.value else c.value
-            b.setContentTitle(UiText.messageTitle(peer?.let { com.pusharmor.app.ui.label(it.toPeer()) })).setContentText(body).setStyle(NotificationCompat.BigTextStyle().bigText(body))
-            when {
-                c.type == ContentType.URL && !c.showAsText -> {
-                    b.setContentIntent(if (settings.tapOpensLink) action(historyId, "open") else open)
-                    b.addAction(0, "Open", action(historyId, "open")).addAction(0, "Copy", action(historyId, "copy")).addAction(0, "Share", action(historyId, "share"))
-                }
-                c.type == ContentType.TEL && c.canDial -> {
-                    b.setContentIntent(open).addAction(0, "Call", action(historyId, "dial")).addAction(0, "Copy", action(historyId, "copy"))
-                }
-                else -> b.setContentIntent(open).addAction(0, "Copy", action(historyId, "copy")).addAction(0, "Share", action(historyId, "share"))
-            }
+            b.setContentTitle(UiText.messageTitle(peer?.let { com.pusharmor.app.ui.label(it.toPeer()) }))
+            fill(b, open)
             if (policy.privateOnLockScreen) {
                 b.setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
                 b.setPublicVersion(NotificationCompat.Builder(context, channel).setSmallIcon(R.drawable.ic_notify).setColor(NAVY).setContentTitle("New message").build())

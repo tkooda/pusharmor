@@ -40,6 +40,14 @@ class AppEffects(private val g: Graph, private val fcm: Boolean) : Effects {
     override fun newerVersionSeen() = g.settings.set(com.pusharmor.app.data.Settings.K.NEWER_VERSION, true)
     override fun showContent(historyId: Long, peerId: String, content: ShownContent) = n.content(historyId, peerId, content)
     override fun rePresent(historyId: Long) = n.rePresent(historyId)
+    override fun showFile(historyId: Long, peerId: String, file: com.pusharmor.protocol.FileValue) {
+        // no notification for a file already past expires on arrival, only the row
+        if (System.currentTimeMillis() / 1000 < file.expires) {
+            val at = g.dao.history(historyId)?.at ?: System.currentTimeMillis()
+            n.file(historyId, peerId, com.pusharmor.app.files.FileUi.receivedName(file.name, at))
+        }
+        g.files.onArrived(historyId, file)
+    }
     override fun approvedNotice(peerId: String, name: String?) = n.peersNotice(UiText.approvedNotice(name), 3)
     override fun renamedNotice(oldName: String?, newName: String) = n.peersNotice(UiText.renamedNotice(oldName, newName), 4)
     override fun peerListChanged() = n.peersNotice("Device list changed.", 5)
@@ -49,6 +57,7 @@ class AppEffects(private val g: Graph, private val fcm: Boolean) : Effects {
     }
     override fun historyDeleted(peerId: String, historyIds: List<Long>, count: Int) {
         historyIds.forEach { n.cancel(Notifier.TAG_MSG, it.toInt()) }
+        g.files.forget(historyIds)
         n.deletedNotice(peerId, count) { UiText.deletedNotice(it, nameOf(peerId)) }
     }
     override fun selfRemoved(deleted: Boolean) { g.session.onRemovedSignal(deleted = deleted) }

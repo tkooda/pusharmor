@@ -31,7 +31,7 @@ class HistoryActionsTest {
         val main = source("ui/MainScreens.kt")
         assertTrue(main.contains("internal const val UNKNOWN_TYPE_TEXT = \"Unknown message type, please update\""))
         assertTrue(main.contains("Icon(PaIcons.Cancel, null, Modifier.size(18.dp), tint = cs.error)"))
-        assertTrue(main.contains("if (expanded && !selecting && hc != null && !unknown) {"))
+        assertTrue(main.contains("if (expanded && !selecting && hc != null && !unknown && file == null) {"))
         assertEquals(1, Regex("MessageActions \\{").findAll(main).count())
     }
 

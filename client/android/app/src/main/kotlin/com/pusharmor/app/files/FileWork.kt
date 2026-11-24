@@ -22,6 +22,9 @@ import java.util.concurrent.TimeUnit
 
 /** One unique WorkManager job per received file; no foreground service: a job stopped by the system resumes by Range on its next run. */
 object FileWork {
+    /** Tag of every file download job; each also has "file:<key>". */
+    const val TAG = "file"
+
     /**
      * [unmeteredOnly]: the picker allows the file on Wi-Fi only. [manual]: a tap on Download, recorded in the
      * file's folder first and run at once (a queued job is replaced; a run in progress is stopped, and the new
@@ -33,6 +36,7 @@ object FileWork {
         val b = OneTimeWorkRequestBuilder<FileDownloadWorker>().setConstraints(net)
             .setInputData(workDataOf("key" to key, "file" to f.toJson(), "name" to name, "unmetered" to unmeteredOnly))
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
+            .addTag(TAG).addTag(TAG + ":" + key)
         if (delaySec > 0) b.setInitialDelay(delaySec, TimeUnit.SECONDS)
         WorkManager.getInstance(context).enqueueUniqueWork("file-$key", if (manual || delaySec > 0) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP, b.build())
     }

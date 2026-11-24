@@ -259,7 +259,7 @@ class AppLogicTest {
         assertFalse(share.contains("Send the first") || share.contains("truncateUtf8"))
         assertTrue(share.contains("SendScreen(vm, text,"))
         val main = source("ui/MainScreens.kt")
-        assertTrue(main.contains("bytes <= SizeCap.MAX_CONTENT_BYTES && \"send\" !in running)"))
+        assertTrue(main.contains("bytes <= SizeCap.MAX_CONTENT_BYTES)) && \"send\" !in running)"))
     }
 
     @Test fun refreshFailureSaysWhy() {
