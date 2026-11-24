@@ -26,11 +26,66 @@ public struct NameField: Equatable, Sendable {
     }
 }
 
+/// The value of a file message: {"url", "expires", "key", "name", "size", "sha256"}; unknown
+/// extra keys are ignored.
+public struct FileRef: Equatable, Sendable {
+    public let url: String
+    /// Unix seconds.
+    public let expires: Int64
+    /// 43-char b64url of the 32-byte AES-256-GCM key.
+    public let key: String
+    /// The name as sent; the receiver sanitizes it again.
+    public let name: String
+    /// Plaintext bytes; the blob is size + 28.
+    public let size: Int64
+    /// 43-char b64url SHA-256 of the whole blob.
+    public let sha256: String
+
+    public init(url: String, expires: Int64, key: String, name: String, size: Int64, sha256: String) {
+        self.url = url
+        self.expires = expires
+        self.key = key
+        self.name = name
+        self.size = size
+        self.sha256 = sha256
+    }
+
+    public var json: String {
+        "{\"url\":" + StrictJSON.quote(url) + ",\"expires\":" + String(expires) + ",\"key\":" + StrictJSON.quote(key)
+            + ",\"name\":" + StrictJSON.quote(name) + ",\"size\":" + String(size) + ",\"sha256\":" + StrictJSON.quote(sha256) + "}"
+    }
+
+    /// A JSON integer token in 0 ... 2^53 - 1 (digits only, no leading zero), else nil.
+    static func uint(_ t: String) -> Int64? {
+        let u = Array(t.utf8)
+        guard (1 ... 16).contains(u.count), u.allSatisfy({ $0 >= 0x30 && $0 <= 0x39 }), u.count == 1 || u[0] != 0x30,
+              let v = Int64(t), v <= 9_007_199_254_740_991 else { return nil }
+        return v
+    }
+
+    /// A 43-char strict b64url string of 32 bytes.
+    static func b64x32(_ v: JSONValue?) -> String? {
+        guard let s = v?.stringValue, s.utf8.count == 43, B64URL.decode(s)?.count == 32 else { return nil }
+        return s
+    }
+
+    public static func from(_ v: JSONValue) -> FileRef? {
+        guard v.objectMembers != nil,
+              let url = v["url"]?.stringValue, url.utf8.count <= InnerJSON.contentCap,
+              let name = v["name"]?.stringValue, name.utf8.count <= InnerJSON.contentCap,
+              case .number(let e)? = v["expires"], let expires = uint(e),
+              case .number(let z)? = v["size"], let size = uint(z),
+              let key = b64x32(v["key"]), let sha = b64x32(v["sha256"]) else { return nil }
+        return FileRef(url: url, expires: expires, key: key, name: name, size: size, sha256: sha)
+    }
+}
+
 /// One inner message type (catalog Inner message JSON).
 public enum MessageContent: Equatable, Sendable {
     case url(String)
     case text(String)
     case tel(String)
+    case file(FileRef)
     case approve(NameField)
     case deny
     case remove(String)
@@ -49,6 +104,7 @@ public enum MessageContent: Equatable, Sendable {
         case .url: return "url"
         case .text: return "text"
         case .tel: return "tel"
+        case .file: return "file"
         case .approve: return "approve"
         case .deny: return "deny"
         case .remove: return "remove"
@@ -61,10 +117,10 @@ public enum MessageContent: Equatable, Sendable {
         }
     }
 
-    /// url, text, tel (and an unknown type with "show"): the types that write a History row.
+    /// url, text, tel, file (and an unknown type with "show"): the types that write a History row.
     public var isContent: Bool {
         switch self {
-        case .url, .text, .tel, .unknown: return true
+        case .url, .text, .tel, .file, .unknown: return true
         default: return false
         }
     }
@@ -73,6 +129,7 @@ public enum MessageContent: Equatable, Sendable {
         switch self {
         case .url(let s), .text(let s), .tel(let s), .remove(let s): return StrictJSON.quote(s)
         case .approve(let f), .rename(let f): return f.json
+        case .file(let f): return f.json
         case .deny, .delete, .logout, .login, .unknown: return "1"
         case .del(let ids): return "[" + ids.map(StrictJSON.quote).joined(separator: ",") + "]"
         }
@@ -80,7 +137,7 @@ public enum MessageContent: Equatable, Sendable {
 }
 
 /// Inner message JSON {"v": 1, "n": .., "id": .., "show": true, one type key}; "show" only on
-/// a url, text or tel.
+/// a url, text, tel or file.
 public struct InnerJSON: Equatable, Sendable {
     public static let contentCap = 2048
     /// The format version: 1 when absent; a larger one is from a newer version.
@@ -156,7 +213,7 @@ public struct InnerJSON: Equatable, Sendable {
     }
 
     /// Type keys in priority order: the first one present is the message type.
-    static let typeOrder = ["url", "text", "tel", "approve", "deny", "remove", "rename", "delete", "logout", "login", "del"]
+    static let typeOrder = ["url", "text", "tel", "file", "approve", "deny", "remove", "rename", "delete", "logout", "login", "del"]
 
     /// Lenient parse: n plus at least one known type key; unknown keys and any
     /// lower-priority type keys are ignored. n and v JSON integers in 1 ... 2^53 - 1 on the
@@ -194,6 +251,9 @@ public struct InnerJSON: Equatable, Sendable {
         case "url": c = .url(try str())
         case "text": c = .text(try str())
         case "tel": c = .tel(try str())
+        case "file":
+            guard let f = FileRef.from(val) else { throw Failure.value }
+            c = .file(f)
         case "remove":
             let id = try str()
             guard PeerId(text: id) != nil else { throw Failure.value }   // at parse, before the replay window

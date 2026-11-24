@@ -217,6 +217,7 @@ extension Store {
             try db.exec("DELETE FROM pairing")
             try db.exec("DELETE FROM replay")
             try db.exec("DELETE FROM allow_set")
+            try db.exec("DELETE FROM files")
             try db.exec("DELETE FROM settings WHERE key IN ('pair_cap', 'removal_check', 'send_draft')")
             db.checkpointAfterCommit = true
         }

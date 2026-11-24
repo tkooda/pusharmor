@@ -262,6 +262,25 @@ enum Schema {
         "ALTER TABLE history ADD COLUMN msg_id TEXT",
         "ALTER TABLE history ADD COLUMN del_requested TEXT;\nALTER TABLE history ADD COLUMN del_accepted TEXT",
         "ALTER TABLE peers ADD COLUMN version TEXT",   // unused
+        """
+        CREATE TABLE files (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          dir TEXT NOT NULL,
+          history_rowid INTEGER,
+          url TEXT, expires INTEGER, key TEXT NOT NULL,
+          name TEXT NOT NULL, size INTEGER NOT NULL, sha256 TEXT,
+          state TEXT NOT NULL, code TEXT, error TEXT,
+          attempts INTEGER NOT NULL DEFAULT 0, open_at INTEGER NOT NULL DEFAULT -1,
+          again INTEGER NOT NULL DEFAULT 0,
+          task TEXT,
+          status INTEGER NOT NULL DEFAULT 0, reply_error TEXT, retry_after INTEGER,
+          decrypt_mark INTEGER,
+          send_id TEXT, tries INTEGER NOT NULL DEFAULT 0, recipients TEXT, msg_id TEXT,
+          all_count INTEGER NOT NULL DEFAULT 0,
+          created INTEGER NOT NULL
+        );
+        CREATE INDEX files_history ON files(history_rowid)
+        """,
     ]
 
     /// Reads user_version first with no transaction; takes the write lock only when a

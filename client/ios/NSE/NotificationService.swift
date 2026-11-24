@@ -43,6 +43,10 @@ final class NotificationService: UNNotificationServiceExtension {
                     guard let b = r.banner else { return }
                     self?.setCommitted(BannerContent.content(b, m: m, key: key, handled: r.handled))
                 })
+            // a file message: its background download starts first (milliseconds), so the banner is not late
+            if let id = r.fileId, let store = try? env.openStore(), let keys = try? env.keychain.load() {
+                FileTransfers.shared.nseStart(id, core: env.makeCore(store: store, keys: keys))
+            }
             self.deliver(BannerContent.content(r.banner ?? .dropped, m: m, key: key, handled: r.handled))
         }
     }

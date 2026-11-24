@@ -24,14 +24,20 @@ extension Core {
     /// `allCount` = |All| at tap time.
     public func send(_ content: String, as type: SendType, to recipients: [PeerId], allCount: Int) async throws -> SendReport {
         guard !SizeCap.isOver(content) else { throw SendError.tooLong }
-        guard !recipients.isEmpty else { throw SendError.noRecipients }
         let mc: MessageContent
         switch type {
         case .url: mc = .url(content)
         case .text: mc = .text(content)
         case .tel: mc = .tel(content)
         }
-        let msgId = InnerJSON.newId()
+        return try await sendContent(mc, rowType: type.rawValue, rowContent: content, msgId: InnerJSON.newId(),
+                                     to: recipients, allCount: allCount)
+    }
+
+    /// The send pipeline for one content message; the outgoing History row gets rowType and rowContent.
+    func sendContent(_ mc: MessageContent, rowType: String, rowContent: String, msgId: String, to recipients: [PeerId],
+                     allCount: Int) async throws -> SendReport {
+        guard !recipients.isEmpty else { throw SendError.noRecipients }
         let out = try await signedWithMessages("POST", "/v1/send") {
             var m: [PeerId: String] = [:]
             for id in recipients { m[id] = try buildMessage(to: id, msgId: msgId) { _ in mc } }
@@ -70,7 +76,7 @@ extension Core {
         }
         if due { try? store.setMe("fetch_due", .int(1)) }
         let resultsJSON = JOut.obj(recipients.map { ($0.text, .str(results[$0.text] ?? "failed")) }).text
-        let rowid = try? store.addMessage(dir: .outgoing, peer: recipients[0], type: type.rawValue, content: content, n: nil,
+        let rowid = try? store.addMessage(dir: .outgoing, peer: recipients[0], type: rowType, content: rowContent, n: nil,
                                           pairingId: nil, read: true, results: resultsJSON, now: clock(), msgId: msgId)
         return SendReport(sent: sent, total: allCount, results: results, lines: lines, rowid: rowid, soleName: soleName)
     }

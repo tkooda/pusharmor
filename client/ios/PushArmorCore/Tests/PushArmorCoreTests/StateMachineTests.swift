@@ -2097,7 +2097,7 @@ final class StateMachineTests: XCTestCase {
         let path = NSTemporaryDirectory() + "pa-mig-\(UUID().uuidString).sqlite"
         _ = try Store(path: path)
         let s = try Store(path: path)
-        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 5)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 6)
         XCTAssertEqual(try s.db.one("PRAGMA journal_mode")?.text("journal_mode"), "wal")
         XCTAssertNil(try s.me().id)
     }
@@ -2107,18 +2107,19 @@ final class StateMachineTests: XCTestCase {
         let path = NSTemporaryDirectory() + "pa-mig1-\(UUID().uuidString).sqlite"
         let id = PeerId(raw: Data((0 ..< 30).map { UInt8($0) }))!
         do {
-            // DB(path:) migrates to the latest version: undo migrations 5, 4, 3 and 2 to get a version 1 file
+            // DB(path:) migrates to the latest version: undo migrations 6, 5, 4, 3 and 2 to get a version 1 file
             let db = try DB(path: path)
             try db.exec("ALTER TABLE peers DROP COLUMN version")
             try db.exec("ALTER TABLE history DROP COLUMN del_accepted")
             try db.exec("ALTER TABLE history DROP COLUMN del_requested")
             try db.exec("ALTER TABLE history DROP COLUMN msg_id")
             try db.exec("ALTER TABLE pairing DROP COLUMN wait_from")
+            try db.exec("DROP TABLE files")
             try db.exec("PRAGMA user_version = 1")
             try db.exec("INSERT INTO pairing (peer_id, role, state, started_at, last_send_at) VALUES (?, 'N', 'committed', 1000, 1010)", [.text(id.text)])
         }
         let s = try Store(path: path)
-        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 5)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 6)
         let e = try XCTUnwrap(try s.pairing(id))
         XCTAssertEqual(e.startedAt, 1000)
         XCTAssertEqual(e.lastSendAt, 1010)
@@ -2135,12 +2136,13 @@ final class StateMachineTests: XCTestCase {
             try db.exec("ALTER TABLE peers DROP COLUMN version")
             try db.exec("ALTER TABLE history DROP COLUMN del_accepted")
             try db.exec("ALTER TABLE history DROP COLUMN del_requested")
+            try db.exec("DROP TABLE files")
             try db.exec("PRAGMA user_version = 3")
             try db.exec("INSERT INTO history (dir, peer_id, type, content, read, created_local, msg_id) VALUES ('in', ?, 'text', 'kept', 0, 1000, 'm1')",
                         [.text(id.text)])
         }
         let s = try Store(path: path)
-        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 5)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 6)
         let rows = try s.history()
         XCTAssertEqual(rows.count, 1)
         XCTAssertEqual(rows[0].content, "kept")
@@ -2161,12 +2163,13 @@ final class StateMachineTests: XCTestCase {
             try db.exec("ALTER TABLE history DROP COLUMN del_accepted")
             try db.exec("ALTER TABLE history DROP COLUMN del_requested")
             try db.exec("ALTER TABLE history DROP COLUMN msg_id")
+            try db.exec("DROP TABLE files")
             try db.exec("PRAGMA user_version = 2")
             try db.exec("INSERT INTO history (dir, peer_id, type, content, read, created_local) VALUES ('in', ?, 'text', 'kept', 0, 1000)",
                         [.text(id.text)])
         }
         let s = try Store(path: path)
-        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 5)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 6)
         let rows = try s.history()
         XCTAssertEqual(rows.count, 1)
         XCTAssertEqual(rows[0].content, "kept")
@@ -2189,7 +2192,7 @@ final class StateMachineTests: XCTestCase {
         let s = try await StoreRepair.reset(path: path, vault: FakeVault()) { called += 1 }
         XCTAssertEqual(called, 1)
         XCTAssertNil(try s.me().id)
-        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 5)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 6)
         try s.setMe("name", .text("kept"))
         let s2 = try XCTUnwrap(try StoreRepair.open(path: path))
         XCTAssertEqual(called, 1)
@@ -2416,11 +2419,12 @@ final class StateMachineTests: XCTestCase {
         do {
             let db = try DB(path: path)
             try db.exec("ALTER TABLE peers DROP COLUMN version")
+            try db.exec("DROP TABLE files")
             try db.exec("PRAGMA user_version = 4")
             try db.exec("INSERT INTO peers (id, platform, name) VALUES (?, 'android', 'kept')", [.text(id.text)])
         }
         let s = try Store(path: path)
-        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 5)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 6)
         let p = try XCTUnwrap(try s.peer(id))
         XCTAssertEqual(p.name, "kept")
         XCTAssertEqual(p.platform, "android")

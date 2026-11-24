@@ -27,6 +27,8 @@ public struct ReceiveResult: Sendable {
     var removalSignal = false
     /// History rows a del removed: receive awaits the removal of their delivered notifications.
     var deletedRowids: [Int64] = []
+    /// A file message wrote this files record (the NSE may start its download).
+    public var fileId: Int64?
 
     static func plain(_ b: Banner?) -> ReceiveResult {
         ReceiveResult(banner: b, rowid: nil, committed: false, newMessage: false, approveVerified: false)
@@ -119,6 +121,7 @@ extension Core {
         var removalSignal = false
         /// History rows a del removed: their delivered notifications go after the commit.
         var deletedRowids: [Int64] = []
+        var fileId: Int64?
     }
 
     /// Steps 4-8 and the step 9 table for an inner message against the stored pins and windows.
@@ -181,6 +184,7 @@ extension Core {
                                         newMessage: a.newMessage, approveVerified: a.approveVerified)
                 res.removalSignal = a.removalSignal
                 res.deletedRowids = a.deletedRowids
+                res.fileId = a.fileId
                 return res
             case .invalid:
                 return drop(mode, peer: r.verifiedFrom, invalid: true)
@@ -234,7 +238,7 @@ extension Core {
         case .logout: return noticeBanner(S.loggedOutNotice(nm), peer: id, category: .notice, tap: .peers(id?.text))
         case .login: return noticeBanner(S.loggedInNotice(nm), peer: id, category: .notice, tap: .peers(id?.text))
         case .del(let ids): return noticeBanner(S.messagesDeleted(removed ?? ids.count, nm), peer: id, category: .event, tap: .history)
-        case .url, .text, .tel, .unknown: return nil
+        case .url, .text, .tel, .file, .unknown: return nil
         }
     }
 
@@ -256,6 +260,17 @@ extension Core {
             a.rowid = rowid
             a.newMessage = true
             if let row = try store.historyRow(rowid) { a.banner = banner(forRow: row) }
+            return a
+        case .file(let f):
+            // until the file row ships, a file shows as the unknown-type row (content "file");
+            // its transfer state is the files record
+            try store.savePeer(p)
+            let rowid = try store.addMessage(dir: .incoming, peer: from, type: "unknown", content: "file", n: j.n,
+                                             pairingId: pid, read: false, results: nil, now: now, msgId: j.id)
+            a.rowid = rowid
+            a.fileId = try store.addFile(Core.receivedFile(f, historyRowid: rowid, now: now))
+            a.newMessage = true
+            a.banner = Banner.fallback
             return a
         case .unknown(let k):
             // a row with no actions that shows S.unknownType (content: the raw type key), stored

@@ -107,6 +107,8 @@ final class AppModel: ObservableObject {
     private var limitTicket: (ticket: String, at: Date)?
     private var requestToken: String?
     private var pendingKeys: DeviceKeys?
+    /// The file transfer launch step ran (once per process).
+    private var filesLaunched = false
 
     var auth: AuthClient { AuthClient(api: core?.api ?? APIClient()) }
 
@@ -342,7 +344,19 @@ final class AppModel: ObservableObject {
         let (n, lockedMs, held) = await core.drainLockedInbox(env.inbox)
         if n > 0 { lockedLine = S.receivedWhileLocked(n) }
         await drainDelivered(skip: lockedMs, held: held)
-        if phase == .main { await core.appOpen(push: pushInfo) }
+        if phase == .main {
+            await core.appOpen(push: pushInfo)
+            // file transfers: take over NSE downloads, check arrived files, catch-up, finish sends
+            let files = FileTransfers.shared
+            let launch = !filesLaunched
+            filesLaunched = true
+            files.stampActive()
+            Task.detached {
+                if launch { files.launch(core: core) }
+                files.catchUp(core: core)
+                files.finishSends(core: core)
+            }
+        }
         else { await core.retryPendingLogout(); await core.allowReconcile() }
         reload()
         if (try? core.takeNewerVersionSeen()) == true { toast = S.newerVersion }

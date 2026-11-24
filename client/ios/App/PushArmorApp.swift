@@ -24,6 +24,7 @@ struct PushArmorApp: App {
                 AppearancePreference(stored: appearance).apply()
                 Task { await delegate.model.onForeground() }
             } else if p == .background {
+                FileTransfers.shared.clearActive()
                 Task { @MainActor in delegate.model.saveDraft() }
             }
         }
@@ -46,6 +47,13 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         Task { @MainActor in model.didFailToRegister() }
     }
 
+    /// A file transfer session has events for the app (a download the NSE started, or an upload
+    /// the share sheet started): the session is attached and its delegate settles each task.
+    func application(_ application: UIApplication, handleEventsForBackgroundURLSession identifier: String,
+                     completionHandler: @escaping () -> Void) {
+        FileTransfers.shared.attach(identifier, completion: completionHandler)
+    }
+
     /// A background push is only ever the relay server's test push: nothing to do, no notification.
     func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable: Any]) async -> UIBackgroundFetchResult {
         .noData
@@ -59,6 +67,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     }
 
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
+        FileTransfers.shared.stampActive()
         Task { @MainActor in model.reload() }
         return [.banner, .sound, .list]
     }
