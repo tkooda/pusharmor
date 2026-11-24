@@ -68,15 +68,57 @@ const view = (id: string, label: string, extra: Partial<PeerView>): PeerView => 
 
 const all = (n: N): N[] => [n, ...n.kids.flatMap(all)];
 
-test("Devices: a rejected device shows nowhere, not even under Pair a new device", async () => {
+test("Devices: a rejected device shows only under a collapsed Rejected devices section at the bottom, with Pair", async () => {
   const peers = [view("p1", "Phone", {}), view("r1", "Old tablet", { rejected: true, actions: ["pair", "remove"], approvesMe: false, sendable: false, paired: false })];
   const env = { call: async () => ({ ok: true, data: { peers } }) } as unknown as UiEnv;
   const root = new N("div");
   await renderPeers(env, root as unknown as HTMLElement, false);
   const nodes = all(root);
-  assert.ok(nodes.some((n) => n.attrs.class === "pairnew"));
-  assert.deepEqual(nodes.filter((n) => n.attrs.id?.startsWith("peer-")).map((n) => n.attrs.id), ["peer-p1"]);
-  assert.ok(!nodes.some((n) => n.textContent.includes("Old tablet")));
+  assert.deepEqual(nodes.filter((n) => n.attrs.id?.startsWith("peer-")).map((n) => n.attrs.id), ["peer-p1", "peer-r1"]);
+  const sec = root.kids.find((n) => n.tag === "details")!;
+  assert.ok(sec, "no Rejected devices section");
+  assert.equal(sec.attrs.open, undefined, "the section starts collapsed");
+  assert.equal(sec.kids[0]!.tag, "summary");
+  assert.equal(sec.kids[0]!.textContent, "Rejected devices");
+  // after Pair a new device: the bottom of the list
+  assert.ok(root.kids.indexOf(sec) > root.kids.findIndex((n) => n.attrs.class === "pairnew"));
+  const inSec = all(sec);
+  assert.ok(inSec.some((n) => n.attrs.id === "peer-r1"));
+  assert.ok(!inSec.some((n) => n.attrs.id === "peer-p1"));
+  assert.ok(inSec.some((n) => n.tag === "button" && n.textContent === "Pair"));
+  assert.ok(!all(root).filter((n) => !inSec.includes(n)).some((n) => n.textContent === "Old tablet"));
+});
+
+test("Devices: no rejected device, no Rejected devices section", async () => {
+  const peers = [view("p1", "Phone", {})];
+  const env = { call: async () => ({ ok: true, data: { peers } }) } as unknown as UiEnv;
+  const root = new N("div");
+  await renderPeers(env, root as unknown as HTMLElement, false);
+  assert.ok(!all(root).some((n) => n.tag === "details" || n.textContent === "Rejected devices"));
+});
+
+test("both devices rejected each other: Pair under Rejected devices ends the rejection and pairs them", async () => {
+  const { w, a, b } = await setup();
+  await a.e.deny(b.id);
+  await b.e.deny(a.id);
+  assert.equal((await rowOf(b, a.id)).rejected, true);
+  // Pair on the row runs the pair op, as Pair elsewhere does
+  await new Rpc(b.e).handle({ op: "pair", args: { id: a.id } });
+  assert.equal((await b.db.peer(a.id))!.ruling, "none");
+  assert.ok(!(await rowOf(b, a.id)).rejected);
+  await deliver(w, a); // commit -> automatic reply
+  assert.equal((await a.db.peer(b.id))!.ruling, "none");
+  assert.ok(!(await rowOf(a, b.id)).rejected);
+  await deliver(w, b); // reply -> open
+  await deliver(w, a); // open -> shown
+  const fp = (await b.e.pairRowView(a.id))!.fingerprint;
+  assert.ok(fp);
+  assert.equal((await a.e.pairRowView(b.id))!.fingerprint, fp);
+  await b.e.approve(a.id);
+  await a.e.approve(b.id);
+  await deliver(w, b);
+  await deliver(w, a);
+  assert.ok((await rowOf(a, b.id)).paired && (await rowOf(b, a.id)).paired);
 });
 
 test("after a Reject the rejected device can pair again: it starts, both approve, then send works", async () => {

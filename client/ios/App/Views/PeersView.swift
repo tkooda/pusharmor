@@ -7,6 +7,7 @@ struct PeersView: View {
     @State private var pulseId: String?
     @State private var pulseOn = false
     @State private var showPairHowTo = false
+    @State private var rejectedOpen = false
     /// A pull-to-refresh is running: the system refresh control is the only spinner.
     @State private var pulling = false
 
@@ -67,6 +68,7 @@ struct PeersView: View {
                             Label("Pair a new device", systemImage: "plus.circle")
                         }
                     }
+                    RejectedSection(isExpanded: $rejectedOpen)
                 }
                 .sheet(isPresented: $showPairHowTo) { PairHowToView() }
                 .contentMargins(.bottom, 12, for: .scrollContent)
@@ -430,6 +432,39 @@ struct PairingCardView: View {
                 .font(.caption)
                 .foregroundColor(.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
+/// "Rejected devices": collapsed at the bottom of the list, hidden when empty. [Pair] on a row
+/// ends the rejection and starts pairing, as [Pair] on a new device does.
+struct RejectedSection: View {
+    @EnvironmentObject var model: AppModel
+    @Binding var isExpanded: Bool
+
+    var body: some View {
+        let rejected = PeerLabel.sorted(DeviceList.rejected(model.peers))
+        if !rejected.isEmpty {
+            Section {
+                DisclosureGroup("Rejected devices", isExpanded: $isExpanded) {
+                    ForEach(rejected, id: \.id.text) { p in
+                        HStack(spacing: 14) {
+                            IconTile(platformSymbol(p.platform))
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(model.label(p)).font(.body)
+                                Text(PeerLabel.platformName(p.platform))
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondaryText)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            Button("Pair") { Task { await model.pair(p) } }
+                                .buttonStyle(TonalGreenButtonStyle())
+                                .disabled(model.busy.contains("pair:" + p.id.text))
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+            }
         }
     }
 }

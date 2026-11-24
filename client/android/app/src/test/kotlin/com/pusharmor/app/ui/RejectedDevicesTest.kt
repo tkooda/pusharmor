@@ -21,6 +21,12 @@ class RejectedDevicesTest {
         assertEquals(listOf("a", "b"), devicesShown(all, setOf("b")).map { it.id })
     }
 
+    @Test fun rejectedSectionListsOnlyRejectedRows() {
+        val all = listOf(ready, rejected, paired, gone)
+        assertEquals(listOf("b"), devicesRejected(all, emptySet()).map { it.id })
+        assertEquals(emptyList<String>(), devicesRejected(all, setOf("b")).map { it.id })
+    }
+
     @Test fun pairedRowStaysAfterReject() {
         val p = paired.copy(deniedByMe = true)
         assertEquals(listOf("c"), devicesShown(listOf(p), emptySet()).map { it.id })

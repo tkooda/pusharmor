@@ -397,4 +397,9 @@ public enum DeviceList {
     public static func visible(_ peers: [Peer], withHistory: Set<String>) -> [Peer] {
         peers.filter { $0.state != .denied && ($0.state != .removed || withHistory.contains($0.id.text)) }
     }
+
+    /// The Rejected devices section: the rejected devices the list leaves out; [Pair] on one ends the rejection.
+    public static func rejected(_ peers: [Peer]) -> [Peer] {
+        peers.filter { $0.state == .denied && !$0.pinned }
+    }
 }

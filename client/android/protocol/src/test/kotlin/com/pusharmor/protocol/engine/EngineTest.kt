@@ -681,6 +681,18 @@ class EngineTest {
         assertTrue(n.store.peer(x.id)!!.approvesMe && x.store.peer(n.id)!!.approvesMe)
     }
 
+    /** Both devices rejected each other: Pair under Rejected devices ends the rejection and the pairing completes. */
+    @Test fun pairAfterMutualRejectCompletes() {
+        assertTrue(x.approve.deny(n.id) is ApiResult.Ok)
+        assertTrue(n.approve.deny(x.id) is ApiResult.Ok)
+        assertTrue(n.store.peer(x.id)!!.deniedByMe && x.store.peer(n.id)!!.deniedByMe)
+        pairShown()
+        assertFalse(n.store.peer(x.id)!!.deniedByMe)
+        assertFalse(x.store.peer(n.id)!!.deniedByMe)
+        approveBoth()
+        assertTrue(n.store.peer(x.id)!!.approvesMe && x.store.peer(n.id)!!.approvesMe)
+    }
+
     /** History holds no device status: a reject shows its notice and stores no row. */
     @Test fun rejectStoresNoHistoryRow() {
         pairShown(); approveBoth(); n.fetch()

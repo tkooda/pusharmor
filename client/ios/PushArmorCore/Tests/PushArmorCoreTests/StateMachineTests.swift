@@ -933,6 +933,30 @@ final class StateMachineTests: XCTestCase {
         XCTAssertTrue(got.isEmpty)
     }
 
+    /// Both devices rejected each other: [Pair] under Rejected devices ends the rejection on
+    /// both sides and the pairing completes.
+    func testPairAfterMutualRejectCompletes() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        await n.core.fetchPeers(force: true)
+        await x.core.fetchPeers(force: true)
+        _ = await n.core.deny(x.id)
+        _ = await x.core.deny(n.id)
+        XCTAssertEqual(DeviceList.rejected(try n.core.store.peers()).map { $0.id.text }, [x.id.text])
+        XCTAssertEqual(DeviceList.rejected(try x.core.store.peers()).map { $0.id.text }, [n.id.text])
+        try await Scenario.pairToShown(w, n, x)    // [Pair] on n's Rejected devices row
+        XCTAssertEqual(try n.core.store.peer(x.id)!.state, .unruled)
+        XCTAssertEqual(try x.core.store.peer(n.id)!.state, .unruled)
+        XCTAssertTrue(DeviceList.rejected(try n.core.store.peers()).isEmpty)
+        XCTAssertTrue(DeviceList.rejected(try x.core.store.peers()).isEmpty)
+        let vx = await x.core.approve(n.id)
+        XCTAssertEqual(vx, .stored)
+        let vn = await n.core.approve(x.id)
+        XCTAssertEqual(vn, .completed)
+        await x.drainInbox(w)
+        XCTAssertTrue(try n.core.store.peer(x.id)!.approveVerified)
+        XCTAssertTrue(try x.core.store.peer(n.id)!.approveVerified)
+    }
+
     /// Codes differ on a pinned row ends the pairing and drops the pin, so a later request or
     /// [Pair] is not refused as a pinned device.
     func testRejectOfPinnedRowDropsThePin() async throws {
@@ -954,6 +978,7 @@ final class StateMachineTests: XCTestCase {
         XCTAssertTrue(DeviceList.visible([removed, rejected], withHistory: []).isEmpty)
         XCTAssertEqual(DeviceList.visible([removed, rejected], withHistory: [a.id.text, b.id.text]).map { $0.id.text },
                        [a.id.text])
+        XCTAssertEqual(DeviceList.rejected([removed, rejected]).map { $0.id.text }, [b.id.text])
     }
 
     func testMessagesMissingWithdrawsThenRetriesOnce() async throws {

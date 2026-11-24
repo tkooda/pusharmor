@@ -202,6 +202,9 @@ internal fun rejectedHidden(p: Peer, pairing: Set<String>): Boolean = p.deniedBy
 internal fun devicesShown(others: List<Peer>, pairing: Set<String>): List<Peer> =
     others.filter { !(it.removed && !it.pinned && it.id !in pairing) && !rejectedHidden(it, pairing) }
 
+/** The Rejected devices section: the rejected devices the Devices list leaves out; Pair on one ends the rejection. */
+internal fun devicesRejected(others: List<Peer>, pairing: Set<String>): List<Peer> = others.filter { rejectedHidden(it, pairing) }
+
 internal fun platformIcon(platform: String): ImageVector = when (platform) {
     "chrome" -> PaIcons.Laptop
     "cli" -> PaIcons.Terminal
@@ -237,6 +240,7 @@ fun PeersScreen(vm: AppViewModel, onChoosePush: () -> Unit = {}) {
     var confirmRemove by rememberSaveable { mutableStateOf<String?>(null) }
     var confirmDelete by rememberSaveable { mutableStateOf<String?>(null) }
     var pairHowTo by rememberSaveable { mutableStateOf(false) }
+    var rejectedOpen by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) { devicesScreenOpen(vm) { now = System.currentTimeMillis() } }
     val me by vm.self.collectAsState()
     // No paired device: the first-pair steps and the Waiting to pair row (was a screen in place of the tabs).
@@ -246,6 +250,7 @@ fun PeersScreen(vm: AppViewModel, onChoosePush: () -> Unit = {}) {
     // Each section is in alphabetical order of the shown name.
     val pairing = UiText.sortedByName(list.filter { p -> rows.any { it.peerId == p.id } }, ::label)
     val plain = UiText.sortedByName(list.filter { p -> rows.none { it.peerId == p.id } }, ::label)
+    val rejected = UiText.sortedByName(devicesRejected(others(peers, me?.id), pairingIds), ::label)
     val lastRefresh = prefs?.get(Settings.K.LAST_REFRESH) ?: 0
     val canRefresh = now - lastRefresh >= Session.REFRESH_GREY_MS
     // Refresh turns on again when its grey time ends.
@@ -321,6 +326,20 @@ fun PeersScreen(vm: AppViewModel, onChoosePush: () -> Unit = {}) {
                         ListItem(modifier = Modifier.padding(horizontal = 16.dp), colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                             leadingContent = { CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 3.dp) },
                             headlineContent = { Text(UiText.FIRST_DEVICE_WAITING, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant) })
+                    }
+                }
+                // Collapsed at the bottom; Pair on a row ends the rejection and starts pairing.
+                if (rejected.isNotEmpty()) {
+                    item(key = "rejected-header") {
+                        Row(Modifier.fillMaxWidth().clickable(role = Role.Button) { rejectedOpen = !rejectedOpen }
+                            .semantics { stateDescription = if (rejectedOpen) "Expanded" else "Collapsed" }, verticalAlignment = Alignment.CenterVertically) {
+                            SectionHeader("Rejected devices", Modifier.weight(1f))
+                            Icon(if (rejectedOpen) PaIcons.ExpandLess else PaIcons.ExpandMore, null, Modifier.padding(end = 16.dp, top = 12.dp), tint = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                    if (rejectedOpen) itemsIndexed(rejected, key = { _, p -> "rejected-" + p.id }) { i, p ->
+                        PeerRow(vm, p, now, false, me?.id, Modifier.padding(top = if (i > 0) 2.dp else 0.dp).groupItem(i, rejected.size), rejected = true,
+                            onDelete = { confirmDelete = p.id }) { confirmRemove = p.id }
                     }
                 }
             }
@@ -629,7 +648,7 @@ private fun BannerRow(text: String, action: String, fault: Boolean, icon: ImageV
 
 /** One peer in the Peers group: icon tile, name, platform, status line, overflow menu; the menu holds the per-device options. */
 @Composable
-private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, selfId: String?, modifier: Modifier, onDelete: () -> Unit, onRemove: () -> Unit) {
+private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, selfId: String?, modifier: Modifier, rejected: Boolean = false, onDelete: () -> Unit, onRemove: () -> Unit) {
     val x = label(p)
     var menu by remember { mutableStateOf(false) }
     val pairingAgain by vm.pairingAgain.collectAsState()
@@ -711,7 +730,8 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
         }
         when {
             !p.pinned -> Row(inset.padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedButton(onClick = { vm.deny(p.id) }, Modifier.heightIn(min = 48.dp), enabled = "deny:${p.id}" !in running, colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                // A rejected device (Rejected devices section) offers only Pair.
+                if (!rejected) OutlinedButton(onClick = { vm.deny(p.id) }, Modifier.heightIn(min = 48.dp), enabled = "deny:${p.id}" !in running, colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
                     border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error)) { Text("Reject") }
                 TonalGreenButton(onClick = { vm.pair(p.id) }, text = "Pair", enabled = "pair:${p.id}" !in running)
             }

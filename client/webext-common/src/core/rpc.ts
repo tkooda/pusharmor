@@ -40,7 +40,7 @@ export interface PeerView {
   approvesMe: boolean;
   /** paired both ways and no pairing in progress (none paired shows the first-device screen) */
   paired: boolean;
-  /** rejected on this device: left out of the list until it sends a new pairing request */
+  /** rejected on this device: listed only under Rejected devices until it sends a new pairing request or gets Pair */
   rejected?: boolean;
 }
 
@@ -319,7 +319,7 @@ export class Rpc {
         v.greyed = "(missing)";
         v.actions = ["localDelete"];
       } else if (!p.pinned && p.ruling === "denied") {
-        // rejected: left out of the list; a new pairing request from it shows it again
+        // rejected: listed under Rejected devices; a new pairing request from it or Pair here shows it again
         v.rejected = true;
         v.actions = ["pair"];
       } else if (!p.pinned) {

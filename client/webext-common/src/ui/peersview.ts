@@ -35,6 +35,8 @@ let refreshUntil = 0;
 const tryAgainUntil = new Map<string, number>();
 /** the live read of the device list. */
 let fpTimer: ReturnType<typeof setInterval> | null = null;
+/** Rejected devices stays open across redraws of the list once opened. */
+let rejectedOpen = false;
 
 /** The view is gone (a new mount, an account switch): stops the live read and frees Refresh. */
 export function resetPeersView(): void {
@@ -42,6 +44,7 @@ export function resetPeersView(): void {
   fpTimer = null;
   refreshUntil = 0;
   tryAgainUntil.clear();
+  rejectedOpen = false;
 }
 
 /** Draws the list again, with focus on that row after an action. */
@@ -52,8 +55,9 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
   clear(root);
   // focusId: the list was rebuilt after an action, so put focus back on that row (or the first heading if it is gone).
   const redraw: Redraw = (focusId) => renderPeers(env, root, full, undefined, focusId);
-  // rejected devices stay out of the list until they send a new pairing request
+  // rejected devices list only under Rejected devices, until they send a new pairing request or get Pair
   const listed = data.peers.filter((p) => !p.rejected);
+  const rejected = sortByLabel(data.peers.filter((p) => p.rejected));
   const pairing = sortByLabel(listed.filter((p) => p.fingerprint));
   const rows = sortByLabel(listed.filter((p) => !p.fingerprint));
   if (fpTimer) clearInterval(fpTimer);
@@ -95,6 +99,7 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
     }
     root.append(pairNew(openPair));
   }
+  if (rejected.length) root.append(rejectedSection(env, rejected, redraw));
   // new devices and pairing steps arrive by push into the local list: read it again every few seconds, redraw on a change
   const key = JSON.stringify(data.peers);
   const timer = setInterval(async () => {
@@ -162,6 +167,15 @@ function pairNew(open = false): HTMLElement {
     btn.setAttribute("aria-expanded", String(!steps.hidden));
   });
   return h("div", { class: "pairnew" }, btn, steps);
+}
+
+/** "Rejected devices": a collapsed section at the bottom of the list; Pair on a row ends the rejection and starts pairing. */
+function rejectedSection(env: UiEnv, peers: PeerView[], redraw: Redraw): HTMLElement {
+  const d = h("details", { class: "rejected", open: rejectedOpen }, h("summary", { class: "sh" }, "Rejected devices"), group(...peers.map((p) => peerRow(env, p, redraw))));
+  d.addEventListener("toggle", () => {
+    rejectedOpen = (d as HTMLDetailsElement).open;
+  });
+  return d;
 }
 
 /** This device (Settings): a plain group row with Rename. */
