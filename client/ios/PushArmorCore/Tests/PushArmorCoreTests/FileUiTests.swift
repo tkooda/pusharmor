@@ -15,7 +15,6 @@ final class FileUiTests: XCTestCase {
         XCTAssertEqual(FileUi.storageHelper, "When full, the oldest files are removed from this device")
         XCTAssertEqual(FileUi.removed, "Removed from this device")
         XCTAssertEqual(FileUi.willSendFile, "Will be sent as file")
-        XCTAssertEqual(FileUi.pasteImageClear, "Clear the message to add a file")
         XCTAssertEqual(FileUi.noMemoryToast("a.png"), "Not enough memory to decrypt \"a.png\"")
         XCTAssertEqual(FileUi.tooLarge("a.png"), "\"a.png\" is too large to send")
         XCTAssertEqual(FileUi.unreadable("a.png"), "Unable to read \"a.png\"")
@@ -78,9 +77,6 @@ final class FileUiTests: XCTestCase {
     }
 
     func testPaste() {
-        XCTAssertEqual(FileUi.paste(clipHasImage: false, textEmpty: true), .text)
-        XCTAssertEqual(FileUi.paste(clipHasImage: true, textEmpty: true), .image)
-        XCTAssertEqual(FileUi.paste(clipHasImage: true, textEmpty: false), .refuse)
         let png = Data([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0])
         XCTAssertEqual(FileUi.pastedImageName(png, timeSec: 0), "image-19700101-000000.png")
         XCTAssertEqual(FileUi.pastedImageName(Data([0xff, 0xd8, 0xff, 0xe0]), timeSec: 0), "image-19700101-000000.jpg")

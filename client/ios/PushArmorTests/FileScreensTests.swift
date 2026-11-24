@@ -8,15 +8,16 @@ final class FileScreensTests: XCTestCase {
         return try String(contentsOf: url, encoding: .utf8)
     }
 
-    /// "Will be sent as ..." shows only once the box has content or a file is chosen; Choose file
-    /// shows only while the box is empty, Paste always (an image pasted over text says to clear
-    /// it); a chosen file replaces the box; the file send popup can be closed.
+    /// "Will be sent as ..." shows only once the box has content or a file is chosen; Paste and
+    /// Choose file show only while the box is empty (with text, a paste goes in as text, with no
+    /// toast); a chosen file replaces the box; the file send popup can be closed.
     func testSendScreenFileRules() throws {
         let src = try source("App/Views/ComposeView.swift")
         XCTAssertTrue(src.contains("if chosen != nil {\n                Label(FileUi.willSendFile"))
         XCTAssertTrue(src.contains("} else if !text.isEmpty {"))
-        XCTAssertTrue(src.contains("if text.isEmpty {\n                                Button { picking = true }"))
-        XCTAssertTrue(src.contains("guard FileUi.paste(clipHasImage: true, textEmpty: text.isEmpty) == .image else {\n            model.toast = FileUi.pasteImageClear"))
+        XCTAssertTrue(src.contains("if text.isEmpty {\n                                PasteButton(payloadType: PastedImage.self)"))
+        XCTAssertTrue(src.contains(".labelStyle(.iconOnly)\n                                Button { picking = true }"))
+        XCTAssertFalse(src.contains("pasteImageClear"))
         XCTAssertTrue(src.contains("onClose: model.sendingFile != nil ? { model.leaveFileSend() } : nil"))
         XCTAssertTrue(src.contains("PasteButton(payloadType: PastedImage.self)"))
         XCTAssertTrue(src.contains("Label(FileUi.chooseFile, systemImage: \"paperclip\")"))

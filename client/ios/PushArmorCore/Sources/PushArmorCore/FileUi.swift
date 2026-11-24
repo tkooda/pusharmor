@@ -15,8 +15,6 @@ public enum FileUi {
     public static let removeFile = "Remove file"
     public static let willSendFile = "Will be sent as file"
     public static let expired = "Expired"
-    /// A pasted image while the message box holds text: one type per message.
-    public static let pasteImageClear = "Clear the message to add a file"
     /// A decrypt that could not run (not a damaged file and not short of memory).
     public static func openFailed(_ name: String) -> String { "Unable to decrypt \"" + name + "\"\nTry again" }
 
@@ -49,15 +47,6 @@ public enum FileUi {
     public static func picker(_ saved: String?) -> Int64 {
         guard let s = saved, let v = Int64(s), FileRules.pickerSizes.contains(v) else { return FileRules.defaultPicker }
         return v
-    }
-
-    /// What a paste does in the message box: the clipboard image becomes the file, the paste is
-    /// refused with pasteImageClear, or the text pastes as usual.
-    public enum Paste: Equatable, Sendable { case image, refuse, text }
-
-    public static func paste(clipHasImage: Bool, textEmpty: Bool) -> Paste {
-        if !clipHasImage { return .text }
-        return textEmpty ? .image : .refuse
     }
 
     /// The name of a pasted image: image-YYYYMMDD-HHMMSS with the extension from its first bytes.

@@ -420,15 +420,14 @@ struct ComposeView: View {
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
                             .strokeBorder(editing ? Color.brandGreen : Color(uiColor: .separator), lineWidth: editing ? 1.5 : 1)
                     )
-                    // at its bottom right: paste an image (with text in the box, a toast says to clear
-                    // it first), and while the box is empty, choose a file
+                    // at its bottom right, while the box is empty: paste an image, and choose a file
                     .overlay(alignment: .bottomTrailing) {
                         HStack(spacing: 8) {
-                            PasteButton(payloadType: PastedImage.self) { items in
-                                if let d = items.first?.data { Task { @MainActor in pasted(d) } }
-                            }
-                            .labelStyle(.iconOnly)
                             if text.isEmpty {
+                                PasteButton(payloadType: PastedImage.self) { items in
+                                    if let d = items.first?.data { Task { @MainActor in pasted(d) } }
+                                }
+                                .labelStyle(.iconOnly)
                                 Button { picking = true } label: { Label(FileUi.chooseFile, systemImage: "paperclip") }
                                     .buttonStyle(.bordered)
                             }
@@ -519,10 +518,6 @@ struct ComposeView: View {
 
     /// An image pasted into the empty message box becomes the chosen file.
     private func pasted(_ data: Data) {
-        guard FileUi.paste(clipHasImage: true, textEmpty: text.isEmpty) == .image else {
-            model.toast = FileUi.pasteImageClear
-            return
-        }
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("paste-" + UUID().uuidString, isDirectory: true)
         let url = dir.appendingPathComponent(FileUi.pastedImageName(data, timeSec: Int64(Date().timeIntervalSince1970)))
         do {
