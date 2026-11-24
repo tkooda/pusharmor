@@ -353,7 +353,7 @@ class AppLogicTest {
         val built = listOf("sent", "gone", "logged out", "not listening", "unapproved", "denied", "unknown", "failed:x", "")
             .mapNotNull { UiText.sendResultText(it, "A") } + com.pusharmor.protocol.engine.PairStart.entries.mapNotNull { UiText.pairRefused(it, "A") } +
             listOf(UiText.checkAgainText(true, null), UiText.checkAgainText(false, null), com.pusharmor.net.ErrorText.tooMany(30),
-                UiText.noPushApp(true), UiText.pushRefused("h", "ntfy", false), "Saved.", UiText.SETTINGS_RESET).filterNotNull()
+                UiText.noPushApp(true), UiText.pushRefused("h", "ntfy", false), "Saved.", UiText.saved("a.txt"), UiText.unableSave("a.txt"), UiText.unableCopy("a.png"), UiText.SETTINGS_RESET).filterNotNull()
         for (t in consts + built) for (line in UiText.brief(t).split('\n')) assertFalse(line, line.endsWith(".") && !line.endsWith(".."))
     }
 

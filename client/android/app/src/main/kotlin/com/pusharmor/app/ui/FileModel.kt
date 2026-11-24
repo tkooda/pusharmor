@@ -234,7 +234,7 @@ class FileModel(private val g: Graph, private val scope: CoroutineScope, private
     /** Save: copies the decrypted file to the place the user chose, off the main thread; a toast says how it went. */
     fun save(file: File, to: Uri): Job = scope.launch(Dispatchers.IO) {
         val err = runCatching { g.app.contentResolver.openOutputStream(to)?.use { out -> file.inputStream().use { it.copyTo(out) } } ?: throw java.io.IOException("no stream") }.exceptionOrNull()
-        toast(if (err == null) "Saved." else ErrorText.text(UiText.UNABLE_SAVE_MESSAGE, UiText.saveReason(err)))
+        toast(if (err == null) UiText.saved(file.name) else ErrorText.text(UiText.unableSave(file.name), UiText.saveReason(err)))
     }
 
     /** Rows deleted on this device: their files go too. */

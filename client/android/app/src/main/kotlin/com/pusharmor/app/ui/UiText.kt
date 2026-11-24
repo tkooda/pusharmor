@@ -32,6 +32,11 @@ object UiText {
     /** Brief text after a copy, on every Android version (13 and later also show their own clipboard preview). */
     fun copyResult(ok: Boolean): String = if (ok) COPIED else com.pusharmor.net.ErrorText.text(UNABLE_COPY, COPY_BY_HAND)
 
+    /** Save and copy of a named file: the toast names it. */
+    fun saved(name: String) = "Saved \"$name\""
+    fun unableSave(name: String) = "Unable to save \"$name\""
+    fun unableCopy(name: String) = "Unable to copy \"$name\""
+
     /** Toast and snackbar text: no line ends with a period. Inline text, dialogs, and notifications keep theirs; an ellipsis stays. */
     fun brief(text: String): String =
         text.split('\n').joinToString("\n") { if (it.endsWith('.') && !it.endsWith("..")) it.dropLast(1) else it }

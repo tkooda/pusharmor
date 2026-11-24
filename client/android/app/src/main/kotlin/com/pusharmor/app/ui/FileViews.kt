@@ -206,7 +206,7 @@ internal fun FileActions(vm: AppViewModel, row: FileModel.Row) {
     MessageActions {
         if (row.image) {
             MessageAction("View", PaIcons.Image) { viewing = true }
-            MessageAction("Copy", PaIcons.ContentCopy) { vm.message.value = UiText.copyResult(copyFile(context, file, name)) }
+            MessageAction("Copy", PaIcons.ContentCopy) { vm.message.value = if (copyFile(context, file, name)) UiText.COPIED else UiText.unableCopy(name) }
         } else MessageAction("Open", PaIcons.OpenInNew) {
             startOrToast(context, Intent(Intent.ACTION_VIEW).setDataAndType(fileUri(context, file), mime).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION), noAppOpens(name)) { vm.message.value = it }
         }

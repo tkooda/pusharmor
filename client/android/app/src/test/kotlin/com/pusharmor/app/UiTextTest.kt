@@ -21,6 +21,12 @@ class UiTextTest {
         assertEquals("Unable to copy\nSelect the text and copy it by hand", UiText.copyResult(false))
     }
 
+    @Test fun fileSaveAndCopyTextsNameTheFile() {
+        assertEquals("Saved \"a.pdf\"", UiText.saved("a.pdf"))
+        assertEquals("Unable to save \"a.pdf\"\nTry again", UiText.brief(com.pusharmor.net.ErrorText.text(UiText.unableSave("a.pdf"), com.pusharmor.net.ErrorText.TRY_AGAIN)))
+        assertEquals("Unable to copy \"a.png\"", UiText.unableCopy("a.png"))
+    }
+
     @Test fun shareSheetToastTexts() {
         assertEquals("Unable to send\nThis device is logged out. Open PushArmor and log in", UiText.brief(UiText.SHARE_LOGGED_OUT))
         assertEquals("Unable to send\nThere is no text or URL to send", UiText.brief(UiText.SHARE_NOTHING))
