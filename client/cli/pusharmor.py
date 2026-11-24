@@ -31,10 +31,11 @@ CRYPTO_MISSING = ('The Python "cryptography" package is missing. Install it with
                   + ("py" if sys.platform == "win32" else "python3") + " -m pip install --user cryptography")
 
 try:
-    from cryptography.exceptions import InvalidSignature
+    from cryptography.exceptions import InvalidSignature, InvalidTag
     from cryptography.hazmat.primitives import hashes
     from cryptography.hazmat.primitives.asymmetric import ec
     from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature, encode_dss_signature
+    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 except (KeyboardInterrupt, SystemExit):
     raise
@@ -317,7 +318,7 @@ def counter_n(v):
 
 # ---- inner messages ----
 
-TYPES = ("url", "text", "tel", "approve", "deny", "remove", "rename", "delete", "logout", "login", "del")
+TYPES = ("url", "text", "tel", "file", "approve", "deny", "remove", "rename", "delete", "logout", "login", "del")
 CONTROL_TYPES = ("approve", "rename", "remove", "delete", "logout", "login", "deny", "del")
 BUCKETS = (512, 1024, 2048, 3800)
 MAX_WIRE = 3800
@@ -372,10 +373,10 @@ def new_msg_id():
 
 def msg_json(n, type_, value, mid=None):
     """Exact inner JSON {"v":1,"n":N,"id":ID,"show":true,"<type>":value}, in that order; show only for
-    url/text/tel. value: str for url/text/tel/remove, a name entry (make_name_entry, same n) for
+    url/text/tel/file. value: str for url/text/tel/remove, the file object for file, a name entry (make_name_entry, same n) for
     approve/rename, 1 for deny/delete/logout/login. A fresh id unless mid is given."""
     v = name_entry_json(value) if type_ in ("approve", "rename") else json.dumps(value)
-    show = ',"show":true' if type_ in ("url", "text", "tel") else ""
+    show = ',"show":true' if type_ in ("url", "text", "tel", "file") else ""
     return '{"v":1,"n":' + str(n) + ',"id":' + json.dumps(new_msg_id() if mid is None else mid) + show + ',"' + type_ + '":' + v + "}"
 
 
@@ -487,6 +488,10 @@ def open_message(message, own_id, own_enc_priv, own_account, pins):
     if type_ in ("url", "text", "tel"):
         if not _content_ok(value):
             return bad("content")
+    elif type_ == "file":
+        value = file_value(value)
+        if value is None:
+            return bad("file")
     elif type_ in ("approve", "rename"):
         value = check_name_object(value, from_id, own_id, b64e(pid), pin["sign_pub"])
         if not value or value["n"] != n:
@@ -511,6 +516,136 @@ def open_message(message, own_id, own_enc_priv, own_account, pins):
     elif pin["ruling"] != "approved":
         return bad("sender not approved")
     return {"outcome": "accept", "from": from_id, "type": type_, "n": n, "value": value}
+
+
+# ---- files: AES-256-GCM blob (nonce || ciphertext || tag), PA-FILE1 signing strings, file names ----
+
+MAX_FILE = 100000000  # largest plaintext in bytes
+BLOB_OVERHEAD = 28  # blob bytes beyond the plaintext: 12-byte nonce + 16-byte tag
+FILE_CHUNK = 1 << 20  # streaming crypto works on this many bytes at a time, whatever the file size
+_NAME_CHAR = re.compile(r"[A-Za-z0-9 ._()-]")
+_EXT = re.compile(r"[A-Za-z0-9]{1,10}")
+_RESERVED = {"CON", "PRN", "AUX", "NUL"} | {"COM%d" % i for i in range(1, 10)} | {"LPT%d" % i for i in range(1, 10)}
+
+
+def file_uint(v):
+    """A JSON integer token 0 ... 2^53 - 1, else None."""
+    if not isinstance(v, _Num) or len(v) > 16 or not re.fullmatch(r"0|[1-9][0-9]*", v):
+        return None
+    n = int(v)
+    return n if n <= 2 ** 53 - 1 else None
+
+
+def _b64_32(v):
+    return type(v) is str and len(v) == 43 and b64ok(v)
+
+
+def file_value(v):
+    """The file object {url, expires, key, name, size, sha256} (unknown fields ignored) -> its values with
+    the key as 32 raw bytes, or None when a field is missing or malformed."""
+    if not isinstance(v, dict):
+        return None
+    url, exp, key, name, size, sha = (v.get(k) for k in ("url", "expires", "key", "name", "size", "sha256"))
+    exp, size = file_uint(exp), file_uint(size)
+    if (type(url) is not str or len(url) > CONTENT_CAP or type(name) is not str or not _content_ok(name)
+            or exp is None or size is None or not _b64_32(key) or not _b64_32(sha)):
+        return None
+    return {"url": url, "expires": exp, "key": b64d(key), "name": name, "size": size, "sha256": sha}
+
+
+def file_sig_bytes(method, path, pa_time, length=None, file_sha256=None, send_id=None):
+    """PA-FILE1 signing string. POST: path /v1/file plus Content-Length, PA-File-SHA256 and PA-Send-ID lines;
+    DELETE: path /v1/file/<id> and no more lines."""
+    s = "PA-FILE1\n%s\n%s\n%s" % (method, path, pa_time)
+    if method == "POST":
+        s += "\n%d\n%s\n%s" % (length, file_sha256, send_id)
+    return s.encode()
+
+
+def seal_file(src, dst, key, nonce, size):
+    """Streams size plaintext bytes from src to dst as the blob. -> 43-char b64url SHA-256 of the blob.
+    Raises ValueError when src does not hold exactly size bytes (the file changed while it was read)."""
+    enc = Cipher(algorithms.AES(key), modes.GCM(nonce)).encryptor()
+    h = hashlib.sha256(nonce)
+    dst.write(nonce)
+    left = size
+    while left:
+        chunk = src.read(min(FILE_CHUNK, left))
+        if not chunk:
+            raise ValueError("file: shorter than its size")
+        left -= len(chunk)
+        out = enc.update(chunk)
+        h.update(out)
+        dst.write(out)
+    if src.read(1):
+        raise ValueError("file: longer than its size")
+    out = enc.finalize() + enc.tag
+    h.update(out)
+    dst.write(out)
+    return b64e(h.digest())
+
+
+def open_file_blob(src, dst, key, blob_size):
+    """Streams the blob in src (seekable, blob_size bytes) to dst as plaintext. Raises ValueError when the
+    blob is too short or the tag fails; dst then holds unverified bytes, and the caller deletes it."""
+    if blob_size < BLOB_OVERHEAD:
+        raise ValueError("file: blob too short")
+    src.seek(blob_size - 16)
+    tag = src.read(16)
+    src.seek(0)
+    nonce = src.read(12)
+    if len(tag) != 16 or len(nonce) != 12:
+        raise ValueError("file: blob cut short")
+    dec = Cipher(algorithms.AES(key), modes.GCM(nonce, tag)).decryptor()
+    left = blob_size - BLOB_OVERHEAD
+    while left:
+        chunk = src.read(min(FILE_CHUNK, left))
+        if not chunk:
+            raise ValueError("file: blob cut short")
+        left -= len(chunk)
+        dst.write(dec.update(chunk))
+    try:
+        dec.finalize()
+    except InvalidTag:
+        raise ValueError("file: tag")
+
+
+def split_ext(name):
+    """(base, ".ext") when the text after the last dot is 1-10 ASCII letters or digits, else (name, "")."""
+    i = name.rfind(".")
+    if i >= 0 and _EXT.fullmatch(name[i + 1:]):
+        return name[:i], name[i:]
+    return name, ""
+
+
+def sanitize_name(name, t, image=False):
+    """The file name rule, by sender and receiver alike. t: Unix seconds for a fallback name."""
+    name = re.split(r"[/\\]", name)[-1]
+    name = "".join(c if _NAME_CHAR.fullmatch(c) else "_" for c in name)
+    name = re.sub(" +", " ", re.sub("_+", "_", name)).strip(" .")
+    base, ext = split_ext(name)
+    if not re.search("[A-Za-z0-9]", base) or len(base) > 64:
+        base = time.strftime(("image" if image else "file") + "-%Y%m%d-%H%M%S", time.gmtime(t))
+    name = (base + ext)[:100]
+    if name.split(".")[0].rstrip(" ").upper() in _RESERVED:
+        name = "_" + name
+    return name
+
+
+def _ascii_lower(s):
+    return re.sub("[A-Z]", lambda m: m.group().lower(), s)
+
+
+def collide(name, existing):
+    """name, or "base (N).ext" with the smallest free N >= 1. Names match ignoring ASCII case."""
+    taken = {_ascii_lower(e) for e in existing}
+    if _ascii_lower(name) not in taken:
+        return name
+    base, ext = split_ext(name)
+    n = 1
+    while _ascii_lower("%s (%d)%s" % (base, n, ext)) in taken:
+        n += 1
+    return "%s (%d)%s" % (base, n, ext)
 
 
 # ---- name entries ----
@@ -930,10 +1065,12 @@ import email.utils
 import errno
 import glob
 import http.client
+import mimetypes
 import os
 import secrets
 import shlex
 import shutil
+import signal
 import socket
 import ssl
 import stat
@@ -981,7 +1118,7 @@ LISTEN_REPORT_S = 86400
 FETCH_GAP_S = 60
 PLATFORMS = {"android": "Android", "ios": "iPhone", "chrome": "Chrome", "firefox": "Firefox", "cli": "Command line"}
 MONTHS = "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split()
-REC_KEYS = ("from", "name", "platform", "type", "body", "date")
+REC_KEYS = ("from", "name", "platform", "type", "body", "date", "file")
 NOT_LOGGED_IN = "This device is not logged in. Run: `pusharmor login`"
 LOGGED_OUT = "This device is logged out. Log in to resume."
 REMOVED = "This device was removed from the account. Log in again."
@@ -1593,6 +1730,40 @@ def http_request(method, url, headers, body):
         raise OSError(str(e)) from e
 
 
+def file_url_ok(url):
+    """A file URL: https://*.pusharmor.com, port 443, no user name or password."""
+    try:
+        u = urllib.parse.urlsplit(url)
+        port = u.port
+    except ValueError:
+        return False
+    return (u.scheme == "https" and (u.hostname or "").endswith(".pusharmor.com") and port in (None, 443)
+            and u.username is None and u.password is None)
+
+
+class _FileRedirect(urllib.request.HTTPRedirectHandler):
+    """A file download follows a redirect only to another file URL; any other comes back as an HTTPError."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return super().redirect_request(req, fp, code, msg, headers, newurl) if file_url_ok(newurl) else None
+
+
+_FILE_OPENER = urllib.request.build_opener(_FileRedirect)
+
+
+def http_open(url, headers):
+    """GET url as a stream -> (status, lower-case headers, response to read and close).
+    Raises OSError when the network fails."""
+    try:
+        r = _FILE_OPENER.open(urllib.request.Request(url, headers=dict(headers, **{"User-Agent": USER_AGENT})),
+                              timeout=30)
+        return r.status, {k.lower(): v for k, v in r.headers.items()}, r
+    except urllib.error.HTTPError as e:
+        return e.code, {k.lower(): v for k, v in e.headers.items()}, e
+    except (http.client.HTTPException, ValueError) as e:
+        raise OSError(str(e)) from e
+
+
 def ntfy_open(url, timeout):
     """Opens an ntfy JSON stream (one event per readline()). Raises OSError."""
     try:
@@ -2074,7 +2245,7 @@ def receive_inner(cx, pt, src):
                 if r["show"]:
                     rec = {"from": id_hex(r["from"]), "name": peer_label(p), "platform": p["platform"], "type": "unknown",
                            "body": "Unknown message type, please update",
-                           "date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
+                           "date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "file": ""}
             elif not r["ignorable"] and src != "returned" and r["ruling"] != "approved":
                 notes.append(("warning", UNREADABLE))
         elif out == "unreadable":
@@ -2083,7 +2254,7 @@ def receive_inner(cx, pt, src):
                 fetch = r.get("why") == "unknown sender"
         elif out == "invalid" and r["n"] not in pins[r["from"]]["window"]["seen"]:
             notes.append(("warning", "Invalid message received"))
-        elif out == "accept" and cx.mode != "listen" and r["type"] in ("url", "text", "tel"):
+        elif out == "accept" and cx.mode != "listen" and r["type"] in ("url", "text", "tel", "file"):
             cx.skipped = True  # content waits for listen
         elif out == "accept" and (src != "returned" or r["type"] == "approve"):
             p = d["peers"][r["from"]]
@@ -2106,7 +2277,8 @@ def receive_inner(cx, pt, src):
     if rec and cx.emit:
         try:
             cx.emit(rec)
-        except Exception:  # not shown (a closed pipe): forget it was received, so the next listen shows it
+        except BaseException:  # not shown (a closed pipe, or stopped during a file download): forget it was
+            # received, so the next listen shows it
             with cx.store.state() as d:
                 p = d["peers"].get(r["from"])
                 if p:
@@ -2137,7 +2309,12 @@ def act(cx, d, r, p, notes):
         elif t == "tel" and not is_phone(v):
             t = "text"
         return None, {"from": id_hex(frm), "name": name, "platform": p["platform"], "type": t, "body": v,
-                      "date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
+                      "date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "file": ""}
+    if t == "file":
+        now = time.time()
+        return None, {"from": id_hex(frm), "name": name, "platform": p["platform"], "type": "file",
+                      "body": sanitize_name(v["name"], now, is_image(v["name"])),
+                      "date": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now)), "file": "", "_file": v}
     if t == "approve":
         if v["n"] > p["name_n"]:
             p["name"], p["name_n"] = v["name"], v["n"]
@@ -2485,6 +2662,282 @@ def start_receive(cx, since, timeout):
     return s
 
 
+# ---- files: upload and download ----
+
+FILE_TRIES = 3  # an upload and at most 2 automatic retries of the same send (one PA-Send-ID)
+DOWNLOAD_TRIES = 5  # automatic download attempts per file
+FREE_MARGIN = 10000000  # bytes left free beyond 2 x the file size before a download starts
+FILE_PAUSED = "File sending is paused. Try again later."
+FILE_DAMAGED = 'Unable to open "%s". It is not valid or was damaged.'
+
+
+class FileFail(Exception):
+    """One final line for a file that could not be downloaded; listening continues."""
+
+
+def is_image(name):
+    return (mimetypes.guess_type("x" + split_ext(name)[1])[0] or "").startswith("image/")
+
+
+def file_wait(s):
+    """Seconds -> minutes under 1 hour, hours under 2 days, else days, rounded up."""
+    for unit, size, below in (("minute", 60, 3600), ("hour", 3600, 172800), ("day", 86400, None)):
+        if below is None or s < below:
+            n = max(1, -(-s // size))
+            return "%d %s%s" % (n, unit, "" if n == 1 else "s")
+
+
+def file_status(status, j):
+    """The final line for a file quota or a pause, else None."""
+    ra = j.get("retry_after")
+    ra = ra if type(ra) is int and ra > 0 else None
+    if status == 429 and j.get("error") == "file quota":
+        return "You reached your file limit. " + ("Try again in %s." % file_wait(ra) if ra else "Try again later.")
+    if status == 503 and j.get("error") == "files paused":
+        return "File sending is over quota and paused for %s." % file_wait(ra) if ra else FILE_PAUSED
+    return None
+
+
+def _json_of(data):
+    try:
+        j = json.loads(data) if data else {}
+    except (ValueError, RecursionError, UnicodeDecodeError):
+        j = {}
+    return j if isinstance(j, dict) else {}
+
+
+def file_post_headers(keys, pa_time, length, file_sha256, send_id):
+    sig = sign(keys["sign"], file_sig_bytes("POST", "/v1/file", pa_time, length, file_sha256, send_id))
+    return {"PA-Client": "cli/" + VERSION, "PA-ID": keys["id"], "PA-Time": pa_time, "Content-Length": str(length),
+            "PA-File-SHA256": file_sha256, "PA-Send-ID": send_id, "PA-Sig": b64e(sig),
+            "Content-Type": "application/octet-stream"}
+
+
+def upload_file(cx, f, length, file_sha256, name):
+    """POST /v1/file with the blob in f, signed again for each try, one PA-Send-ID for all tries. -> 201 reply."""
+    api, send_id = cx.api, b64e(os.urandom(16))
+    skewed, attempt = False, 0
+    while True:
+        t = str(int(time.time() * 1000) + api.skew_ms)
+        f.seek(0)
+        try:
+            status, hdrs, data = http_request("POST", api.base + "/v1/file",
+                                              file_post_headers(cx.keys, t, length, file_sha256, send_id), f)
+        except OSError as e:
+            if is_cert_error(e):
+                raise TempFail(CERT_BAD, 0)
+            status, hdrs, data = 0, {}, b""
+        j = _json_of(data)
+        if status == 426:
+            raise Fail(TOO_OLD)
+        epoch = hdrs.get("pa-epoch", "")
+        if status == 401 and j.get("error") == "clock skew" and not skewed and re.fullmatch(r"[0-9]{1,12}", epoch):
+            skewed = True
+            api.skew_ms = int(epoch) * 1000 - int(time.time() * 1000)
+            continue
+        final = file_status(status, j)
+        if final:
+            raise Fail(final)
+        if status == 413:
+            raise Fail('The file "%s" is too large to send.' % name)
+        if status == 0 or status == 429 or status >= 500:
+            attempt += 1
+            if attempt < FILE_TRIES:
+                ra = j.get("retry_after")
+                api.sleep(min(ra if type(ra) is int and ra > 0 else RETRY_WAITS[attempt - 1], 60))
+                continue
+            raise TempFail(UNREACHABLE if status == 0 else "Too many tries. Try again later." if status == 429
+                           else SERVER_DOWN, status)
+        if 200 <= status < 300:
+            return j
+        raise ApiError(status, j.get("error") if isinstance(j.get("error"), str) else "", j)
+
+
+def prepare_file(path):
+    """Opens a regular file for send --file, its size checked before reading. -> (file, size, name)."""
+    try:
+        st = os.stat(path)
+    except FileNotFoundError:
+        raise Fail("The file %s does not exist." % quoted_path(path), EXIT_USAGE)
+    if not stat.S_ISREG(st.st_mode):
+        raise Fail("%s is not a regular file." % quoted_path(path), EXIT_USAGE)
+    name = sanitize_name(os.path.basename(path), time.time(), is_image(path))
+    if st.st_size > MAX_FILE:
+        raise Fail('The file "%s" is too large to send.' % name, EXIT_USAGE)
+    f = open(path, "rb")
+    st2 = os.fstat(f.fileno())
+    if not stat.S_ISREG(st2.st_mode) or (st2.st_dev, st2.st_ino, st2.st_size) != (st.st_dev, st.st_ino, st.st_size):
+        f.close()
+        raise Fail("The file %s changed while it was read. Try again." % quoted_path(path))
+    return f, st.st_size, name
+
+
+def seal_to_temp(src, size, key, name):
+    """The blob in a private temp file (deleted on close). -> (open file, sha256)."""
+    out = tempfile.TemporaryFile(prefix=".pusharmor-")
+    try:
+        sha = seal_file(src, out, key, os.urandom(12), size)
+        out.flush()
+    except ValueError:
+        out.close()
+        raise Fail('The file "%s" changed while it was read. Try again.' % name)
+    except OSError as e:
+        out.close()
+        if e.errno == errno.ENOSPC:
+            raise Fail('Not enough storage to send "%s".' % name)
+        raise
+    return out, sha
+
+
+def clean_temps(folder, names=None):
+    """Deletes the .pusharmor- temp files in folder (all of them, or only names)."""
+    with contextlib.suppress(OSError):
+        for n in os.listdir(folder) if names is None else list(names):
+            if n.startswith(".pusharmor-"):
+                with contextlib.suppress(OSError):
+                    os.unlink(os.path.join(folder, n))
+
+
+def _temp(folder, temps, suffix):
+    fd, path = tempfile.mkstemp(prefix=".pusharmor-", suffix=suffix, dir=folder)  # mode 0600
+    temps.add(os.path.basename(path))
+    return os.fdopen(fd, "w+b"), path
+
+
+def _drop(path, temps):
+    with contextlib.suppress(OSError):
+        os.unlink(path)
+    temps.discard(os.path.basename(path))
+
+
+def fetch_blob(cx, v, name, out, tries):
+    """Downloads the blob into out, resuming a cut-off transfer with Range. tries: [attempts used]. Returns when
+    out holds size + 28 bytes; raises FileFail for a final error, ValueError for too many bytes (damaged)."""
+    want, have = v["size"] + BLOB_OVERHEAD, out.seek(0, 2)
+    while True:
+        try:
+            status, hdrs, r = http_open(v["url"], {"Range": "bytes=%d-" % have} if have else {})
+        except OSError:
+            status, hdrs, r = 0, {}, None
+        j = {}
+        if r is not None:
+            with r:
+                if status == 206 and not hdrs.get("content-range", "").startswith("bytes %d-" % have):
+                    out.seek(0)
+                    out.truncate()
+                    status, have = 0, 0  # not the asked range: try again from the start
+                elif status in (200, 206):
+                    if status == 200:
+                        out.seek(0)
+                        out.truncate()
+                        have = 0
+                    while have <= want:
+                        try:
+                            chunk = r.read(FILE_CHUNK)
+                        except (OSError, http.client.HTTPException):
+                            status = 0
+                            break
+                        if not chunk:
+                            break
+                        out.write(chunk)
+                        have += len(chunk)
+                    if have > want:
+                        raise ValueError("file: blob too long")
+                    if have == want:
+                        return
+                    status = 0  # cut off: resume
+                else:
+                    with contextlib.suppress(OSError, http.client.HTTPException):
+                        j = _json_of(r.read(4096))
+        if status == 410:
+            raise FileFail('Unable to download "%s". The file expired.' % name)
+        if status == 404 and j.get("error") == "update required":
+            raise FileFail('Unable to download "%s". %s' % (name, UPDATE_REQUIRED))
+        if status == 404:
+            gone = time.time() + cx.api.skew_ms / 1000 < v["expires"]
+            raise FileFail('Unable to download "%s". The file %s.' % (name, "was deleted" if gone else "expired"))
+        final = file_status(status, j)
+        if final:
+            raise FileFail('Unable to download "%s". %s' % (name, final))
+        if not (status == 0 or status == 429 or status >= 500):
+            raise FileFail('Unable to download "%s". The file server refused the request (HTTP %d).' % (name, status))
+        tries[0] += 1
+        if tries[0] >= DOWNLOAD_TRIES:
+            raise FileFail('Unable to download "%s". %s' % (name, UNREACHABLE if status == 0 else SERVER_DOWN))
+        ra = j.get("retry_after")
+        cx.api.sleep(min(ra if type(ra) is int and ra > 0 else 2 ** tries[0], 60))
+
+
+def _sha256_of(f):
+    h = hashlib.sha256()
+    f.seek(0)
+    for chunk in iter(lambda: f.read(FILE_CHUNK), b""):
+        h.update(chunk)
+    return b64e(h.digest())
+
+
+def _place(tmp, folder, name):
+    """Moves tmp into folder as name, or "name (N)" when taken; never replaces a file. -> the new path."""
+    while True:
+        path = os.path.join(folder, collide(name, os.listdir(folder)))
+        try:
+            if windows():
+                os.rename(tmp, path)  # fails when path exists
+            else:
+                os.link(tmp, path)
+        except FileExistsError:
+            continue  # taken since the listing
+        if not windows():
+            os.unlink(tmp)
+        return path
+
+
+def download_file(cx, v, name, folder, temps):
+    """listen --files: download, check sha256 and size, decrypt, and save one file. -> its path.
+    One re-download when a check fails. Raises FileFail."""
+    if v["size"] > MAX_FILE:
+        raise FileFail('Unable to download "%s". It is too large.' % name)
+    if not file_url_ok(v["url"]):
+        raise FileFail(FILE_DAMAGED % name)
+    if time.time() >= v["expires"]:
+        raise FileFail('Unable to download "%s". The file expired.' % name)
+    tries, checks = [0], 0
+    while True:
+        blob = plain = None
+        try:
+            if shutil.disk_usage(folder).free < 2 * v["size"] + FREE_MARGIN:
+                raise FileFail('Not enough storage to download "%s".' % name)
+            blob, blob_path = _temp(folder, temps, ".part")
+            try:
+                fetch_blob(cx, v, name, blob, tries)
+                if _sha256_of(blob) != v["sha256"]:
+                    raise ValueError("file: sha256")
+                plain, plain_path = _temp(folder, temps, ".tmp")
+                open_file_blob(blob, plain, v["key"], v["size"] + BLOB_OVERHEAD)
+                plain.close()
+            except ValueError:
+                checks += 1
+                if checks > 1:
+                    raise FileFail(FILE_DAMAGED % name)
+                continue
+            path = _place(plain_path, folder, name)
+            temps.discard(os.path.basename(plain_path))
+            return path
+        except OSError as e:
+            if e.errno == errno.ENOSPC:
+                raise FileFail('Not enough storage to download "%s".' % name)
+            raise FileFail('Unable to save "%s". %s' % (name, _os_error_text(e)))
+        finally:
+            for f in (blob, plain):
+                if f is not None:
+                    with contextlib.suppress(OSError):
+                        f.close()
+            if blob is not None:
+                _drop(blob_path, temps)
+            if plain is not None and os.path.basename(plain_path) in temps:
+                _drop(plain_path, temps)
+
+
 # ---- output ----
 
 # C0 and C1 controls except tab and newline, line and paragraph separators, and bidi controls
@@ -2497,16 +2950,28 @@ def _clean(s):
 
 def format_record(rec, fmt):
     if fmt == "json":
-        return json.dumps({k: rec[k] for k in REC_KEYS}, ensure_ascii=True)
+        return json.dumps(dict({k: rec[k] for k in REC_KEYS}, **({"error": rec["error"]} if "error" in rec else {})),
+                          ensure_ascii=True)
     if fmt == "tsv":
         esc = lambda s: re.sub(CONTROL_CHARS, lambda m: "\\u%04x" % ord(m.group()),  # noqa: E731
                                s.replace("\\", "\\\\").replace("\t", "\\t").replace("\n", "\\n").replace("\r", "\\r"))
         return "\t".join(esc(rec[k]) for k in REC_KEYS)
     t = datetime.datetime.strptime(rec["date"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc)
     body = _clean(rec["body"].replace("\r\n", "\n").replace("\r", "\n")).replace("\n", "\n ")
-    return "From: %s %s\nPlatform: %s\nType: %s\nDate: %s\nBody: %s\n" % (
+    out = "From: %s %s\nPlatform: %s\nType: %s\nDate: %s\nBody: %s\n" % (
         rec["from"][:6], rec["name"], platform_label(rec["platform"]), rec["type"],
         email.utils.format_datetime(t.astimezone()), body)
+    if rec["type"] == "file":
+        v = rec["_file"]
+        try:
+            exp = email.utils.format_datetime(datetime.datetime.fromtimestamp(v["expires"], datetime.timezone.utc)
+                                              .astimezone())
+        except (OverflowError, OSError, ValueError):
+            exp = str(v["expires"])
+        out += "Size: %d bytes\nExpires: %s\n" % (v["size"], exp)
+        out += ("File: %s\n" % _clean(rec["file"]) if rec["file"] else "Error: %s\n" % rec["error"] if "error" in rec
+                else "File: not downloaded. To download files, run: pusharmor listen --files DIR\n")
+    return out
 
 
 def _relay_lines(pipe, out, failed):
@@ -2528,6 +2993,7 @@ def run_exec(prog, rec):
     try:
         r = subprocess.Popen([prog] + [re.sub("[\x00\ud800-\udfff]", "\ufffd", rec[k])
                                        for k in ("from", "name", "platform", "type", "body")],
+                             env=dict(os.environ, PUSHARMOR_FILE=re.sub("[\x00\ud800-\udfff]", "\ufffd", rec["file"])),
                              stdout=subprocess.PIPE if sys.stdout else subprocess.DEVNULL,
                              stderr=subprocess.PIPE if sys.stderr else subprocess.DEVNULL)
     except (OSError, ValueError) as e:
@@ -2954,7 +3420,15 @@ def cmd_listen(cx, args):
     with contextlib.suppress(AttributeError, ValueError):
         sys.stdout.reconfigure(line_buffering=True, errors="replace")  # "?" for what the terminal cannot show
 
+    folder, temps = None if args.files is None else os.path.abspath(args.files) if args.files else "", set()
+
     def emit(rec):
+        if rec["type"] == "file" and folder:
+            try:
+                rec["file"] = download_file(cx, rec["_file"], rec["body"], folder, temps)
+            except FileFail as e:
+                rec["error"] = str(e)
+                log("warning", str(e))
         if args.exec:
             return run_exec(args.exec, rec)
         print(format_record(rec, fmt), flush=True)
@@ -2963,6 +3437,23 @@ def cmd_listen(cx, args):
     if args.exec and not (os.path.isfile(args.exec) and os.access(args.exec, os.X_OK) if "/" in args.exec
                           else shutil.which(args.exec)):
         raise Fail('The notify program "%s" was not found or cannot be run.' % args.exec, EXIT_USAGE)
+    if folder is None:
+        return listen_loop(cx)
+    if not (os.path.isdir(folder) and os.access(folder, os.W_OK | os.X_OK)):
+        raise Fail("The folder %s does not exist or cannot be written." % quoted_path(folder))
+    clean_temps(folder)
+    term = None
+    if threading.current_thread() is threading.main_thread():
+        term = signal.signal(signal.SIGTERM, lambda *_: sys.exit(128 + signal.SIGTERM))
+    try:
+        return listen_loop(cx)
+    finally:
+        clean_temps(folder, temps)
+        if term is not None:
+            signal.signal(signal.SIGTERM, term)
+
+
+def listen_loop(cx):
     with cx.store.state(write=False) as d:
         since = d.get("since", "")
     stream = start_receive(cx, since, LISTEN_TIMEOUT_S)
@@ -2995,6 +3486,10 @@ def cmd_listen(cx, args):
 
 def cmd_send(cx, args):
     cx.need()
+    if args.file is not None:
+        if args.message or args.text:
+            raise Fail("Give either a message or --file, not both.", EXIT_USAGE)
+        return send_file(cx, args)
     if args.message and args.message != ["-"]:
         text = " ".join(args.message)
     elif args.message == ["-"] or not stdin_tty():
@@ -3018,6 +3513,36 @@ def cmd_send(cx, args):
     if size > SEND_CAP:
         raise Fail(TOO_LONG, EXIT_USAGE)
     cx.refresh()
+    m, names = seal_to_targets(cx, args, type_, value)
+    return post_send(cx, m, names)
+
+
+def send_file(cx, args):
+    """send --file: encrypt to a temp file, upload it, then send the file message to the same devices."""
+    f, size, name = prepare_file(args.file)
+    key = os.urandom(32)
+    with f:
+        blob, sha = seal_to_temp(f, size, key, name)
+    with blob:
+        cx.refresh()
+        seal_to_targets(cx, args, None, None)  # no upload when there is no device to send to
+        j = upload_file(cx, blob, size + BLOB_OVERHEAD, sha, name)
+    url, expires = j.get("url"), j.get("expires")
+    if not isinstance(url, str) or not file_url_ok(url) or type(expires) is not int or not 0 <= expires < 2 ** 53:
+        raise TempFail(SERVER_DOWN, 201)
+    value = {"url": url, "expires": expires, "key": b64e(key), "name": name, "size": size, "sha256": sha}
+    m, names = seal_to_targets(cx, args, "file", value)
+    code = post_send(cx, m, names)
+    try:
+        t = email.utils.format_datetime(datetime.datetime.fromtimestamp(expires, datetime.timezone.utc).astimezone())
+    except (OverflowError, OSError, ValueError):
+        t = str(expires)
+    print('The file "%s" expires %s.' % (name, t))
+    return code
+
+
+def seal_to_targets(cx, args, type_, value):
+    """The sealed message per target device (all sendable, or -d ones). type_ None: only check the targets."""
     with cx.store.state() as d:
         ready = [pid for pid, p in d["peers"].items() if sendable(p)]
         targets = ready
@@ -3040,7 +3565,12 @@ def cmd_send(cx, args):
         for pid in dict.fromkeys(targets):
             p = d["peers"][pid]
             names[pid] = peer_label(p)
-            m[pid] = seal_msg(cx.keys, pid, p, reserve(p), type_, value)
+            if type_ is not None:
+                m[pid] = seal_msg(cx.keys, pid, p, reserve(p), type_, value)
+    return m, names
+
+
+def post_send(cx, m, names):
     j = cx.api.call("POST", "/v1/send", {"v": 1, "m": m})
     res = j.get("r") if isinstance(j.get("r"), dict) else {}
     failed = [pid for pid in m if res.get(pid) != "sent"]
@@ -3138,9 +3668,12 @@ COMMANDS = {
     "listen": (cmd_listen, "Receive messages and print them as they arrive.",
                [(("--json",), {"action": "store_true", "help": "one JSON object per line"}),
                 (("--tsv",), {"action": "store_true", "help": "tab-separated lines"}),
-                (("--exec",), {"metavar": "PROG", "help": "run PROG ID NAME PLATFORM TYPE BODY per message"})]),
+                (("--exec",), {"metavar": "PROG", "help": "run PROG ID NAME PLATFORM TYPE BODY per message; "
+                               "a saved file's path is in $PUSHARMOR_FILE"}),
+                (("--files",), {"metavar": "DIR", "help": "download received files to DIR (never to the output)"})]),
     "send": (cmd_send, "Send a URL or text to your paired devices (all, or -d ID).",
              [(("message",), {"nargs": "*", "metavar": "MESSAGE", "help": "text to send; - or none reads stdin"}),
+              (("-f", "--file"), {"metavar": "PATH", "help": "send this file (up to 100,000,000 bytes)"}),
               (("-d", "--to"), {"dest": "to", "action": "append", "metavar": "ID", "help": "send to this device only (repeatable)"}),
               (("--text",), {"action": "store_true", "help": "send as plain text, not as a URL or phone number"})]),
     "rename": (cmd_rename, "Change the name your other devices show for this device.",

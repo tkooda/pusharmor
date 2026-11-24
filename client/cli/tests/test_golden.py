@@ -153,7 +153,7 @@ def seal_round_trip(c):
 
 def test_messages():
     cases = G["messages"]["cases"]
-    assert sorted(c["type"] for c in cases) == sorted(t for t in pa.TYPES if t != "del")  # no golden vector for del yet
+    assert sorted(c["type"] for c in cases) == sorted(t for t in pa.TYPES if t not in ("del", "file"))  # del: none yet; file: file-v1.json
     for c in cases:
         check_full_message(c)
         assert len(c["message"]) == c["wire_chars"]

@@ -46,6 +46,7 @@ def net(monkeypatch):
     n = Net()
     monkeypatch.setattr(pa, "http_request", n.http)
     monkeypatch.setattr(pa, "ntfy_open", n.ntfy_open)
+    monkeypatch.setattr(pa, "http_open", n.http_open)
     monkeypatch.setattr(pa, "WAIT_TIMEOUT_S", 0.3)
     monkeypatch.setattr(pa, "PROBE_WAIT_S", 3)
     monkeypatch.setattr(pa, "PAIR_WAIT_S", 20)
@@ -1254,13 +1255,13 @@ def test_send_too_long(net, tmp_path, monkeypatch, capsys):
 # ---- listen output ----
 
 REC = {"from": "ab" * 21, "name": "Pixel", "platform": "android", "type": "text", "body": "a\tb\nc\\d\x1b",
-       "date": "2026-10-30T12:00:00Z"}
+       "date": "2026-10-30T12:00:00Z", "file": ""}
 
 
 def test_format_json_and_tsv():
     assert json.loads(pa.format_record(REC, "json")) == REC
     assert pa.format_record(REC, "tsv") == "\t".join(["ab" * 21, "Pixel", "android", "text", "a\\tb\\nc\\\\d\\u001b",
-                                                       "2026-10-30T12:00:00Z"])
+                                                       "2026-10-30T12:00:00Z", ""])
 
 
 def test_tsv_escapes_controls_and_json_is_ascii():
@@ -2760,3 +2761,294 @@ def test_listen_exec_runs_for_an_unknown_message_with_show(body, net, tmp_path, 
 def test_listen_stays_silent_for_an_unknown_message_without_show(body, net, tmp_path, monkeypatch, capsys):
     cap, ida, n, b = _listen_unknown(net, tmp_path, monkeypatch, capsys, body, "--json")
     assert cap.out == "" and n in state(b)["peers"][ida]["seen"]
+
+
+# ---- files: send --file and listen --files ----
+
+def _file_pair(net, tmp_path, monkeypatch, data=b"hello, file", name="report.pdf"):
+    a, b = tmp_path / "a", tmp_path / "b"
+    ida, idb = pair_two(monkeypatch, net, a, b)
+    src = tmp_path / name
+    src.write_bytes(data)
+    return a, b, ida, idb, src
+
+
+def _listen_files(net, b, capsys, *args):
+    net.stop.set()
+    capsys.readouterr()
+    code = run(b, "listen", *args)
+    return code, capsys.readouterr()
+
+
+def test_send_file_then_listen_files_saves_it(net, tmp_path, monkeypatch, capsys):
+    data = os.urandom(3000)
+    a, b, ida, idb, src = _file_pair(net, tmp_path, monkeypatch, data)
+    capsys.readouterr()
+    assert run(a, "send", "-f", str(src)) == 0
+    out = capsys.readouterr().out
+    assert "Sent to 1 of 1 device." in out and 'The file "report.pdf" expires ' in out
+    assert len(net.posts) == 1 and int(net.posts[0]["Content-Length"]) == len(data) + 28
+    dest = tmp_path / "dl"
+    dest.mkdir()
+    code, cap = _listen_files(net, b, capsys, "--json", "--files", str(dest))
+    assert code == 130
+    o = json.loads(cap.out)
+    assert o["type"] == "file" and o["body"] == "report.pdf" and o["file"] == str(dest / "report.pdf")
+    assert "error" not in o and list(o) == list(pa.REC_KEYS)
+    assert (dest / "report.pdf").read_bytes() == data and os.listdir(dest) == ["report.pdf"]
+    if os.name != "nt":
+        assert stat.S_IMODE(os.stat(dest / "report.pdf").st_mode) == 0o600
+    assert len(net.gets) == 1
+
+
+def test_listen_without_files_prints_name_size_expires_and_a_hint(net, tmp_path, monkeypatch, capsys):
+    a, b, ida, idb, src = _file_pair(net, tmp_path, monkeypatch, b"x" * 10, "a b.txt")
+    assert run(a, "send", "--file", str(src)) == 0
+    code, cap = _listen_files(net, b, capsys)
+    assert "Type: file\n" in cap.out and "Body: a b.txt\nSize: 10 bytes\nExpires: " in cap.out
+    assert "File: not downloaded. To download files, run: pusharmor listen --files DIR\n" in cap.out
+    assert net.gets == []
+
+
+def test_listen_tsv_and_exec_get_the_saved_path(net, tmp_path, monkeypatch, capsys):
+    a, b, ida, idb, src = _file_pair(net, tmp_path, monkeypatch)
+    assert run(a, "send", "-f", str(src)) == 0
+    assert run(a, "send", "plain text") == 0
+    dest = tmp_path / "dl"
+    dest.mkdir()
+    code, cap = _listen_files(net, b, capsys, "--tsv", "--files", str(dest))
+    rows = [x.split("\t") for x in cap.out.splitlines()]
+    assert [r[3] for r in rows] == ["file", "text"] and [len(r) for r in rows] == [7, 7]
+    assert rows[0][6] == str(dest / "report.pdf").replace("\\", "\\\\") and rows[1][6] == ""  # tsv escapes
+    assert b"hello, file" not in cap.out.encode()
+
+
+@pytest.mark.skipif(os.name == "nt", reason="the notify program is a shell script")
+def test_listen_exec_gets_the_path_in_an_environment_variable(net, tmp_path, monkeypatch, capsys):
+    a, b, ida, idb, src = _file_pair(net, tmp_path, monkeypatch)
+    assert run(a, "send", "-f", str(src)) == 0
+    prog, out, dest = tmp_path / "prog", tmp_path / "out", tmp_path / "dl"
+    dest.mkdir()
+    prog.write_text('#!/bin/sh\nprintf "%%s|%%s|%%s" "$4" "$5" "$PUSHARMOR_FILE" >> "%s"\n' % out)
+    prog.chmod(0o755)
+    _listen_files(net, b, capsys, "--exec", str(prog), "--files", str(dest))
+    assert out.read_text() == "file|report.pdf|" + str(dest / "report.pdf")
+
+
+def test_listen_files_never_overwrites_and_numbers_the_name(net, tmp_path, monkeypatch, capsys):
+    a, b, ida, idb, src = _file_pair(net, tmp_path, monkeypatch)
+    assert run(a, "send", "-f", str(src)) == 0
+    assert run(a, "send", "-f", str(src)) == 0
+    dest = tmp_path / "dl"
+    dest.mkdir()
+    (dest / "REPORT.pdf").write_bytes(b"mine")
+    code, cap = _listen_files(net, b, capsys, "--json", "--files", str(dest))
+    paths = [json.loads(x)["file"] for x in cap.out.splitlines()]
+    assert paths == [str(dest / "report (1).pdf"), str(dest / "report (2).pdf")]
+    assert (dest / "REPORT.pdf").read_bytes() == b"mine"
+
+
+def test_listen_files_checks_the_folder_before_listening(net, tmp_path, monkeypatch, capsys):
+    a, b, ida, idb, src = _file_pair(net, tmp_path, monkeypatch)
+    for bad in (str(tmp_path / "missing"), str(src), ""):
+        code, cap = _listen_files(net, b, capsys, "--files", bad)
+        assert code == 1 and "Listening" not in cap.err
+        assert cap.err.startswith("error: Unable to turn on notifications. The folder ")
+
+
+def test_listen_files_removes_old_temp_files(net, tmp_path, monkeypatch, capsys):
+    a, b, ida, idb, src = _file_pair(net, tmp_path, monkeypatch)
+    dest = tmp_path / "dl"
+    dest.mkdir()
+    (dest / ".pusharmor-old.part").write_bytes(b"x")
+    (dest / "keep.txt").write_bytes(b"x")
+    _listen_files(net, b, capsys, "--files", str(dest))
+    assert os.listdir(dest) == ["keep.txt"]
+
+
+def _one_file_error(net, tmp_path, monkeypatch, capsys, hook=None, data=b"hello, file"):
+    a, b, ida, idb, src = _file_pair(net, tmp_path, monkeypatch, data)
+    assert run(a, "send", "-f", str(src)) == 0
+    net.get_hook = hook
+    dest = tmp_path / "dl"
+    dest.mkdir()
+    code, cap = _listen_files(net, b, capsys, "--json", "--files", str(dest))
+    o = json.loads(cap.out)
+    assert o["file"] == "" and os.listdir(dest) == []
+    lines = [x for x in cap.err.splitlines() if x.startswith("warning: ")]
+    assert lines == ["warning: " + o["error"]]
+    return o["error"]
+
+
+def test_listen_files_redownloads_once_after_a_sha256_mismatch(net, tmp_path, monkeypatch, capsys):
+    a, b, ida, idb, src = _file_pair(net, tmp_path, monkeypatch)
+    assert run(a, "send", "-f", str(src)) == 0
+    url = list(net.blobs)[0]
+    net.get_hook = lambda u, h: None if len(net.gets) > 1 else (200, {}, b"x" * len(net.blobs[url]))
+    dest = tmp_path / "dl"
+    dest.mkdir()
+    code, cap = _listen_files(net, b, capsys, "--json", "--files", str(dest))
+    assert json.loads(cap.out)["file"] == str(dest / "report.pdf") and len(net.gets) == 2
+
+
+def test_listen_files_reports_a_damaged_file_after_one_redownload(net, tmp_path, monkeypatch, capsys):
+    err = _one_file_error(net, tmp_path, monkeypatch, capsys, lambda u, h: (200, {}, b"x" * 39))
+    assert err == 'Unable to open "report.pdf". It is not valid or was damaged.' and len(net.gets) == 2
+
+
+def test_listen_files_checks_the_tag_too(net, tmp_path, monkeypatch, capsys):
+    """A blob whose SHA-256 matches the message but whose tag fails (a sender bug) is damaged too."""
+    real = pa.seal_file
+
+    def bad_tag(src, dst, key, nonce, size):
+        out = io.BytesIO()
+        real(src, out, key, nonce, size)
+        blob = out.getvalue()[:-1] + bytes([out.getvalue()[-1] ^ 1])
+        dst.write(blob)
+        return pa.b64e(pa.sha256(blob))
+
+    monkeypatch.setattr(pa, "seal_file", bad_tag)
+    err = _one_file_error(net, tmp_path, monkeypatch, capsys)
+    assert err == 'Unable to open "report.pdf". It is not valid or was damaged.' and len(net.gets) == 2
+
+
+@pytest.mark.parametrize("status,body,text", [
+    (410, b"", "The file expired."), (404, b"", "The file was deleted."),
+    (404, b'{"error":"update required"}', "Update PushArmor to continue."),
+    (503, b'{"error":"files paused","retry_after":7200}', "File sending is over quota and paused for 2 hours."),
+    (503, b'{"error":"files paused"}', "File sending is paused. Try again later."),
+    (403, b"", "The file server refused the request (HTTP 403).")])
+def test_listen_files_final_download_errors(status, body, text, net, tmp_path, monkeypatch, capsys):
+    err = _one_file_error(net, tmp_path, monkeypatch, capsys, lambda u, h: (status, {}, body))
+    assert err == 'Unable to download "report.pdf". ' + text and len(net.gets) == 1
+
+
+def test_listen_files_retries_a_server_error_five_times(net, tmp_path, monkeypatch, capsys):
+    waits = []
+    monkeypatch.setattr(pa.time, "sleep", waits.append)
+    err = _one_file_error(net, tmp_path, monkeypatch, capsys, lambda u, h: (502, {}, b""))
+    assert err == 'Unable to download "report.pdf". ' + pa.SERVER_DOWN and len(net.gets) == 5
+    assert waits[-4:] == [2, 4, 8, 16]
+
+
+def test_listen_files_resumes_a_cut_off_download_with_range(net, tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(pa.time, "sleep", lambda s: None)
+    a, b, ida, idb, src = _file_pair(net, tmp_path, monkeypatch, os.urandom(500))
+    assert run(a, "send", "-f", str(src)) == 0
+    url = list(net.blobs)[0]
+    net.get_hook = lambda u, h: None if len(net.gets) > 1 else (200, {}, net.blobs[url][:100])
+    dest = tmp_path / "dl"
+    dest.mkdir()
+    code, cap = _listen_files(net, b, capsys, "--json", "--files", str(dest))
+    assert json.loads(cap.out)["file"] == str(dest / "report.pdf")
+    assert [h.get("Range") for u, h in net.gets] == [None, "bytes=100-"]
+    assert (dest / "report.pdf").read_bytes() == src.read_bytes()
+
+
+def test_listen_files_storage_full_is_final_with_no_download(net, tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(pa.shutil, "disk_usage", lambda p: pa.shutil._ntuple_diskusage(1 << 40, 1 << 40, 1000))
+    err = _one_file_error(net, tmp_path, monkeypatch, capsys)
+    assert err == 'Not enough storage to download "report.pdf".' and net.gets == []
+
+
+def test_listen_files_storage_full_while_writing(net, tmp_path, monkeypatch, capsys):
+    def full(*a):
+        raise OSError(pa.errno.ENOSPC, "No space left on device")
+
+    monkeypatch.setattr(pa, "open_file_blob", full)
+    err = _one_file_error(net, tmp_path, monkeypatch, capsys)
+    assert err == 'Not enough storage to download "report.pdf".' and len(net.gets) == 1
+
+
+def test_listen_files_does_not_start_an_expired_download(net, tmp_path, monkeypatch, capsys):
+    a, b, ida, idb, src = _file_pair(net, tmp_path, monkeypatch)
+    assert run(a, "send", "-f", str(src)) == 0
+    monkeypatch.setattr(pa.time, "time", lambda: 4102444800.0)  # 2100
+    dest = tmp_path / "dl"
+    dest.mkdir()
+    code, cap = _listen_files(net, b, capsys, "--json", "--files", str(dest))
+    assert json.loads(cap.out)["error"] == 'Unable to download "report.pdf". The file expired.' and net.gets == []
+
+
+def test_send_file_uploads_with_one_send_id_on_each_retry(net, tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(pa.time, "sleep", lambda s: None)
+    a, b, ida, idb, src = _file_pair(net, tmp_path, monkeypatch)
+    tries = []
+
+    def flaky(method, path, headers, body):
+        tries.append(dict(headers))
+        if len(tries) < 3:
+            return 502, {}, b""
+
+    net.hooks[("POST", "file")] = flaky
+    assert run(a, "send", "-f", str(src)) == 0
+    assert len(tries) == 3 and len({t["PA-Send-ID"] for t in tries}) == 1 and len(net.posts) == 1
+    assert len({t["PA-Sig"] for t in tries}) == 3
+
+
+def test_send_file_gives_up_after_two_retries(net, tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(pa.time, "sleep", lambda s: None)
+    a, b, ida, idb, src = _file_pair(net, tmp_path, monkeypatch)
+    calls = []
+    net.hooks[("POST", "file")] = lambda m, p, h, body: calls.append(1) or (503, {}, b"{}")
+    sends = net.log.count(("POST", "/v1/send"))
+    capsys.readouterr()
+    assert run(a, "send", "-f", str(src)) == pa.EXIT_TEMP
+    assert len(calls) == 3 and net.log.count(("POST", "/v1/send")) == sends
+    assert capsys.readouterr().err == "error: Unable to send. " + pa.SERVER_DOWN + "\n"
+
+
+@pytest.mark.parametrize("status,body,text", [
+    (429, {"error": "file quota", "retry_after": 18000}, "You reached your file limit. Try again in 5 hours."),
+    (503, {"error": "files paused", "retry_after": 600}, "File sending is over quota and paused for 10 minutes."),
+    (503, {"error": "files paused"}, "File sending is paused. Try again later.")])
+def test_send_file_final_upload_errors(status, body, text, net, tmp_path, monkeypatch, capsys):
+    a, b, ida, idb, src = _file_pair(net, tmp_path, monkeypatch)
+    calls = []
+    net.hooks[("POST", "file")] = lambda m, p, h, bd: calls.append(1) or (status, {}, json.dumps(body).encode())
+    capsys.readouterr()
+    assert run(a, "send", "-f", str(src)) == 1
+    assert len(calls) == 1 and capsys.readouterr().err == "error: Unable to send. " + text + "\n"
+
+
+def test_send_file_storage_full(net, tmp_path, monkeypatch, capsys):
+    a, b, ida, idb, src = _file_pair(net, tmp_path, monkeypatch)
+
+    def full(*a):
+        raise OSError(pa.errno.ENOSPC, "No space left on device")
+
+    monkeypatch.setattr(pa, "seal_file", full)
+    capsys.readouterr()
+    assert run(a, "send", "-f", str(src)) == 1
+    assert capsys.readouterr().err == 'error: Unable to send. Not enough storage to send "report.pdf".\n'
+    assert net.posts == []
+
+
+def test_send_file_refuses_bad_paths_and_sizes_before_reading(net, tmp_path, monkeypatch, capsys):
+    a, b, ida, idb, src = _file_pair(net, tmp_path, monkeypatch)
+    monkeypatch.setattr(pa, "MAX_FILE", 5)
+    for argv in (["-f", str(tmp_path / "missing")], ["-f", str(tmp_path)], ["-f", str(src)],
+                 ["-f", str(src), "text"], ["-f", str(src), "--text"]):
+        capsys.readouterr()
+        assert run(a, "send", *argv) == 2, argv
+        assert capsys.readouterr().err.startswith("error: Unable to send. ")
+    if os.name != "nt":
+        os.mkfifo(str(tmp_path / "fifo"))
+        assert run(a, "send", "-f", str(tmp_path / "fifo")) == 2
+    assert net.posts == []
+
+
+def test_send_file_with_no_device_uploads_nothing(net, tmp_path, monkeypatch, capsys):
+    a = tmp_path / "a"
+    login(monkeypatch, a)
+    src = tmp_path / "x.txt"
+    src.write_bytes(b"x")
+    assert run(a, "send", "-f", str(src)) == pa.EXIT_SEND
+    assert net.posts == []
+
+
+def test_send_file_sanitizes_the_name(net, tmp_path, monkeypatch, capsys):
+    a, b, ida, idb, src = _file_pair(net, tmp_path, monkeypatch, b"x", "caf\u00e9 menu.txt")
+    assert run(a, "send", "-f", str(src)) == 0
+    code, cap = _listen_files(net, b, capsys, "--json")
+    assert json.loads(cap.out)["body"] == "caf_ menu.txt"

@@ -1,6 +1,8 @@
 """In-memory relay server and ntfy for the command tests (no network)."""
 
 import base64
+import hashlib
+import io
 import json
 import os
 import threading
@@ -69,6 +71,7 @@ class Net:
         self.peers, self.topics, self.log = {}, {}, []
         self.cond, self.stop, self.lock = threading.Condition(), threading.Event(), threading.RLock()
         self.clock_ms, self.seq, self.limit, self.hooks = 0, 0, 10, {}
+        self.blobs, self.posts, self.gets, self.get_hook = {}, [], [], None
 
     # ---- ntfy ----
     def ntfy_open(self, url, timeout):
@@ -108,6 +111,8 @@ class Net:
         now = int(time.time() * 1000) + self.clock_ms
         if abs(now - int(headers["PA-Time"])) > 300000:
             return self.reply(401, {"error": "clock skew"})
+        if path == "/v1/file":
+            return self.file_post(headers, body)
         b = json.loads(body) if body else {}
         parts = path.split("/")[2:]
         if method == "POST" and parts == ["peers"]:
@@ -167,6 +172,39 @@ class Net:
             caller["allow"].discard(x)
             return self.reply(200, {"r": "unapproved"})
         raise AssertionError("no route %s %s" % (method, path))
+
+    def file_post(self, headers, f):
+        """POST /v1/file as the Worker checks it: PA-FILE1 signature, length, and SHA-256 of the body."""
+        data = f.read()
+        caller = self.peers[headers["PA-ID"]]
+        sid, sha = headers["PA-Send-ID"], headers["PA-File-SHA256"]
+        assert len(sid) == 22 and pa.b64ok(sid) and int(headers["Content-Length"]) == len(data)
+        assert pa.verify(pa.b64d(caller["sign_pub"]), pa.file_sig_bytes("POST", "/v1/file", headers["PA-Time"], len(data),
+                                                                        sha, sid), pa.b64d(headers["PA-Sig"]))
+        assert pa.b64e(hashlib.sha256(data).digest()) == sha
+        self.posts.append(headers)
+        expires = int(time.time()) + 3600
+        minute = time.strftime("%Y%m%d%H%M", time.gmtime(expires))
+        fid = minute + "-" + os.urandom(16).hex()
+        url = "https://b2file.pusharmor.com/v1/%s/%s/%s" % (minute, "0123456789abcdef", fid)
+        self.blobs[url] = data
+        quota = {"used": len(self.posts), "limit": 20, "resets_at": expires}
+        return self.reply(201, {"id": fid, "expires": expires, "url": url, "quota": {"day": quota, "month": quota}})
+
+    def http_open(self, url, headers):
+        """The file host: GET with one Range, or get_hook(url, headers) -> (status, headers, body) first."""
+        self.gets.append((url, dict(headers)))
+        r = self.get_hook(url, headers) if self.get_hook else None
+        if r:
+            return r[0], r[1], io.BytesIO(r[2])
+        if url not in self.blobs:
+            return 404, {}, io.BytesIO(b'{"error":"not found"}')
+        data = self.blobs[url]
+        rng = headers.get("Range")
+        if rng:
+            start = int(rng[6:-1])
+            return 206, {"content-range": "bytes %d-%d/%d" % (start, len(data) - 1, len(data))}, io.BytesIO(data[start:])
+        return 200, {}, io.BytesIO(data)
 
     def relay(self, me, m):
         r = {}
