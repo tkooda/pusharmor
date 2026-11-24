@@ -41,6 +41,8 @@ export async function clickTarget(e: Engine, id: string): Promise<ClickTarget> {
 export const MENU_URL = "pa-url";
 export const MENU_PAGE = "pa-page";
 export const MENU_SEL = "pa-sel";
+/** An image: its bytes as a file, else its URL. */
+export const MENU_IMG = "pa-img";
 /** The one item while logged out: opens the toolbar popup (the log in screen). */
 export const MENU_LOGIN = "pa-login";
 /** The one item while logged in with no paired device: opens Devices. */
@@ -56,8 +58,9 @@ export const MENU_SINGLE: Record<Exclude<MenuMode, "send">, readonly [string, st
 /** Context menu parents: [id, title, context]. */
 export const MENU_PARENTS: readonly (readonly [string, string, string])[] = [
   [MENU_URL, "PushArmor URL to", "link"],
-  [MENU_PAGE, "PushArmor URL to", "page"],
+  [MENU_PAGE, "PushArmor page URL to", "page"],
   [MENU_SEL, "PushArmor selection to", "selection"],
+  [MENU_IMG, "PushArmor image to", "image"],
 ];
 
 export function selectionTitle(text: string): string {

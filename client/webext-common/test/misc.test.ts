@@ -37,8 +37,9 @@ test("Firefox menu selection titles", () => {
 test("context menu parent titles per context", () => {
   assert.deepEqual(MENU_PARENTS.map(([, title, ctx]) => [ctx, title]), [
     ["link", "PushArmor URL to"],
-    ["page", "PushArmor URL to"],
+    ["page", "PushArmor page URL to"],
     ["selection", "PushArmor selection to"],
+    ["image", "PushArmor image to"],
   ]);
 });
 

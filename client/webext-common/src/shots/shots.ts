@@ -120,6 +120,45 @@ if (q.has("store")) {
   );
 }
 
+// ?files: History file rows in each state (and a file in Send with ?file, the text typed with ?typed)
+if (q.has("files")) {
+  const m = 60_000;
+  const sec = Math.floor(now / 1000);
+  const f = (name: string, size: number, h: number) => ({ url: "https://b2file.pusharmor.com/v1/x", expires: sec + h * 3600, key: "k", name, size, sha256: "s" });
+  const row = (rid: number, name: string, size: number, mins: number, fs: Record<string, unknown>, extra: Record<string, unknown> = {}) =>
+    ({ id: rid, dir: "in", peer: PHONE, type: "file", content: name, file: f(name, size, 23), fs, n: 1, pairing_id: null, received: now - mins * m, read: true, sender: "Phone", ...extra }) as HistoryRow & { sender: string };
+  history.splice(0, history.length,
+    row(18, "IMG_20261120_184522_HDR.jpg", 3_400_000, 2, { plain: true, image: true }, { here: true }),
+    row(17, "quarterly-report.pdf", 2_100_000, 14, { plain: true }, { here: true }),
+    row(16, "trip-video.mp4", 9_600_000, 20, {}, { pct: 45 }),
+    row(15, "site-plan.dwg", 840_000, 60, {}),
+    row(14, "voice-note.m4a", 4_800_000, 90, { code: "failed", text: "Download failed" }),
+    row(13, "panorama.png", 48_000_000, 120, { got: true, mem: true }),
+    { ...row(12, "old-photos.zip", 7_300_000, 26 * 60, { code: "expired", text: "Expired" }), file: f("old-photos.zip", 7_300_000, -2) },
+    { id: 11, dir: "out", peer: null, type: "file", content: "notes.txt", file: f("notes.txt", 12_000, 24), n: null, pairing_id: null, received: now - 3 * 60 * m, read: true, results: { [TABLET]: "sent" }, targets: [TABLET], sender: "Tablet" } as HistoryRow & { sender: string },
+  );
+}
+
+/** A small sample image for the View screenshot. */
+async function sampleImage(): Promise<Blob> {
+  const c = new OffscreenCanvas(640, 420);
+  const g = c.getContext("2d")!;
+  const sky = g.createLinearGradient(0, 0, 0, 420);
+  sky.addColorStop(0, "#4a90d9");
+  sky.addColorStop(1, "#f6d5a8");
+  g.fillStyle = sky;
+  g.fillRect(0, 0, 640, 420);
+  g.fillStyle = "#2f5d3a";
+  g.beginPath();
+  g.moveTo(0, 420);
+  g.lineTo(180, 220);
+  g.lineTo(330, 330);
+  g.lineTo(470, 180);
+  g.lineTo(640, 420);
+  g.fill();
+  return c.convertToBlob({ type: "image/png" });
+}
+
 function reply(req: Req): unknown {
   const text = String(req.args?.text ?? "");
   switch (req.op) {
@@ -138,6 +177,10 @@ function reply(req: Req): unknown {
       return { sent: 2, total: 2, failures: [] };
     case "sendSel":
       return sendSel;
+    case "fileStorage":
+      return { options: [100_000_000, 500_000_000, 1_000_000_000, 5_000_000_000], limit: 500_000_000 };
+    case "filesDecrypt":
+      return [];
     case "detect":
       return { type: detectType(text), bytes: utf8Len(text) };
     default:
@@ -162,6 +205,16 @@ const env: UiEnv = {
   // ?full: popup.html shown full screen (Firefox for Android); ?tab: the full tab view
   inPopup: () => !q.has("full") && !q.has("tab"),
   theme: memoryThemeStore(new URLSearchParams(location.search).get("theme")),
+  files: {
+    pick: async () => "k",
+    drop: async () => undefined,
+    plain: () => sampleImage(),
+    save: async (_b, name) => name,
+    copyImage: async () => undefined,
+    canCopyImage: true,
+    pickInTab: () => false,
+    onEvent: () => () => undefined,
+  },
 };
 
 const HEADLINES: Record<string, string> = {
@@ -213,6 +266,39 @@ async function main(): Promise<void> {
     pn.scrollTop = pn.scrollHeight;
     [...document.querySelectorAll<HTMLElement>(".prow .more button")].pop()?.click();
     await new Promise((done) => setTimeout(done, 300));
+  }
+  // ?file: a file chosen on Send (dropped on the message box); ?typed: text typed in the box
+  if (q.has("file")) {
+    const dt = new DataTransfer();
+    dt.items.add(new File([new Uint8Array(2_100_000)], "quarterly-report.pdf", { type: "application/pdf" }));
+    document.querySelector(".compose")?.dispatchEvent(new DragEvent("drop", { dataTransfer: dt, bubbles: true, cancelable: true }));
+    await new Promise((done) => setTimeout(done, 300));
+  }
+  if (q.has("typed")) {
+    const t = document.querySelector<HTMLTextAreaElement>(".compose textarea")!;
+    t.value = "Meet at the north entrance at 6";
+    t.dispatchEvent(new Event("input"));
+    await new Promise((done) => setTimeout(done, 300));
+  }
+  // ?view: the image of the newest file row in View
+  if (q.has("view")) {
+    await new Promise((done) => setTimeout(done, 500));
+    document.querySelector<HTMLElement>(".hrow")?.click();
+    await new Promise((done) => setTimeout(done, 200));
+    [...document.querySelectorAll<HTMLElement>(".hrow.sel button.ac")].find((b) => b.textContent === "View")?.click();
+    await new Promise((done) => setTimeout(done, 500));
+  }
+  // ?scroll: the view scrolled to its end
+  if (q.has("scroll")) {
+    await new Promise((done) => setTimeout(done, 500));
+    const pn = document.getElementById("panel")!;
+    pn.scrollTop = pn.scrollHeight;
+  }
+  // ?filesettings: Settings scrolled to Files
+  if (q.has("filesettings")) {
+    await new Promise((done) => setTimeout(done, 500));
+    [...document.querySelectorAll<HTMLElement>(".sh")].find((x) => x.textContent === "Files")?.scrollIntoView({ block: "start" });
+    await new Promise((done) => setTimeout(done, 200));
   }
   // ?open: the newest History row is opened (its actions show)
   if (q.has("open")) {

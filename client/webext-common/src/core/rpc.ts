@@ -7,6 +7,7 @@ import type { HistoryRow } from "../store/db.ts";
 import { type Engine, type Settings, UserError } from "./engine.ts";
 import { ActionError, RestartError, reasonOf, failText } from "./failtext.ts";
 import { Login, type Purpose } from "./login.ts";
+import { type Files, fileKey } from "./files.ts";
 import { PAIR_MSG_PREFIX, allEntries } from "./state.ts";
 import { type ActionId, T, peerLabel, pushVendor, rowLabel } from "./texts.ts";
 
@@ -78,6 +79,7 @@ export interface StateView {
 /** The action line of each request that can fail where the user clicked. */
 const ACTION: Record<string, ActionId> = {
   send: "send",
+  sendFile: "send",
   refresh: "refresh",
   rename: "rename",
   pair: "pair",
@@ -113,6 +115,11 @@ export class Rpc {
   constructor(e: Engine) {
     this.e = e;
     this.login = new Login(e);
+  }
+
+  private files(): Files {
+    if (!this.e.files) throw new Error("files unavailable");
+    return this.e.files as Files;
   }
 
   async handle(req: Req, senderTabId?: number): Promise<Reply> {
@@ -154,6 +161,8 @@ export class Rpc {
         await e.probeKeys().catch(() => undefined); // local only
         // draw from the local state at once; the network work runs behind it
         this.opening = e.onPopupOpen().catch(() => undefined);
+        void this.e.files?.catchUp().catch(() => undefined); // waiting files the picker allows
+        void this.e.files?.gc().catch(() => undefined);
         return (await e.newerSeen()) ? { ...(await this.state()), newerSeen: true } : this.state();
       case "pushCheck": {
         const result = await e.checkPush();
@@ -196,6 +205,15 @@ export class Rpc {
         return { type: detectType(s("text")), bytes: utf8Len(s("text")) };
       case "send":
         return e.send(s("text"), a.auto === true ? "auto" : a.asUrl === true ? "url" : a.asText === true ? "text" : "telOrText", Array.isArray(a.targets) ? (a.targets as string[]) : "all", Array.isArray(a.shown) ? (a.shown as string[]) : undefined);
+      case "sendFile":
+        return this.files().send(s("picked"), s("name"), Number(a.size), Array.isArray(a.targets) ? (a.targets as string[]) : "all", Array.isArray(a.shown) ? (a.shown as string[]) : undefined);
+      case "fileDownload":
+        void this.files().download(Number(a.id), false);
+        return null;
+      case "filesDecrypt":
+        return this.files().decryptShown(typeof a.id === "number" ? a.id : null);
+      case "fileStorage":
+        return this.files().storageInfo();
       case "pair":
         return e.pairStart(s("id"));
       case "sendAgain":
@@ -349,6 +367,8 @@ export class Rpc {
     const e = this.e;
     const waiting = await e.settleDeletes();
     const peers = new Map((await e.db.peers()).map((p) => [p.id, p]));
+    const f = e.files as Files | null;
+    const here = f ? await f.here().catch(() => new Set<string>()) : new Set<string>();
     // no device status rows: those an older version stored stay in the database, unlisted
     return (await e.db.history()).filter((r) => !isStatusRow(r)).map((r) => {
       const p = r.peer ? peers.get(r.peer) : undefined;
@@ -362,7 +382,9 @@ export class Rpc {
       }
       // a delete not done yet: the names of the devices it waits on
       const left = waiting.get(r.id!);
-      return left ? { ...r, sender, notDeleted: left.map((id) => peers.get(id)?.name ?? T.aPeer) } : { ...r, sender };
+      // a file: its download percent while one runs, and whether its decrypted file is here
+      const fx = r.type === "file" ? { pct: f?.running.get(r.id!), here: here.has(fileKey(r.id!)) } : {};
+      return left ? { ...r, ...fx, sender, notDeleted: left.map((id) => peers.get(id)?.name ?? T.aPeer) } : { ...r, ...fx, sender };
     });
   }
 }

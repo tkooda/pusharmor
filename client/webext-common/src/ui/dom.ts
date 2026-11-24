@@ -31,6 +31,26 @@ export interface UiEnv {
   notificationsBlocked?(): Promise<boolean>;
   /** storage.session for the login tab (Firefox Google or Apple result); absent in screenshot mode. */
   session?: SessionStore;
+  /** File bytes on this device; absent in screenshot mode. */
+  files?: FileEnv;
+}
+
+export interface FileEnv {
+  /** Stores a picked file for the background to send. -> its record key. */
+  pick(file: Blob): Promise<string>;
+  /** Drops a picked file that will not be sent. */
+  drop(key: string): Promise<void>;
+  /** The decrypted file of a row (store key "f" + row id), or null. */
+  plain(key: string): Promise<Blob | null>;
+  /** Saves bytes as application/octet-stream under name. -> the saved path or name, or null when the user cancels. */
+  save(blob: Blob, name: string): Promise<string | null>;
+  /** Puts an image on the clipboard (as PNG). */
+  copyImage(blob: Blob): Promise<void>;
+  canCopyImage: boolean;
+  /** true where the file dialog would close the toolbar popup (Firefox desktop): the picker opens in a tab. */
+  pickInTab(): boolean;
+  /** Calls cb on each file row change (pct: download progress); returns the function that stops it. */
+  onEvent(cb: (id: number, pct?: number) => void): () => void;
 }
 
 interface SessionStore {

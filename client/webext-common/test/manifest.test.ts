@@ -54,7 +54,7 @@ test("Chrome manifest: MV3, no key in the committed or release manifest, permiss
   assert.equal(chrome.manifest_version, 3);
   assert.equal(chrome.minimum_chrome_version, "121");
   assert.equal("key" in chrome, false);
-  assert.deepEqual(chrome.permissions, ["notifications", "contextMenus", "storage", "activeTab", "identity", "alarms", "unlimitedStorage", "scripting"]);
+  assert.deepEqual(chrome.permissions, ["notifications", "contextMenus", "storage", "activeTab", "identity", "alarms", "unlimitedStorage", "scripting", "offscreen"]);
   assert.equal("optional_permissions" in chrome, false);
   assert.equal(chrome.permissions.includes("downloads"), false);
   assert.deepEqual(chrome.host_permissions, ["https://api.pusharmor.com/*"]);

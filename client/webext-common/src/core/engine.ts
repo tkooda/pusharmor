@@ -30,6 +30,7 @@ import { autoOpenAllowed, detectType, isPhone, parseHttpUrl, type SendType } fro
 import { isLikelyUrl, urlToSend } from "../model/sendurl.ts";
 import {
   type Content,
+  type FileValue,
   buildJson,
   delChunks,
   encodeInner,
@@ -47,6 +48,8 @@ import {
 import { SEND_CAP, utf8Len } from "../model/padding.ts";
 import { AUTO_REPLY_WINDOW_MS, noReply, pairDecide, type PairDecision, pairHint, pairTimeout, type ResendResult } from "../model/pairdecide.ts";
 import { replayCheck, replayRecord } from "../model/replay.ts";
+import { DEFAULT_STORAGE, receivedName } from "../model/filerow.ts";
+import { DEFAULT_PICKER } from "../model/filerules.ts";
 import { receiveDecide } from "../model/receive.ts";
 import { type Platform, PushNotStarted, PushRefused } from "../platform.ts";
 import { type HistoryRow, type PeerRow, type Platform4, type SelfKeys, ACCOUNTS, Db, NEWER_SEEN, SLOT_LOCAL, newPeerRow } from "../store/db.ts";
@@ -99,8 +102,12 @@ export interface Settings {
   allowContent: boolean;
   /** true = deleting history here also deletes those messages on the other devices. */
   syncDeletions: boolean;
+  /** Files up to this many bytes download by themselves (0 = Off). */
+  fileAuto: number;
+  /** Bytes of received files kept on this device; the oldest go first. */
+  fileStorage: number;
 }
-export const DEFAULT_SETTINGS: Settings = { showAll: true, autoOpen: false, historyDays: 30, allowContent: true, syncDeletions: true };
+export const DEFAULT_SETTINGS: Settings = { showAll: true, autoOpen: false, historyDays: 30, allowContent: true, syncDeletions: true, fileAuto: DEFAULT_PICKER, fileStorage: DEFAULT_STORAGE };
 
 interface EngineDeps {
   platform: Platform;
@@ -121,6 +128,20 @@ export interface SendResult {
 
 /** Thrown by an operation; the UI shows text. */
 export class UserError extends Error {}
+
+/** What the engine asks of the file manager (core/files.ts). */
+export interface FilesHook {
+  /** A file row was added: download it now when the auto-download picker allows. */
+  received(rowId: number): Promise<void>;
+  /** Logout, removal, account switch: every local file byte goes. */
+  clearAll(): Promise<void>;
+  /** Catch-up: popup open, open from a notification, back online. */
+  catchUp(): Promise<void>;
+  /** Drops the bytes of rows that are gone. */
+  gc(): Promise<void>;
+  /** Removes the oldest decrypted files until the rest fit the storage limit. */
+  evict(): Promise<void>;
+}
 
 function now(p: Platform): number {
   return p.now();
@@ -180,6 +201,8 @@ export class Engine {
   /** The one "Check again" in flight; a second click shares it. */
   private rechecking: Promise<void> | null = null;
   private authN = 0;
+  /** Received files: download, decrypt, and the local bytes (set by the shell). */
+  files: FilesHook | null = null;
 
   constructor(d: EngineDeps) {
     this.p = d.platform;
@@ -209,6 +232,7 @@ export class Engine {
     const old = await this.settings();
     await this.db.setMeta("settings", { ...old, ...s });
     if (s.historyDays !== undefined && s.historyDays !== old.historyDays) await this.purgeHistory();
+    if (s.fileStorage !== undefined && s.fileStorage !== old.fileStorage) await this.files?.evict().catch(() => undefined);
     await this.rebuildMenus();
   }
 
@@ -278,7 +302,7 @@ export class Engine {
     return n ?? (this.p.platformName === "chrome" ? "Chrome" : "Firefox");
   }
 
-  private async peerName(id: string): Promise<string> {
+  async peerName(id: string): Promise<string> {
     const p = await this.db.peer(id);
     return peerLabel(p?.name ?? null);
   }
@@ -382,7 +406,7 @@ export class Engine {
     if (src === "fetched" && !(c.type === "remove" && c.id === onlyRemove)) return;
     const peer = (await this.db.peer(r.from))!;
     const pidB64 = b64urlEncode(r.pin.pairing_id);
-    const row = c.type === "url" || c.type === "text" || c.type === "tel" ? this.inboundRow(peer, c.type, c.value, r.n, pidB64, c.id ?? null) : c.type === "unknown" ? this.unknownRow(peer, c.key, r.n, pidB64, c.id) : c.type === "file" ? this.unknownRow(peer, "file", r.n, pidB64, c.id ?? null) : null; // a file shows as an unknown row until this client shows files
+    const row = c.type === "url" || c.type === "text" || c.type === "tel" ? this.inboundRow(peer, c.type, c.value, r.n, pidB64, c.id ?? null) : c.type === "unknown" ? this.unknownRow(peer, c.key, r.n, pidB64, c.id) : c.type === "file" ? this.fileRow(peer, c.value, r.n, pidB64, c.id ?? null) : null;
     // approve: the peer-row change commits with the replay record
     const peerFn = c.type === "approve" ? approveRow(r.n, r.name, r.pin.pairing_id) : undefined;
     const rec = await this.db.acceptN(r.from, pidB64, r.n, row, (s) => replayCheck(s, r.n), (s) => replayRecord(s, r.n), true, peerFn);
@@ -412,6 +436,26 @@ export class Engine {
       n,
       pairing_id: pidB64,
       received: now(this.p),
+      read: false,
+      mid,
+    } as HistoryRow;
+  }
+
+  /** A received file: an unread row named by the name rule (receive time for a fallback name); the bytes come later. */
+  private fileRow(peer: PeerRow, f: FileValue, n: number, pidB64: string, mid: string | null): HistoryRow {
+    const t = now(this.p);
+    const name = receivedName(f.name, t);
+    return {
+      dir: "in",
+      peer: peer.id,
+      peer_name: peer.name,
+      type: "file",
+      content: name,
+      file: { ...f, name },
+      fs: {},
+      n,
+      pairing_id: pidB64,
+      received: t,
       read: false,
       mid,
     } as HistoryRow;
@@ -456,9 +500,17 @@ export class Engine {
         return;
       }
       case "unknown":
-      case "file":
         await this.updateBadge(); // the badge as for text; no notification
         return;
+      case "file": {
+        if (rowId === undefined) return;
+        const row = (await this.db.get<HistoryRow>("history", rowId))!;
+        // a file already past expires on arrival gets only its row
+        if (Math.floor(now(this.p) / 1000) < c.value.expires) await this.notifyRow(row);
+        await this.updateBadge();
+        await this.files?.received(rowId);
+        return;
+      }
       case "approve": {
         // the peer row was updated with the replay record (approveRow)
         const row = applied ?? peer;
@@ -1517,9 +1569,6 @@ export class Engine {
   async send(text: string, as: "auto" | "url" | "text" | "telOrText", targets: string[] | "all", shown?: string[]): Promise<SendResult> {
     const self = await this.self();
     if (!self) throw new ReasonError(R.loggedOut);
-    const all = await this.allSet();
-    // All leaves out a device shown greyed as unreachable; a device picked by name is sent to as before
-    const ids = targets === "all" ? all.filter((p) => p.reachable).map((p) => p.id) : targets.filter((t) => all.some((p) => p.id === t));
     const len = utf8Len(text);
     if (len > SEND_CAP) throw new ReasonError(R.tooLong);
     let type: SendType = as === "auto" ? detectType(text) : as === "url" && isLikelyUrl(text) ? "url" : as === "telOrText" && detectType(text) === "tel" ? "tel" : "text";
@@ -1531,6 +1580,19 @@ export class Engine {
     }
     const valueLen = utf8Len(value);
     if (valueLen > SEND_CAP) throw new ReasonError(R.tooLong); // href percent-encodes
+    const to = await this.sendTargets(targets, shown);
+    if (to.ids.length === 0) return to.none;
+    return this.deliver(self, to, { type, value } as Content, { type, content: value });
+  }
+
+  /**
+   * The devices a send goes to, and the picked ones that left the All set since (each with why).
+   * none: the result when it goes to no device.
+   */
+  async sendTargets(targets: string[] | "all", shown?: string[]): Promise<{ all: PeerRow[]; ids: string[]; skipped: SendResult["failures"]; none: SendResult }> {
+    const all = await this.allSet();
+    // All leaves out a device shown greyed as unreachable; a device picked by name is sent to as before
+    const ids = targets === "all" ? all.filter((p) => p.reachable).map((p) => p.id) : targets.filter((t) => all.some((p) => p.id === t));
     // a device the user could pick that left the All set since gets nothing: say why, as a send result would
     // (a device that was greyed already is not named; none sent is never a success)
     const skipped: SendResult["failures"] = [];
@@ -1541,7 +1603,19 @@ export class Engine {
       skipped.push({ id, result: res, text: sendResultText(await this.peerName(id), res) });
     }
     const total = ids.length + skipped.length;
-    if (ids.length === 0) return skipped.length ? { sent: 0, total, all: all.length, failures: skipped } : { sent: 0, total, all: all.length, failures: [], error: actionLine("send") + "\n" + R.noneCanReceive };
+    const none: SendResult = skipped.length ? { sent: 0, total, all: all.length, failures: skipped } : { sent: 0, total, all: all.length, failures: [], error: actionLine("send") + "\n" + R.noneCanReceive };
+    return { all, ids, skipped, none };
+  }
+
+  /** Encrypts content for each device, posts it, and writes the History row (row: its type and content fields). */
+  async deliver(
+    self: SelfKeys,
+    to: { all: PeerRow[]; ids: string[]; skipped: SendResult["failures"] },
+    content: Content,
+    row: Pick<HistoryRow, "type" | "content"> & Partial<HistoryRow>,
+  ): Promise<SendResult> {
+    const { all, ids, skipped } = to;
+    const total = ids.length + skipped.length;
     const mid = newMsgId();
     // the Send popup shows these steps (a quarter of the bar each); a retry holds the bar at sending
     const names = await Promise.all(ids.map((id) => this.peerName(id)));
@@ -1556,7 +1630,7 @@ export class Engine {
           signKey: self.sign.privateKey,
           fromId: b64urlDecode(self.id),
           pairingId: peer.pairing_id!,
-          json: buildJson(n, { type, value, id: mid } as Content),
+          json: buildJson(n, { ...content, id: mid } as Content),
           recipientId: id,
           recipientEncPub: peer.enc_pub,
         });
@@ -1603,10 +1677,9 @@ export class Engine {
     }
     if (menus) await this.rebuildMenus();
     await this.db.addHistory({
+      ...row,
       dir: "out",
       peer: null,
-      type,
-      content: value,
       n: null,
       pairing_id: null,
       received: now(this.p),
@@ -1867,6 +1940,7 @@ export class Engine {
     if (!(await this.self())) return this.wipe();
     await this.db.setMeta(LOGOUT_PENDING, true);
     await this.setReg("logged_out");
+    await this.files?.clearAll().catch(() => undefined); // a logout drops every local file byte
   }
 
   /** Sends a pending logout; one at a time. */
@@ -2041,6 +2115,7 @@ export class Engine {
   /** The one wipe routine (section 4.1). History is kept. */
   async wipe(): Promise<void> {
     await this.p.storageLocal.remove([REG_MARKER]);
+    await this.files?.clearAll().catch(() => undefined); // every local file byte goes
     await this.db.clear(["keys", "peers", "replay"]);
     for (const k of ["reg", LOGOUT_PENDING, "push_hash", "listed", "my_push_sha256", "my_relay_fault", "fetch_pending", "last_fetch", "push_issue", "push_miss", "push_fail", KEYS_BROKEN, WIPE_CHECK]) await this.db.del("meta", k);
     const all = await this.p.storageLocal.get(null);
@@ -2190,6 +2265,7 @@ export class Engine {
     const rows = to !== null && to in accounts ? await this.db.readArchive(to) : null;
     if (to !== null) delete accounts[to];
     await this.db.loadRows(rows, accounts);
+    await this.files?.clearAll().catch(() => undefined); // files stay with no account: their rows say removed
     if (to !== null) await this.db.dropArchive(to).catch(() => undefined); // a stale one is never read: it is not listed
     this.pairingAgain.clear();
     this.replying.clear();

@@ -37,7 +37,7 @@ test("context menu: logged out shows only Log in to PushArmor..., no paired devi
     await new Promise((r) => setTimeout(r, 20));
     assert.deepEqual([...m.items.keys()], [id]);
     assert.equal(m.items.get(id)!.title, title);
-    assert.deepEqual(m.items.get(id)!.contexts, ["link", "page", "selection"]);
+    assert.deepEqual(m.items.get(id)!.contexts, ["link", "page", "selection", "image"]);
   }
 });
 

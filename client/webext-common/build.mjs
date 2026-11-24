@@ -157,8 +157,9 @@ async function shell(name, entries, iife, target, manifestFix) {
   console.log("built", name, dev ? "(dev)" : "");
 }
 
-await shell("chrome", ["sw", "popup", "page"], [], "chrome121", (m) => {
+await shell("chrome", ["sw", "popup", "page", "offscreen"], [], "chrome121", (m, out, root) => {
   if (dev && value("google_chrome_dev_key")) m.key = value("google_chrome_dev_key");
+  writeFileSync(join(out, "offscreen.html"), readFileSync(join(root, "offscreen.html")));
 });
 await shell("firefox", ["background", "popup", "page"], [["cs", "sitefwd/cs"]], "firefox140", (m, out, root) => {
   if (value("mozilla_firefox_addon_id")) m.browser_specific_settings.gecko.id = value("mozilla_firefox_addon_id");

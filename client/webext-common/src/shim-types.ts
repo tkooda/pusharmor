@@ -2,6 +2,8 @@
 // use (Chrome MV3 and Firefox both return promises). Types only: shared code
 // never touches the globals; each shell resolves them in its shim.ts.
 
+import type { PortLike } from "./model/imgfetch.ts";
+
 interface StorageArea {
   get(keys: string[] | null): Promise<Record<string, unknown>>;
   set(items: Record<string, unknown>): Promise<void>;
@@ -33,6 +35,8 @@ export interface MenuInfo {
   linkUrl?: string;
   pageUrl?: string;
   selectionText?: string;
+  /** An image (or other media) element's source. */
+  srcUrl?: string;
   frameId?: number;
   contexts?: string[];
 }
@@ -47,6 +51,7 @@ export interface Browser {
     onStartup: Event<() => void>;
     onInstalled: Event<(d: { reason: string }) => void>;
     getPlatformInfo(): Promise<{ os: string }>;
+    onConnect?: Event<(p: PortLike) => void>;
     /** Chrome 116+, Firefox 129+ */
     getContexts?(f: { contextTypes: string[] }): Promise<{ tabId: number; windowId: number; documentUrl?: string }[]>;
   };
@@ -70,6 +75,8 @@ export interface Browser {
     remove(id: number): Promise<void>;
     reload(id: number): Promise<void>;
     update(id: number, p: { active?: boolean; url?: string }): Promise<Tab>;
+    /** Firefox (MV2): code in a frame of a tab (activeTab). */
+    executeScript?(tabId: number, d: { frameId?: number; code: string }): Promise<unknown[]>;
   };
   extension?: { getViews?(f: { type: string }): unknown[]; inIncognitoContext?: boolean };
   windows?: {
@@ -97,9 +104,14 @@ export interface Browser {
     onShown: Event<(info: MenuInfo, tab: Tab) => void>;
     refresh(): Promise<void>;
   };
+  /** Chrome: the offscreen document that runs file transfers (reason BLOBS). */
+  offscreen?: {
+    createDocument(p: { url: string; reasons: string[]; justification: string }): Promise<void>;
+    closeDocument(): Promise<void>;
+  };
   identity?: { launchWebAuthFlow(d: { url: string; interactive: boolean }): Promise<string>; getRedirectURL(): string };
   scripting?: {
-    executeScript(d: { target: { tabId: number; frameIds?: number[] }; func: () => unknown }): Promise<{ result: unknown }[]>;
+    executeScript<A extends unknown[]>(d: { target: { tabId: number; frameIds?: number[] }; func: (...args: A) => unknown; args?: A }): Promise<{ result: unknown }[]>;
   };
   webRequest?: {
     onBeforeRequest: {

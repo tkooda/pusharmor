@@ -2,6 +2,8 @@
 // additive and forward-only; a rollback build keeps the current version.
 import { b64urlEncode } from "../crypto/b64url.ts";
 import type { ReplayState } from "../model/replay.ts";
+import type { FileValue } from "../model/message.ts";
+import type { FileState } from "../model/filerow.ts";
 
 const DB_NAME = "pusharmor";
 const DB_VERSION = 1;
@@ -51,7 +53,7 @@ export interface HistoryRow {
   dir: "in" | "out";
   peer: string | null;
   peer_name?: string | null; // last known name, kept for "(removed)"
-  type: "url" | "text" | "tel" | "event" | "unknown";
+  type: "url" | "text" | "tel" | "event" | "unknown" | "file";
   event?: "denied" | "logged_out" | "logged_in" | "unreadable" | "invalid";
   content: string;
   n: number | null;
@@ -65,6 +67,8 @@ export interface HistoryRow {
   utype?: string; // type "unknown": the raw type key of a content message from a newer version
   del_req?: string[]; // a Sync deletions delete that is not done yet: the devices it was sent to
   del_ok?: string[]; // of del_req, the devices whose push the relay server accepted
+  file?: FileValue; // type "file": the file message (name already cleaned by the name rule); content is the name
+  fs?: FileState; // type "file", received: download and decrypt state
 }
 
 function req<T>(r: IDBRequest<T>): Promise<T> {

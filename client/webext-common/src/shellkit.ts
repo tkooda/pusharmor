@@ -1,9 +1,9 @@
 // Shared wiring for the two shells. The shell passes in its "browser"
 // namespace object; nothing here reads a browser global.
 import { SEND_CAP, utf8Len } from "./model/padding.ts";
-import { saveViaLink, saveWithPermission } from "./model/savefile.ts";
+import { saveBlobViaLink, saveBlobWithPermission, saveViaLink, saveWithPermission } from "./model/savefile.ts";
 import { Api } from "./api/client.ts";
-import { MENU_PAGE, MENU_PARENTS, MENU_SEL, MENU_SINGLE, MENU_URL, clickTarget, menuSend, type MenuMode } from "./core/actions.ts";
+import { MENU_IMG, MENU_PAGE, MENU_PARENTS, MENU_SEL, MENU_SINGLE, MENU_URL, clickTarget, menuSend, type MenuMode } from "./core/actions.ts";
 import { Engine, type SendResult } from "./core/engine.ts";
 import { failText } from "./core/failtext.ts";
 import { Rpc, type Req } from "./core/rpc.ts";
@@ -12,6 +12,11 @@ import type { PushFields } from "./crypto/labels.ts";
 import type { KV, MenuPeer, Platform } from "./platform.ts";
 import type { Browser, MenuInfo, MessageSender, Tab } from "./shim-types.ts";
 import { Db, openDb } from "./store/db.ts";
+import { FileStore } from "./store/files.ts";
+import { type FileEvent, type FileHost, Files } from "./core/files.ts";
+import { MAX_FILE } from "./crypto/filecrypt.ts";
+import { webImageName } from "./model/filerow.ts";
+import { PIECE_RAW, collectImage, pageImageFetch } from "./model/imgfetch.ts";
 import type { UiEnv } from "./ui/dom.ts";
 import { THEME_KEY } from "./ui/theme.ts";
 
@@ -124,8 +129,29 @@ interface Booted {
 /** Shown by the UI (with Retry) when the local database cannot be opened. */
 const BOOT_ERROR = "PushArmor could not open its local database. Close this window and try again, or restart the browser.";
 
+/** Where file transfers run (host), and how open views hear of a file row change (tell). */
+export interface FileShell {
+  host(progress: (id: number, have: number, total: number) => void): FileHost;
+  tell(m: FileEvent): void;
+}
+
+let fileStoreP: Promise<FileStore> | null = null;
+/** The file store, opened once; a failed open is tried again by the next use. */
+export function fileStore(): Promise<FileStore> {
+  if (!fileStoreP) {
+    fileStoreP = FileStore.open();
+    fileStoreP.catch(() => (fileStoreP = null));
+  }
+  return fileStoreP;
+}
+
+/** Tells open views (popup, full tab) of a file row change; no open view is not an error. */
+export function tellViews(b: Browser): (m: FileEvent) => void {
+  return (m) => void b.runtime.sendMessage(m).catch(() => undefined);
+}
+
 /** Lazy init inside handlers (no top-level await in the entry files). */
-export function lazyBoot(make: () => Platform, vapid: Uint8Array): () => Promise<Booted> {
+export function lazyBoot(make: () => Platform, vapid: Uint8Array, files?: FileShell): () => Promise<Booted> {
   let p: Promise<Booted> | null = null;
   return () => {
     if (!p) {
@@ -150,6 +176,10 @@ export function lazyBoot(make: () => Platform, vapid: Uint8Array): () => Promise
             },
           });
           const engine = new Engine({ platform, db, api, vapidPub: vapid });
+          if (files) {
+            const f: Files = new Files(engine, files.host((id, have, total) => f.progress(id, have, total)), fileStore, files.tell);
+            engine.files = f;
+          }
           void engine.retryPendingLogout().catch(() => undefined); // background start
           return { engine, rpc: new Rpc(engine) };
         } catch (e) {
@@ -243,6 +273,13 @@ export function onRuntimeMessage(boot: () => Promise<Booted>, extra?: (msg: Req,
   return (msg: unknown, sender: MessageSender, sendResponse: (r: unknown) => void): boolean => {
     const m = msg as Req;
     if (!m || typeof m.op !== "string") return false;
+    // file host messages: progress goes to the file rows; a beat only keeps this worker running; views take fileEvent
+    if (m.op === "fileBeat" || m.op === "fileEvent" || (msg as { target?: unknown }).target === "offscreen") return false;
+    if (m.op === "fileProgress") {
+      const a = msg as { id?: unknown; have?: unknown; total?: unknown };
+      void boot().then((b) => (b.engine.files as Files | null)?.progress(Number(a.id), Number(a.have), Number(a.total)), () => undefined);
+      return false;
+    }
     if (m.op === "menuSendClaim") {
       claimMenuSend().then((data) => sendResponse({ ok: true, data }), () => sendResponse({ ok: true, data: null }));
       return true;
@@ -293,6 +330,7 @@ export function onNotificationClick(b: Browser, boot: () => Promise<Booted>) {
   return (id: string): void => {
     void (async () => {
       const { engine } = await boot();
+      void engine.files?.catchUp().catch(() => undefined); // open from a notification
       const t = await clickTarget(engine, id);
       await b.notifications.clear(id);
       if (!t) return;
@@ -325,6 +363,7 @@ export function onMenuClick(b: Browser, boot: () => Promise<Booted>, readSelecti
       }
       const [parent, child] = String(info.menuItemId).split("|");
       if (!child) return;
+      if (parent === MENU_IMG) return void (await imageSend(b, boot, info, tab, child));
       // the toolbar popup sends it with the same Send popup as its Send screen; if it cannot open
       // or does not take the send in time, the send runs here as before
       const opened = openActionPopup(b);
@@ -400,6 +439,48 @@ export function onMenuClick(b: Browser, boot: () => Promise<Booted>, readSelecti
   };
 }
 
+/** Injects pageImageFetch into the frame of the clicked image (activeTab): Chrome scripting, Firefox tabs.executeScript. */
+async function injectImageFetch(b: Browser, tabId: number, frameId: number | undefined, src: string, port: string): Promise<void> {
+  const args: [string, string, number, number] = [src, port, MAX_FILE, PIECE_RAW];
+  if (b.scripting) {
+    await b.scripting.executeScript({ target: frameId === undefined ? { tabId } : { tabId, frameIds: [frameId] }, func: pageImageFetch, args });
+    return;
+  }
+  if (!b.tabs.executeScript) throw new Error("no script injection");
+  await b.tabs.executeScript(tabId, { frameId: frameId ?? 0, code: "(" + pageImageFetch.toString() + ")(" + args.map((a) => JSON.stringify(a)).join(",") + ")" });
+}
+
+/**
+ * "PushArmor image to": the image's bytes as a file (up to MAX_FILE); with no bytes (the page's server
+ * refuses them, or too large) the image URL goes as a URL. The result shows as the badge, a failure as a notification.
+ */
+async function imageSend(b: Browser, boot: () => Promise<Booted>, info: MenuInfo, tab: Tab | undefined, child: string): Promise<void> {
+  const src = info.srcUrl ?? "";
+  if (!src) return;
+  const { engine } = await boot();
+  const targets = child === "all" ? "all" : [child];
+  const got = tab?.id === undefined ? null : await collectImage((port) => injectImageFetch(b, tab.id!, info.frameId, src, port));
+  let r: SendResult;
+  try {
+    if (got && engine.files) {
+      const name = webImageName(src, got.head, got.type, Math.floor(engine.p.now() / 1000));
+      const picked = await (await fileStore()).putPicked(got.blob);
+      r = await (engine.files as Files).send(picked, name, got.blob.size, targets);
+      if (r.sent === 0) await (await fileStore()).deletePicked(picked).catch(() => undefined);
+    } else if (/^https?:/i.test(src)) {
+      r = (await menuSend(engine, src, child, false)).result ?? { sent: 0, total: 1, failures: [], error: actionLine("send") + "\n" + R.tooLong };
+    } else throw new Error("no image bytes");
+  } catch (err) {
+    engine.p.notify("send-result", "PushArmor", failText("send", err));
+    return;
+  }
+  const total = child === "all" ? r.total : 1;
+  engine.p.setBadge(r.sent + "/" + total);
+  setTimeout(() => void engine.updateBadge(), 5000);
+  const notice = r.error || r.sent < total ? r.error || r.failures.map((f) => f.text).join("\n") || actionLine("send") + "\n" + R.someNotSent : null;
+  if (notice) engine.p.notify("send-result", "PushArmor", notice);
+}
+
 /**
  * true while the browser blocks this extension's notifications: notifications.getPermissionLevel
  * (Chrome), else the web Notification permission (Firefox). Neither sees a block in the operating
@@ -408,6 +489,19 @@ export function onMenuClick(b: Browser, boot: () => Promise<Booted>, readSelecti
 export async function notificationsBlocked(n: { getPermissionLevel?(): Promise<string> }, webPermission: string | undefined): Promise<boolean> {
   if (n.getPermissionLevel) return (await n.getPermissionLevel().catch(() => "")) === "denied";
   return webPermission === "denied";
+}
+
+/** An image on the clipboard: browsers take PNG, so another type is drawn to PNG first. */
+async function copyImage(blob: Blob): Promise<void> {
+  let png = blob;
+  if (blob.type !== "image/png") {
+    const bmp = await createImageBitmap(blob);
+    const c = new OffscreenCanvas(bmp.width, bmp.height);
+    c.getContext("2d")!.drawImage(bmp, 0, 0);
+    bmp.close();
+    png = await c.convertToBlob({ type: "image/png" });
+  }
+  await navigator.clipboard.write([new ClipboardItem({ "image/png": png })]);
 }
 
 /** UiEnv for popup.html and page.html. */
@@ -484,6 +578,25 @@ export function uiEnv(b: Browser, linkSave = false): UiEnv {
         };
         b.storage.onChanged.addListener(f);
         return () => b.storage.onChanged.removeListener(f);
+      },
+    },
+    files: {
+      pick: async (file) => (await fileStore()).putPicked(file),
+      drop: async (key) => (await fileStore()).deletePicked(key),
+      plain: async (key) => (await fileStore()).plain(key),
+      save: (blob, name) => (linkSave ? saveBlobViaLink(blob, name) : saveBlobWithPermission(b.permissions, () => b.downloads, blob, name)),
+      copyImage,
+      canCopyImage: typeof ClipboardItem === "function" && typeof navigator.clipboard?.write === "function",
+      // Firefox desktop closes the toolbar popup when the file dialog opens
+      pickInTab: () => !linkSave && !/Android/i.test(navigator.userAgent) && (b.extension?.getViews?.({ type: "popup" }) ?? []).includes(globalThis),
+      onEvent(cb) {
+        const f = (m: unknown) => {
+          const e = m as { op?: unknown; id?: unknown; pct?: unknown } | null;
+          if (e?.op === "fileEvent" && typeof e.id === "number") cb(e.id, typeof e.pct === "number" ? e.pct : undefined);
+          return false;
+        };
+        b.runtime.onMessage.addListener(f);
+        return () => b.runtime.onMessage.removeListener(f);
       },
     },
     theme: {

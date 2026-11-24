@@ -2,6 +2,7 @@
 // its version never changes for files. "chunks": a download in progress, as
 // Blob pieces in order, kept across restarts for a Range resume. "picked": a file
 // the user picked to send, handed by record key to the page that uploads it.
+// "plain": a decrypted file, by the same key as its chunks.
 
 const NAME = "pusharmor-files";
 
@@ -36,10 +37,12 @@ export class FileStore {
 
   static open(factory: IDBFactory = indexedDB, range: typeof IDBKeyRange = IDBKeyRange): Promise<FileStore> {
     return new Promise((res, rej) => {
-      const r = factory.open(NAME, 1);
+      const r = factory.open(NAME, 2);
       r.onupgradeneeded = () => {
-        r.result.createObjectStore("chunks", { keyPath: ["file", "i"] });
-        r.result.createObjectStore("picked");
+        const have = r.result.objectStoreNames;
+        if (!have.contains("chunks")) r.result.createObjectStore("chunks", { keyPath: ["file", "i"] });
+        if (!have.contains("picked")) r.result.createObjectStore("picked");
+        if (!have.contains("plain")) r.result.createObjectStore("plain");
       };
       r.onsuccess = () => res(new FileStore(r.result, range));
       r.onerror = () => rej(r.error);
@@ -98,11 +101,47 @@ export class FileStore {
     await done(tx);
   }
 
+  /** Stores the decrypted file of key. A full disk rejects with a QuotaExceededError. */
+  async putPlain(key: string, blob: Blob): Promise<void> {
+    const tx = this.db.transaction("plain", "readwrite");
+    tx.objectStore("plain").put(blob, key);
+    await done(tx);
+  }
+
+  async plain(key: string): Promise<Blob | null> {
+    return ((await req(this.db.transaction("plain").objectStore("plain").get(key))) as Blob | undefined) ?? null;
+  }
+
+  /** Bytes of each decrypted file, by key. */
+  async plainSizes(): Promise<Map<string, number>> {
+    const out = new Map<string, number>();
+    const os = this.db.transaction("plain").objectStore("plain");
+    const [keys, vals] = await Promise.all([req(os.getAllKeys()), req(os.getAll())]);
+    keys.forEach((k, i) => out.set(String(k), (vals[i] as Blob).size));
+    return out;
+  }
+
+  /** Keys with stored chunks or a decrypted file. */
+  async keys(): Promise<Set<string>> {
+    const tx = this.db.transaction(["chunks", "plain"]);
+    const [c, p] = await Promise.all([req(tx.objectStore("chunks").getAllKeys()), req(tx.objectStore("plain").getAllKeys())]);
+    return new Set([...c.map((k) => String((k as unknown[])[0])), ...p.map(String)]);
+  }
+
+  /** Every byte of key: chunks and the decrypted file. */
+  async remove(key: string): Promise<void> {
+    const tx = this.db.transaction(["chunks", "plain"], "readwrite");
+    tx.objectStore("chunks").delete(this.chunks(key));
+    tx.objectStore("plain").delete(key);
+    await done(tx);
+  }
+
   /** Logout and device removal: every stored file byte goes. */
   async clearAll(): Promise<void> {
-    const tx = this.db.transaction(["chunks", "picked"], "readwrite");
+    const tx = this.db.transaction(["chunks", "picked", "plain"], "readwrite");
     tx.objectStore("chunks").clear();
     tx.objectStore("picked").clear();
+    tx.objectStore("plain").clear();
     await done(tx);
   }
 

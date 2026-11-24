@@ -81,10 +81,11 @@ async function mount(inPopup: boolean, result: unknown, peers: unknown[] = [PEER
   return { chipsOn, type, send, sent, closed: () => closed, caption, textRow, tickText, meta, sendBtn, counter, field };
 }
 
-test("Send: the type line always shows; a URL is sent as URL unless Send as text is ticked, and the override is for one send", async () => {
+test("Send: the type line shows once the box has content; a URL is sent as URL unless Send as text is ticked, and the override is for one send", async () => {
   const v = await mount(false, { sent: 1, total: 1, failures: [] });
-  assert.deepEqual([!!v.caption.hidden, !!v.textRow.hidden, v.caption.textContent], [false, true, "Will be sent as text"]);
+  assert.deepEqual([!!v.caption.hidden, !!v.textRow.hidden], [true, true]);
   await v.type("minilock.org");
+  assert.equal(!!v.caption.hidden, false);
   assert.deepEqual([!!v.textRow.hidden, v.caption.textContent], [false, "Will be sent as URL"]);
   await v.send();
   assert.deepEqual([v.sent[0]!.asUrl, v.sent[0]!.asText], [true, false]);
@@ -103,7 +104,7 @@ test("Send: the type line always shows; a URL is sent as URL unless Send as text
   await v.type("hello");
   assert.deepEqual([!!v.textRow.hidden, v.caption.textContent], [true, "Will be sent as text"]);
   await v.type("");
-  assert.equal(!!v.caption.hidden, false);
+  assert.equal(!!v.caption.hidden, true, "an empty box hides the type line");
 });
 
 test("Send: the toolbar popup closes after a sent message; a full tab or Firefox for Android shows the toast; a failure keeps it open", async () => {

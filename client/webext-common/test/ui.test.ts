@@ -545,7 +545,7 @@ test("history message actions: View, Copy, Share, and Save share one equal-width
   const { readFileSync } = await import("node:fs");
   const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
   const css = readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8");
-  assert.match(pop, /const main = h\("div", \{ class: "acts-row" \}\);\s*for \(const a of msgActions\(r\.type\)\) if \(a !== "share" \|\| canShare\) main\.append\(btn\[a\]\(\)\);/);
+  assert.match(pop, /const main = h\("div", \{ class: "acts-row" \}\);\s*if \(isFile\) main\.append\(\.\.\.fileButtons\(env, r\)\);\s*else for \(const a of msgActions\(r\.type\)\) if \(a !== "share" \|\| canShare\) main\.append\(btn\[a\]\(\)\);/);
   assert.match(pop, /acts\.append\(main\);/);
   assert.doesNotMatch(pop, /Send to\.\.\.|resend/);
   assert.match(css, /\.acts-row \{ display: flex; gap: 6px; flex: 1 0 100%; \}/);

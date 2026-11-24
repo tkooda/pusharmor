@@ -3,7 +3,9 @@
 import { b64urlTryDecode } from "../../webext-common/src/crypto/b64url.ts";
 import type { PushFields } from "../../webext-common/src/crypto/labels.ts";
 import { MENU_SEL, selectionTitle } from "../../webext-common/src/core/actions.ts";
-import { lazyBoot, onMenuClick, onNotificationClick, onRuntimeMessage } from "../../webext-common/src/shellkit.ts";
+import { lazyBoot, onMenuClick, onNotificationClick, onRuntimeMessage, tellViews } from "../../webext-common/src/shellkit.ts";
+import { openWorker } from "../../webext-common/src/core/fileworker.ts";
+import { onImagePort } from "../../webext-common/src/model/imgfetch.ts";
 import type { Req } from "../../webext-common/src/core/rpc.ts";
 import type { MessageSender } from "../../webext-common/src/shim-types.ts";
 import { Db, openDb } from "../../webext-common/src/store/db.ts";
@@ -36,7 +38,14 @@ const seen = fwdSeen(
   () => Date.now(),
 );
 
-const boot = lazyBoot(() => firefoxPlatform({ isAndroid, autopush: () => autopush, db }), vapid);
+// file transfers run right here (the persistent background page), never in the popup
+const boot = lazyBoot(() => firefoxPlatform({ isAndroid, autopush: () => autopush, db }), vapid, {
+  host(progress) {
+    const worker = openWorker("firefox/" + browser.runtime.getManifest().version, progress);
+    return { run: async (req) => (await worker()).run(req) };
+  },
+  tell: tellViews(browser),
+});
 
 async function init(): Promise<void> {
   isAndroid = (await browser.runtime.getPlatformInfo()).os === "android";
@@ -97,7 +106,10 @@ setInterval(() => {
   if (t - lastTick > 30_000 + 60_000) autopush?.reconnectNow();
   lastTick = t;
 }, 30_000);
-addEventListener("online", () => autopush?.reconnectNow());
+addEventListener("online", () => {
+  autopush?.reconnectNow();
+  void boot().then(({ engine }) => engine.files?.catchUp()).catch(() => undefined); // waiting files the picker allows
+});
 
 /** A site push subscription (from /fx/setup, or the site SW after a subscription change): stored, then PATCHed in fallback mode. */
 async function storeFallback(a: unknown): Promise<boolean> {
@@ -151,6 +163,7 @@ browser.runtime.onMessage.addListener(
     return null;
   }),
 );
+browser.runtime.onConnect?.addListener(onImagePort);
 browser.notifications.onClicked.addListener(onNotificationClick(browser, boot));
 browser.alarms.onAlarm.addListener((a) => {
   void whenReady().then(boot).then(async ({ engine }) => {

@@ -1,7 +1,9 @@
 // Chrome MV3 service worker entry. Every listener is registered at the top
 // level, synchronously; lazy init runs inside the handlers (section 3).
 import { b64urlTryDecode } from "../../webext-common/src/crypto/b64url.ts";
-import { lazyBoot, onMenuClick, readTabSelection, onNotificationClick, onRuntimeMessage } from "../../webext-common/src/shellkit.ts";
+import { lazyBoot, onMenuClick, readTabSelection, onNotificationClick, onRuntimeMessage, tellViews } from "../../webext-common/src/shellkit.ts";
+import { onImagePort } from "../../webext-common/src/model/imgfetch.ts";
+import { offscreenHost } from "./offhost.ts";
 import { chromePlatform } from "./platform-chrome.ts";
 import { browser } from "./shim.ts";
 
@@ -15,7 +17,8 @@ interface PushEvent extends ExtendableEvent {
 }
 
 const vapid = b64urlTryDecode(VAPID_PUBLIC_KEY) ?? new Uint8Array(0);
-const boot = lazyBoot(chromePlatform, vapid);
+// file transfers run in the offscreen document; its progress comes back as fileProgress messages
+const boot = lazyBoot(chromePlatform, vapid, { host: () => offscreenHost(browser), tell: tellViews(browser) });
 const sw = globalThis as unknown as { addEventListener(t: string, f: (e: Event) => void): void };
 
 sw.addEventListener("push", (ev) => {
@@ -34,6 +37,9 @@ sw.addEventListener("pushsubscriptionchange", (ev) => {
 });
 
 browser.runtime.onMessage.addListener(onRuntimeMessage(boot));
+browser.runtime.onConnect?.addListener(onImagePort);
+// back online: waiting files the picker allows
+sw.addEventListener("online", () => void boot().then(({ engine }) => engine.files?.catchUp()).catch(() => undefined));
 browser.notifications.onClicked.addListener(onNotificationClick(browser, boot));
 browser.alarms.onAlarm.addListener((a) => {
   void boot().then(async ({ engine }) => {

@@ -15,6 +15,10 @@ import { type MsgAction, msgActions, saveFilename } from "../model/msgactions.ts
 import { icon, type IconName, messagesArt, platformIcon } from "./icons.ts";
 import { ownCard, renderPeers, resetPeersView } from "./peersview.ts";
 import { THEME_CHOICES, parseTheme, setTheme, startTheme } from "./theme.ts";
+import * as F from "../model/filerow.ts";
+import { storageFullText } from "../model/filerules.ts";
+import { PICKER_SIZES } from "../model/filerules.ts";
+import { fileKey } from "../core/files.ts";
 
 const CAP = 2000;
 type Tab = "send" | "history" | "peers" | "settings";
@@ -345,9 +349,29 @@ function cta(text: string, label: string, go: () => void): HTMLElement {
   return h("div", { class: "cta" }, h("p", {}, text), h("button", { class: "tonal", onclick: go }, label));
 }
 
+/** The icon of a file kind (from the extension). */
+export function fileIcon(name: string): IconName {
+  const k = F.kind(name);
+  return k === "text" ? "notes" : k === "other" ? "file" : k;
+}
+
+/** A pasted or dropped file while the message box holds text: one type per message. */
+const DROP_CLEAR = "Clear the message to add a file";
+
 export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, prefill?: string, nav?: Nav, pick?: string): Promise<void> {
-  const field = h("textarea", { rows: "3", "aria-label": "Text to send" }) as HTMLTextAreaElement;
-  field.value = prefill ?? (await env.activeUrl().catch(() => ""));
+  const field = h("textarea", { rows: "3", "aria-label": "Text to send", placeholder: env.files ? F.PLACEHOLDER : "" }) as HTMLTextAreaElement;
+  // the box opens empty; "Page URL" fills it with the current page's URL on request
+  field.value = prefill ?? "";
+  const pageHref = await env.activeUrl().catch(() => "");
+  const pageBtn = h("button", { type: "button", class: "inb" }, icon("link", 16), F.PAGE_URL) as HTMLButtonElement;
+  const fileBtn = h("button", { type: "button", class: "inb" }, icon("attach", 16), F.CHOOSE_FILE) as HTMLButtonElement;
+  const fileInput = h("input", { type: "file", hidden: true, "aria-hidden": "true", tabindex: "-1" }) as HTMLInputElement;
+  const box = h("div", { class: "compose" }, field, h("div", { class: "inbtns" }, pageBtn, fileBtn));
+  const card = h("div", { class: "filecard", hidden: true });
+  // the chosen file replaces the box; pickedKey: its stored copy, kept for a new try of the same file
+  let chosen: File | null = null;
+  let pickedKey: string | null = null;
+  let sending = false;
   const caption = h("span", { class: "caption" });
   const counter = h("span", { class: "counter" });
   const asText = h("input", { type: "checkbox" }) as HTMLInputElement;
@@ -428,7 +452,85 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
     });
     chips.append(c);
   }
+  const dropPicked = () => {
+    if (pickedKey) void env.files?.drop(pickedKey).catch(() => undefined);
+    pickedKey = null;
+  };
+  const drawCard = () => {
+    box.hidden = chosen !== null;
+    card.hidden = chosen === null;
+    if (!chosen) return clear(card);
+    const nm = h("div", { class: "fname" });
+    const remove = h("button", { type: "button", class: "icon-btn", "aria-label": F.REMOVE_FILE, title: F.REMOVE_FILE }, icon("close", 18));
+    remove.addEventListener("click", () => {
+      chosen = null;
+      dropPicked();
+      drawCard();
+      void update();
+      field.focus();
+    });
+    card.replaceChildren(h("div", { class: "av ftile" }, icon(fileIcon(chosen.name), 22)), h("div", { class: "txt" }, nm, h("div", { class: "dim" }, F.sizeText(chosen.size))), remove);
+    midEllipsis(nm, chosen.name);
+  };
+  const take = (f: File) => {
+    const tooBig = F.pickCheck(f.name, f.size);
+    if (tooBig) return toast(tooBig, "err");
+    dropPicked();
+    chosen = f;
+    drawCard();
+    void update();
+  };
+  pageBtn.addEventListener("click", () => {
+    field.value = pageHref;
+    field.focus();
+    void update();
+  });
+  fileBtn.addEventListener("click", () => {
+    // Firefox desktop closes the toolbar popup when the file dialog opens: the picker is in a tab
+    if (env.files?.pickInTab()) return void env.openPage("#send=");
+    fileInput.click();
+  });
+  fileInput.addEventListener("change", () => {
+    const f = fileInput.files?.[0];
+    fileInput.value = "";
+    if (f) take(f);
+  });
+  field.addEventListener("paste", (ev: ClipboardEvent) => {
+    const f = Array.from(ev.clipboardData?.files ?? []).find((x) => x.type.startsWith("image/"));
+    if (!f || !env.files) return;
+    ev.preventDefault();
+    if (field.value) return toast(F.PASTE_IMAGE_CLEAR, "err");
+    take(f);
+  });
+  box.addEventListener("dragover", (ev: DragEvent) => {
+    if (env.files && ev.dataTransfer?.types.includes("Files")) ev.preventDefault();
+  });
+  box.addEventListener("drop", (ev: DragEvent) => {
+    const f = ev.dataTransfer?.files?.[0];
+    if (!f || !env.files) return;
+    ev.preventDefault();
+    if (field.value) return toast(f.type.startsWith("image/") ? F.PASTE_IMAGE_CLEAR : DROP_CLEAR, "err");
+    take(f);
+  });
+  // a picked copy that was never sent goes with the popup (a send in flight keeps it: the background uses it)
+  globalThis.addEventListener?.("pagehide", () => {
+    if (!sending) dropPicked();
+  });
   const update = async () => {
+    if (chosen) {
+      clear(caption);
+      caption.hidden = false;
+      caption.append(icon("file", 16), F.WILL_SEND_FILE);
+      asTextRow.hidden = true;
+      counter.textContent = "";
+      sendBtn.disabled = count() === 0 || sending;
+      return;
+    }
+    const empty = field.value === "";
+    pageBtn.hidden = !empty || !pageHref;
+    fileBtn.hidden = !empty || !env.files;
+    // "Will be sent as text" shows once the box has content
+    caption.hidden = empty;
     const d = await rpc<{ type: string; bytes: number }>(env, "detect", { text: field.value });
     // a URL wins over a phone number
     const found = isLikelyUrl(field.value) ? "url" : d.type === "tel" ? "tel" : "text";
@@ -446,10 +548,49 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
   };
   field.addEventListener("input", () => void update());
   asText.addEventListener("change", () => void update());
+  const sendFile = async (f: File, to: string[] | "all", names: string[]): Promise<SendResult | null> => {
+    const prog = sendProgress(env, sendingCaption("file", names), STEP.encryptingFor(names), names);
+    try {
+      if (!pickedKey) {
+        try {
+          pickedKey = await env.files!.pick(f);
+        } catch (e) {
+          toast((e as { name?: string } | null)?.name === "QuotaExceededError" ? storageFullText("upload", f.name) : F.unreadable(f.name), "err");
+          return null;
+        }
+      }
+      return await rpc<SendResult>(env, "sendFile", { picked: pickedKey, name: f.name, size: f.size, targets: to, shown: checks.map((c) => c.id) });
+    } finally {
+      prog.close();
+    }
+  };
   sendBtn.addEventListener("click", async () => {
     sendBtn.disabled = true;
     const to = allChip && on(allChip) ? "all" : checks.filter((c) => on(c.chip)).map((c) => c.id);
     const names = sendable.filter((p) => to === "all" || to.includes(p.id)).map((p) => p.label);
+    if (chosen) {
+      sending = true;
+      try {
+        const r = await sendFile(chosen, to, names);
+        if (r) {
+          const one = (r.all ?? r.total) === 1 && r.sent === 1 && count() === 1 ? sendable.find((p) => p.id === checks.find((c) => on(c.chip))?.id) : undefined;
+          if (r.sent > 0) {
+            chosen = null; // the background dropped the picked copy
+            pickedKey = null;
+            drawCard();
+          }
+          if (r.error) toast(r.error, "err");
+          else if (r.failures.length) toast([T.sentToNofM(r.sent, r.total), ...r.failures.map((f) => f.text)].join("\n"), "err");
+          else if (env.inPopup?.() === true) return window.close();
+          else toast(one ? T.messageSentToOne(one.label) : T.messageSentToN(r.sent), "ok");
+        }
+      } catch (e) {
+        toast((e as Error).message, "err");
+      } finally {
+        sending = false;
+      }
+      return void (await update());
+    }
     const prog = sendProgress(env, sendingCaption(asText.checked ? "text" : lastType, names), STEP.encryptingFor(names), names);
     try {
       let r: SendResult;
@@ -474,7 +615,7 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
     }
     await update();
   });
-  root.append(field, meta);
+  root.append(box, card, fileInput, meta);
   // every device is greyed: say why Send is off
   const none = !sendable.length && chips.childElementCount ? h("p", { class: "dim nosend", role: "status" }, "Unable to send.\nNo device can receive messages right now.") : null;
   const noPair = nav && !data.peers.some((p) => p.paired) ? cta("Pair your first device to start sending.", "Pair a device", nav.toDevices) : null;
@@ -551,7 +692,7 @@ function sendProgress(env: UiEnv, caption: string, first: string, names: string[
 
 export async function historyView(env: UiEnv, root: HTMLElement, focus?: string, nav?: Nav): Promise<void> {
   await rpc(env, "historyOpened");
-  const rows = await rpc<(HistoryRow & { sender: string; notDeleted?: string[] })[]>(env, "history");
+  let rows = await rpc<HistRow[]>(env, "history");
   let key = "all";
   // desktop: every row always shows its checkbox, so the mode is always on (even when empty).
   // Firefox for Android: long-press (or Shift+Enter) starts multi-select; null means the mode is off.
@@ -685,6 +826,31 @@ export async function historyView(env: UiEnv, root: HTMLElement, focus?: string,
   draw();
   root.append(filterRow, bar, delBar.el, list, h("div", { class: "grow" }));
   if (focus) document.getElementById("h-" + focus)?.scrollIntoView({ block: "center" });
+  // files: a row redraws when its state changes; downloaded files decrypt only while History shows
+  const needsDecrypt = (r: HistRow) => r.type === "file" && r.dir === "in" && !!r.fs?.got && !r.fs.plain;
+  const stop = env.files?.onEvent((id, pct) => {
+    if (!list.isConnected) return stop?.();
+    const bar = list.querySelector<HTMLProgressElement>('progress[data-file="' + id + '"]');
+    if (pct !== undefined && bar) {
+      bar.value = pct;
+      const label = bar.previousElementSibling?.querySelector("span");
+      if (label) label.textContent = "Downloading " + pct + "%";
+      return;
+    }
+    void rpc<HistRow[]>(env, "history").then((next) => {
+      if (!list.isConnected) return;
+      rows = next;
+      const r = rows.find((x) => x.id === id);
+      const old = document.getElementById("h-" + id);
+      if (r && old && (applyFilter(rows, key).rows as HistRow[]).includes(r)) {
+        const fresh = historyRow(env, r, Date.now(), ctl);
+        if (old.classList.contains("sel")) fresh.classList.add("sel");
+        old.replaceWith(fresh);
+      }
+      if (r && needsDecrypt(r)) void decryptRows(env);
+    }, () => undefined);
+  });
+  if (rows.some(needsDecrypt) || rows.some((r) => r.fs?.mark)) void decryptRows(env);
 }
 
 function filterLabel(key: string, label: string): string {
@@ -783,7 +949,131 @@ function saveText(env: UiEnv, text: string, ms: number): void {
   );
 }
 
-function historyRow(env: UiEnv, r: HistoryRow & { sender: string; notDeleted?: string[] }, now: number, ctl: SelectCtl): HTMLElement {
+/** A History row as the background lists it: a file row also has its download percent and whether its decrypted file is here. */
+export type HistRow = HistoryRow & { sender: string; notDeleted?: string[]; pct?: number; here?: boolean };
+
+/** Full-window image view: the image fits; a click toggles its real size (scroll to move); Esc or Close ends it. */
+function viewImage(blob: Blob, name: string): void {
+  const url = URL.createObjectURL(blob);
+  const img = h("img", { src: url, alt: name, class: "fit" }) as HTMLImageElement;
+  const pane = h("div", { class: "vpane" }, img);
+  const dlg = h("dialog", { class: "viewer", "aria-label": name },
+    h("div", { class: "vbar" }, h("span", { class: "vname" }, name), h("button", { type: "button", class: "icon-btn", "aria-label": "Close", title: "Close", onclick: () => dlg.close() }, icon("close", 20))),
+    pane,
+  ) as HTMLDialogElement;
+  img.addEventListener("click", () => img.classList.toggle("fit"));
+  dlg.addEventListener("close", () => {
+    URL.revokeObjectURL(url);
+    dlg.remove();
+  });
+  document.body.append(dlg);
+  dlg.showModal();
+}
+
+/** The decrypted file of a row, or null with the row's "Removed from this device" toast. */
+async function plainOf(env: UiEnv, r: HistRow): Promise<Blob | null> {
+  const b = await env.files?.plain(fileKey(r.id ?? 0)).catch(() => null);
+  if (!b) toast(F.REMOVED, "err");
+  return b ?? null;
+}
+
+/** The lines under a file row's name: size and type, then (received) its state with Download or Decrypt, or (sent) when it expires. */
+function fileLines(env: UiEnv, r: HistRow, nowMs: number, row: HTMLElement): HTMLElement[] {
+  const f = r.file!;
+  const nowSec = Math.floor(nowMs / 1000);
+  const out = [h("div", { class: "dim" }, F.detail(r.content, f.size))];
+  if (r.dir === "out") return [...out, h("div", { class: "dim" }, F.expiresText(f.expires, nowSec))];
+  const st = F.fileRowStatus(r.fs ?? {}, r.pct !== undefined, r.pct ?? 0, r.here === true, f.expires, nowSec);
+  const line = (glyph: IconName, text: string, cls: string) => h("div", { class: "fline " + cls }, icon(glyph, 16), h("span", {}, text));
+  const button = (label: string, glyph: IconName, run: () => void, expires: string | null) =>
+    h("div", { class: "fbtn" }, h("button", { type: "button", class: "ac", onclick: run }, icon(glyph, 15), label), expires ? h("span", { class: "dim" }, expires) : null);
+  const download = () => void rpc(env, "fileDownload", { id: r.id }).catch((e: unknown) => toast((e as Error).message, "err"));
+  switch (st.k) {
+    case "pending":
+      out.push(button("Download", "download", download, st.expires));
+      break;
+    case "downloading":
+      out.push(line("download", "Downloading " + st.pct + "%", "dim"), h("progress", { max: "100", value: String(st.pct), class: "fprog", "data-file": String(r.id) }));
+      break;
+    case "decrypting":
+      out.push(h("progress", { class: "fprog" }));
+      break;
+    case "failed":
+      out.push(line(st.grey ? "info" : "error", st.text, st.grey ? "dim" : "bad"));
+      if (st.download) out.push(button("Download", "download", download, st.expires));
+      break;
+    case "memory":
+      out.push(line("error", F.NO_MEMORY, "bad"), button("Decrypt", "lock", () => void decryptRows(env, r.id ?? null), null));
+      break;
+    case "expired":
+      row.classList.add("faded");
+      out.push(line("schedule", F.EXPIRED, "dim"));
+      break;
+    case "ready":
+      if (F.previewMissing(r.content, r.fs ?? {})) out.push(h("div", { class: "dim" }, F.PREVIEW_NA));
+      break;
+  }
+  return out;
+}
+
+/** The buttons of a decrypted file: View (images), Copy (images, where the clipboard takes them), Save. */
+function fileButtons(env: UiEnv, r: HistRow): HTMLElement[] {
+  if (r.dir !== "in" || !r.fs?.plain || r.here !== true) return [];
+  const name = r.content;
+  const btn: Record<"view" | "copy" | "save", () => HTMLElement> = {
+    view: () => h("button", { class: "ac", onclick: async () => { const b = await plainOf(env, r); if (b) viewImage(b, name); } }, icon("image", 15), "View"),
+    copy: () =>
+      h("button", {
+        class: "ac",
+        onclick: async () => {
+          const b = await plainOf(env, r);
+          if (!b) return;
+          try {
+            await env.files!.copyImage(b);
+          } catch {
+            return toast("Unable to copy", "err");
+          }
+          toast(T.copied, "ok");
+        },
+      }, icon("copy", 15), "Copy"),
+    save: () =>
+      h("button", {
+        class: "ac",
+        onclick: async () => {
+          const b = await plainOf(env, r);
+          if (!b) return;
+          env.files!.save(b, name).then(
+            (path) => {
+              if (path !== null) toast(F.savedTo(path), "ok", true);
+            },
+            (e: unknown) => toast(saveFailText(e), "err"),
+          );
+        },
+      }, icon("save", 15), "Save"),
+  };
+  return F.fileActions(r.fs, env.files?.canCopyImage === true).map((a) => btn[a]());
+}
+
+/** Decrypts the downloaded files while History shows (id: the Decrypt button of that row); a file short of memory gets a toast. */
+let decrypting: Promise<void> | null = null;
+let decryptAgain = false;
+async function decryptRows(env: UiEnv, id: number | null = null): Promise<void> {
+  if (decrypting && id === null) {
+    decryptAgain = true;
+    return decrypting;
+  }
+  decrypting = (async () => {
+    do {
+      decryptAgain = false;
+      const short = await rpc<string[]>(env, "filesDecrypt", id === null ? {} : { id }).catch(() => [] as string[]);
+      id = null;
+      if (short.length) toast(short.map(F.noMemoryToast).join("\n"), "err");
+    } while (decryptAgain);
+  })().finally(() => (decrypting = null));
+  return decrypting;
+}
+
+function historyRow(env: UiEnv, r: HistRow, now: number, ctl: SelectCtl): HTMLElement {
   const full = new Date(r.received).toLocaleString();
   const time = h("span", { class: "time", title: full }, shortTime(r.received, now));
   const row = h("div", { class: "hrow", id: "h-" + r.id });
@@ -807,9 +1097,10 @@ function historyRow(env: UiEnv, r: HistoryRow & { sender: string; notDeleted?: s
     who.replaceChildren('Sent to "', h("span", { class: "nm" }, r.sender), '"');
   }
   const col = h("div", { class: "txt" }, h("div", { class: "hmeta" }, who, time));
-  const one = r.type === "url" || r.type === "tel";
+  const isFile = r.type === "file" && !!r.file;
+  const one = r.type === "url" || r.type === "tel" || isFile;
   const content = h("div", { class: "content " + (one ? "one" : r.type === "unknown" ? "unk" : "clamp"), id: "h-" + r.id + "-c", role: "button", tabindex: "0" });
-  if (r.type === "url") midEllipsis(content, r.content);
+  if (r.type === "url" || isFile) midEllipsis(content, r.content);
   else if (r.type === "unknown") {
     // a content message of a type this version does not know: a red x and the label, no actions
     content.replaceChildren(icon("cancel", 16), T.unknownType);
@@ -879,16 +1170,18 @@ function historyRow(env: UiEnv, r: HistoryRow & { sender: string; notDeleted?: s
   };
   // the actions share one equal-width row.
   const main = h("div", { class: "acts-row" });
-  for (const a of msgActions(r.type)) if (a !== "share" || canShare) main.append(btn[a]());
+  if (isFile) main.append(...fileButtons(env, r));
+  else for (const a of msgActions(r.type)) if (a !== "share" || canShare) main.append(btn[a]());
   acts.append(main);
   col.append(content);
+  if (isFile) col.append(...fileLines(env, r, now, row));
   if (notDeleted) col.append(h("div", { class: "dim" }, notDeletedText(notDeleted)));
   if (r.dir === "out" && r.results) {
     const fails = Object.values(r.results).filter((v) => v !== "sent").length;
     if (fails) col.append(h("div", { class: "dim" }, fails + " not delivered"));
   }
-  if (r.type !== "unknown") col.append(acts);
-  row.append(h("div", { class: "av" }, icon(r.dir === "in" ? "received" : "sent", 18)), col);
+  if (r.type !== "unknown" && (!isFile || main.childElementCount)) col.append(acts);
+  row.append(h("div", { class: "av" }, icon(isFile ? fileIcon(r.content) : r.dir === "in" ? "received" : "sent", 18)), col);
   wireSelect(row, r.id ?? 0, ctl, "h-" + r.id + "-who h-" + r.id + "-c");
   return row;
 }
@@ -901,11 +1194,17 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload
   const syncDeletions = h("input", { type: "checkbox", role: "switch", checked: s.syncDeletions }) as HTMLInputElement;
   const days = h("select", { "aria-label": "Delete messages older than" }) as HTMLSelectElement;
   for (const d of [1, 7, 14, 30, 90, 180, 365]) days.append(h("option", { value: String(d), selected: d === s.historyDays }, d + (d === 1 ? " day" : " days")));
+  // files: one auto-download picker, and the storage limit (choices that fit this browser's quota)
+  const fileAuto = h("select", { "aria-label": F.AUTO_TITLE }) as HTMLSelectElement;
+  for (const v of PICKER_SIZES) fileAuto.append(h("option", { value: String(v), selected: v === F.pickerValue(s.fileAuto) }, F.pickerLabel(v)));
+  const store = await rpc<{ options: number[]; limit: number }>(env, "fileStorage").catch(() => ({ options: [...F.STORAGE_SIZES], limit: F.DEFAULT_STORAGE }));
+  const fileStorage = h("select", { "aria-label": F.STORAGE_TITLE }) as HTMLSelectElement;
+  for (const v of store.options) fileStorage.append(h("option", { value: String(v), selected: v === store.limit }, F.storageLabel(v)));
   const theme = h("select", { "aria-label": "Theme" }) as HTMLSelectElement;
   const pref = parseTheme(await env.theme.get().catch(() => undefined));
   for (const [v, label] of THEME_CHOICES) theme.append(h("option", { value: v, selected: v === pref }, label));
   theme.addEventListener("change", () => void setTheme(env.theme, parseTheme(theme.value)).catch((e) => toast(failText("changeSetting", e), "err")));
-  const values = () => ({ showAll: showAll.checked, autoOpen: autoOpen.checked, allowContent: allowContent.checked, syncDeletions: syncDeletions.checked, historyDays: Number(days.value) });
+  const values = () => ({ showAll: showAll.checked, autoOpen: autoOpen.checked, allowContent: allowContent.checked, syncDeletions: syncDeletions.checked, historyDays: Number(days.value), fileAuto: Number(fileAuto.value), fileStorage: Number(fileStorage.value) });
   // the values last saved: a failed save sets the controls back to them
   let saved = values();
   const save = () => {
@@ -918,6 +1217,8 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload
         allowContent.checked = saved.allowContent;
         syncDeletions.checked = saved.syncDeletions;
         days.value = String(saved.historyDays);
+        fileAuto.value = String(saved.fileAuto);
+        fileStorage.value = String(saved.fileStorage);
         // the reply already reads "Unable to change this setting." and why
         toast((e as Error).message, "err");
       },
@@ -928,6 +1229,8 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload
   allowContent.addEventListener("change", save);
   syncDeletions.addEventListener("change", save);
   days.addEventListener("change", save);
+  fileAuto.addEventListener("change", save);
+  fileStorage.addEventListener("change", save);
   // logged out, the settings that need an account (device name, Log out, Delete account) are not offered
   const loggedIn = st.reg === "registered";
   const self = loggedIn ? (await rpc<{ self: { id: string; name: string } | null }>(env, "peers").catch(() => null))?.self ?? null : null;
@@ -975,6 +1278,12 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload
     group(
       h("div", { class: "srow" }, h("span", {}, "Delete messages older than"), days),
       h("label", { class: "srow" }, h("div", { class: "txt" }, h("div", {}, "Sync deletions"), h("div", { class: "t2" }, "Deleting on this device will also delete on your other devices.")), syncDeletions),
+    ),
+    sh("Files"),
+    h("p", { class: "t2 shelp" }, F.HELPER),
+    group(
+      h("div", { class: "srow" }, h("span", {}, F.AUTO_TITLE), fileAuto),
+      h("div", { class: "srow" }, h("div", { class: "txt" }, h("div", {}, F.STORAGE_TITLE), h("div", { class: "t2" }, F.STORAGE_HELPER)), fileStorage),
     ),
     ...(loggedIn ? [sh("Account"), group(acctRow, h("div", { class: "srow acct-acts" }, btns)), outBar.el] : []),
     h("div", { class: "grow" }),

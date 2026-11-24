@@ -1,6 +1,6 @@
 {
   "entries": {
-    "chrome": ["icons/icon-128.png", "icons/icon-16.png", "icons/icon-32.png", "icons/icon-48.png", "manifest.json", "page.html", "page.js", "popup.html", "popup.js", "style.css", "sw.js", "theme.js", "tokens.css"],
+    "chrome": ["icons/icon-128.png", "icons/icon-16.png", "icons/icon-32.png", "icons/icon-48.png", "manifest.json", "offscreen.html", "offscreen.js", "page.html", "page.js", "popup.html", "popup.js", "style.css", "sw.js", "theme.js", "tokens.css"],
     "firefox": ["background.html", "background.js", "cs.js", "icons/icon-128.png", "icons/icon-16.png", "icons/icon-32.png", "icons/icon-48.png", "manifest.json", "page.html", "page.js", "popup.html", "popup.js", "style.css", "theme.js", "tokens.css"]
   },
   "ops": [
@@ -8,6 +8,7 @@
     "allowContent", "fx-close", "fx-msg", "fx-open-setup", "fx-show", "fx-sub", "getSettings", "greyedTap", "hide", "history", "historyDelete", "historyOpened", "historyRead", "keysDelete", "keysRetry",
     "localDelete", "loginPurpose", "menuSendClaim", "menuSendRun", "menuSendShown", "newerShown", "oauth", "pair", "pairAgain", "peers", "popupOpen", "popupSettled", "pushCheck", "recheck", "refresh", "remove", "rename", "reply",
     "send", "sendAgain", "sendSel", "sendSelSet", "settings", "signinClear", "signinDraft", "signinProgress", "signout",
-    "state", "tryAgain"
+    "state", "tryAgain",
+    "fileBeat", "fileDownload", "fileEvent", "fileProgress", "fileStorage", "filesDecrypt", "sendFile"
   ]
 }

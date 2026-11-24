@@ -43,6 +43,17 @@ const POPUP = [
   ["10-send-done", "shots.html?bare&n=3&sendok#send"],
   ["11-remove-confirm", "shots.html?bare&n=3&confirm#peers"],
 ];
+// --files=<dir>: file sending review images (400x560 popup alone, captured at 2x).
+const FILES = [
+  ["20-send-empty", "shots.html?bare&n=3#send"],
+  ["21-send-typed", "shots.html?bare&n=3&typed#send"],
+  ["22-send-file", "shots.html?bare&n=3&file#send"],
+  ["23-history-files", "shots.html?bare&files#history"],
+  ["23b-history-files-end", "shots.html?bare&files&scroll#history"],
+  ["24-history-image-open", "shots.html?bare&files&open#history"],
+  ["25-image-view", "shots.html?bare&files&view#history"],
+  ["26-settings-files", "shots.html?bare&top&filesettings#settings"],
+];
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".png": "image/png", ".json": "application/json" };
 
 const firefox = process.argv.includes("--firefox");
@@ -51,8 +62,10 @@ const reviewOut = reviewArg?.slice("--review=".length);
 const popupArg = process.argv.find((a) => a.startsWith("--popup="));
 const popupOut = popupArg?.slice("--popup=".length);
 const storePopupArg = process.argv.find((a) => a.startsWith("--store-popup="));
+const filesArg = process.argv.find((a) => a.startsWith("--files="));
+const filesOut = filesArg?.slice("--files=".length);
 const storePopupOut = storePopupArg?.slice("--store-popup=".length);
-const [out, bin0] = process.argv.slice(2).filter((a) => a !== "--firefox" && a !== reviewArg && a !== popupArg && a !== storePopupArg);
+const [out, bin0] = process.argv.slice(2).filter((a) => a !== "--firefox" && a !== reviewArg && a !== popupArg && a !== storePopupArg && a !== filesArg);
 const chrome = bin0 ?? (firefox ? process.env.FIREFOX ?? "firefox" : process.env.CHROME ?? "google-chrome");
 if (!out) {
   console.error("usage: node shots.mjs <out-dir> [--firefox] [browser binary]");
@@ -67,6 +80,7 @@ mkdirSync(out, { recursive: true });
 if (reviewOut) mkdirSync(reviewOut, { recursive: true });
 if (popupOut) mkdirSync(popupOut, { recursive: true });
 if (storePopupOut) mkdirSync(storePopupOut, { recursive: true });
+if (filesOut) mkdirSync(filesOut, { recursive: true });
 
 const server = createServer((req, res) => {
   const path = decodeURIComponent(new URL(req.url ?? "/", "http://x").pathname);
@@ -103,6 +117,7 @@ const jobs = firefox
   : SHOTS.slice(0, 5).map(([name, q]) => [name, "shots.html?bare&tab&store&" + q, out, "tab"]);
 if (reviewOut) jobs.push(...REVIEW.map(([name, page]) => [name, page, reviewOut]));
 if (popupOut) jobs.push(...POPUP.map(([name, page]) => [name, page, popupOut, true]));
+if (filesOut) jobs.push(...FILES.map(([name, page]) => [name, page, filesOut, true]));
 if (storePopupOut) jobs.push(...SHOTS.map(([name, q]) => [name, "shots.html?bare&store&about&" + q, storePopupOut, true]));
 for (const [name, page, dir, popup] of jobs) {
   const size = popup === "tab" ? "640,400" : popup && firefox ? "800,1120" : popup ? "400,560" : "1280,800";
