@@ -59,6 +59,7 @@ export interface SignInput {
   region: string;
   service: string;
   now: Date;
+  payloadHash?: string; // e.g. "UNSIGNED-PAYLOAD"; default: SHA-256 hex of body
 }
 
 export function canonicalRequest(
@@ -90,7 +91,7 @@ export async function signV4(input: SignInput): Promise<Record<string, string>> 
   const out: Record<string, string> = { ...input.headers };
   if (!Object.keys(out).some((k) => k.toLowerCase() === "host")) out["host"] = url.host;
   out["x-amz-date"] = amzDate;
-  const payloadHash = await sha256Hex(input.body);
+  const payloadHash = input.payloadHash ?? (await sha256Hex(input.body));
   const { canonical, signedHeaders } = canonicalRequest(input.method, url, out, payloadHash);
   const scope = `${date}/${input.region}/${input.service}/aws4_request`;
   const sts = ["AWS4-HMAC-SHA256", amzDate, scope, await sha256Hex(enc.encode(canonical))].join("\n");

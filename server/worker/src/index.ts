@@ -9,12 +9,27 @@ import { checkMinClient, checkSiteRoute, isSiteValue, parseClient } from "./pipe
 import { enforce, ipKey } from "./pipeline/limits";
 import { route } from "./router";
 import { scheduled } from "./scheduled";
+import { fileHost, FILE_HOSTNAME } from "./routes/download";
 
 export { FileQuota } from "./file/quota";
 
 export async function handle(req: Request, env: Env, exec: ExecutionContext): Promise<Response> {
   const log = new Log();
   log.setIp(req.headers.get("CF-Connecting-IP"));
+  // The file host serves only file downloads, with its own headers and limits.
+  if (new URL(req.url).hostname === FILE_HOSTNAME) {
+    let res: Response;
+    try {
+      res = await fileHost(req, env, exec, log);
+    } catch (e) {
+      log.setException(e);
+      log.error = "unavailable";
+      res = json(503, { error: "unavailable" });
+    }
+    log.status = res.status;
+    log.emit(sampleRate(env.PA_LOG_SAMPLE), logLevel(env.LOG_LEVEL));
+    return res;
+  }
   let path = "";
   let res: Response;
   try {

@@ -32,6 +32,11 @@ export function fileSignedBytes(paTime: string, contentLength: number, fileSha25
   return utf8("PA-FILE1\nPOST\n/v1/file\n" + paTime + "\n" + contentLength + "\n" + fileSha256 + "\n" + sendId);
 }
 
+// "PA-FILE1\nDELETE\n/v1/file/" + id + "\n" + PA-Time
+export function fileDeleteSignedBytes(id: string, paTime: string): Uint8Array {
+  return utf8("PA-FILE1\nDELETE\n/v1/file/" + id + "\n" + paTime);
+}
+
 // Step e. Verifies PA-Sig with sign_pub (stored b64url text) over PA-REQ1, or over `signed`
 // when given (PA-FILE1).
 export async function checkSig(signPub: string, headers: Headers, method: string, path: string, paTime: string, body: Uint8Array, signed?: Uint8Array): Promise<void> {

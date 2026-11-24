@@ -1,5 +1,5 @@
 // POST /v1/file: check order, PA-FILE1, quota Durable Object, ttl/id/key vectors, refusals.
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createExecutionContext, env as baseEnv, runInDurableObject, waitOnExecutionContext } from "cloudflare:test";
 import vectors from "../../../tests/vectors/file-v1.json";
 import pinned from "../routes.json";
@@ -7,11 +7,11 @@ import { handle } from "../src/index";
 import type { Env } from "../src/env";
 import { b64urlDecode, b64urlEncode } from "../src/codec/b64url";
 import { sha256 } from "../src/crypto/hash";
-import { fileSignedBytes } from "../src/pipeline/signed";
-import { BLOB_OVERHEAD, MAX_FILE, acctHash, fileName, minuteOf, testing, ttlMinutes } from "../src/routes/file";
-import { chargeRow, MAX_SLOTS, type QuotaRow } from "../src/file/quota";
+import { fileDeleteSignedBytes, fileSignedBytes } from "../src/pipeline/signed";
+import { BLOB_OVERHEAD, MAX_FILE, acctHash, fileName, hex, minuteOf, testing, ttlMinutes } from "../src/routes/file";
+import { chargeRow, dayOf, MAX_SLOTS, refundRow, type QuotaRow } from "../src/file/quota";
 import { testing as logTesting } from "../src/log";
-import { storeDeps, type FileStore, type PutResult } from "../src/file/store";
+import { storeDeps, type FileStore, type GetResult, type PutResult, type RemoveResult, type Version } from "../src/file/store";
 import { captured, countingLimit, freshIp, initP256, newPeer, randBytes, randomEmail, setAllow, testEnv, type Peer } from "./helpers";
 import { TEST_SECRETS as S } from "./secrets";
 
@@ -20,9 +20,13 @@ beforeAll(initP256);
 // In-memory object store: checks the declared length and SHA-256 like the real store.
 class MemStore implements FileStore {
   objects = new Map<string, Uint8Array>();
-  next: PutResult | "throw" | null = null; // forced result for the next put
+  next: PutResult | "throw" | null = null; // forced result for the next put or remove
+  calls: string[] = []; // "put", "remove"
+  afterRead: (() => void) | null = null; // runs once the body is read
   async put(key: string, body: ReadableStream<Uint8Array>, length: number, sha: Uint8Array): Promise<PutResult> {
+    this.calls.push("put");
     const bytes = new Uint8Array(await new Response(body).arrayBuffer());
+    this.afterRead?.();
     const forced = this.next;
     this.next = null;
     if (forced === "throw") throw new Error("store down");
@@ -30,6 +34,26 @@ class MemStore implements FileStore {
     if (bytes.length !== length || b64urlEncode(await sha256(bytes)) !== b64urlEncode(sha)) return "mismatch";
     this.objects.set(key, bytes);
     return "ok";
+  }
+  async remove(key: string): Promise<RemoveResult> {
+    this.calls.push("remove");
+    const forced = this.next;
+    this.next = null;
+    if (forced === "throw") throw new Error("store down");
+    if (forced === "cap") return "cap";
+    return this.objects.delete(key) ? "ok" : "missing";
+  }
+  get(): Promise<GetResult> {
+    throw new Error("unused");
+  }
+  listPrefixes(): Promise<string[]> {
+    throw new Error("unused");
+  }
+  listVersions(): Promise<Version[]> {
+    throw new Error("unused");
+  }
+  deleteVersions(): Promise<"ok"> {
+    throw new Error("unused");
   }
 }
 
@@ -431,6 +455,126 @@ describe("check 9: quota", () => {
   });
 });
 
+async function del(peer: Peer, id: string, o: { env?: Env; signId?: string; unsigned?: boolean } = {}): Promise<{ status: number; body: Record<string, unknown> }> {
+  const time = String(Date.now());
+  const sig = b64urlEncode(new Uint8Array(await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, peer.sign.privateKey, fileDeleteSignedBytes(o.signId ?? id, time))));
+  const h: Record<string, string> = { "CF-Connecting-IP": freshIp(), "PA-Client": "cli/0.0.55" };
+  if (!o.unsigned) Object.assign(h, { "PA-ID": peer.id, "PA-Time": time, "PA-Sig": sig });
+  const ctx = createExecutionContext();
+  const res = await handle(new Request("https://api.pusharmor.com/v1/file/" + id, { method: "DELETE", headers: h }), o.env ?? (await looseEnv()), ctx);
+  await waitOnExecutionContext(ctx);
+  const text = await res.text();
+  return { status: res.status, body: text ? JSON.parse(text) : {} };
+}
+
+const rnd = () => hex(randBytes(16));
+
+describe("upload that ends after its own expiry", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("deletes the object, refuses with 410 expired, and takes back the charge", async () => {
+    const a = await approvedSender();
+    const real = Date.now();
+    store.afterRead = () => void vi.spyOn(Date, "now").mockReturnValue(real + 86_401_000);
+    const r = await upload({ peer: a });
+    vi.restoreAllMocks();
+    expect(r.status).toBe(410);
+    expect(r.body).toEqual({ error: "expired" });
+    expect(store.calls).toEqual(["put", "remove"]);
+    expect(store.objects.size).toBe(0);
+    expect(await quotaRow(a.acct)).toMatchObject({ day_count: 0, month_count: 0 });
+  });
+
+  it("refundRow takes back a charge only in the periods that are still current", () => {
+    const t = 1_800_000_000;
+    const row: QuotaRow = { day: dayOf(t), day_count: 2, month: 0, month_count: 5, sends: {} };
+    expect(refundRow(row, t)).toMatchObject({ day_count: 1, month_count: 5 });
+    expect(refundRow(row, t - 86400)).toBeNull();
+    expect(refundRow(undefined, t)).toBeNull();
+  });
+});
+
+describe("DELETE /v1/file/<id>", () => {
+  it("is a pinned route", () => {
+    expect(pinned.routes).toContain("DELETE /v1/file/:file");
+  });
+
+  it("deletes the caller's object: 200, then 404; no quota refund", async () => {
+    const a = await approvedSender();
+    const up = await upload({ peer: a });
+    expect(up.status).toBe(201);
+    const id = up.body.id as string;
+    const r = await del(a, id);
+    expect(r).toEqual({ status: 200, body: {} });
+    expect(store.objects.size).toBe(0);
+    expect((await del(a, id)).status).toBe(404);
+    expect((await quotaRow(a.acct))?.day_count).toBe(1);
+  });
+
+  it("id minute passed -> 410, more than 24 h + 1 min ahead or not a real minute -> 404, with no storage call or signature", async () => {
+    const a = await approvedSender();
+    const now = Math.floor(Date.now() / 1000);
+    expect((await del(a, minuteOf(now - 60) + "-" + rnd(), { unsigned: true })).status).toBe(410);
+    expect((await del(a, minuteOf(now + 86400 + 180) + "-" + rnd(), { unsigned: true })).status).toBe(404);
+    expect((await del(a, "209913310000-" + rnd(), { unsigned: true })).status).toBe(404);
+    expect(store.calls).toEqual([]);
+    expect((await del(a, minuteOf(now + 86400) + "-" + rnd())).status).toBe(404);
+    expect(store.calls).toEqual(["remove"]);
+  });
+
+  it("a malformed id -> 400", async () => {
+    const a = await approvedSender();
+    const m = minuteOf(Math.floor(Date.now() / 1000) + 600);
+    for (const id of [m + "-" + rnd().toUpperCase(), m + rnd(), m.slice(1) + "-" + rnd(), m + "-" + rnd().slice(1)]) {
+      expect((await del(a, id)).status, id).toBe(400);
+    }
+  });
+
+  it("cannot delete another account's object", async () => {
+    const a = await approvedSender();
+    const b = await approvedSender();
+    const up = await upload({ peer: b });
+    expect((await del(a, up.body.id as string)).status).toBe(404);
+    expect(store.objects.size).toBe(1);
+  });
+
+  it("PA-Sig over another id -> 401 with no storage call", async () => {
+    const a = await approvedSender();
+    const m = minuteOf(Math.floor(Date.now() / 1000) + 600);
+    expect((await del(a, m + "-" + rnd(), { signId: m + "-" + rnd() })).status).toBe(401);
+    expect(store.calls).toEqual([]);
+  });
+
+  it("counts on the 5 per minute file rate limit with uploads", async () => {
+    const a = await approvedSender();
+    const env = await looseEnv({ RL_FILE: countingLimit(5) });
+    const m = minuteOf(Math.floor(Date.now() / 1000) + 600);
+    for (let i = 0; i < 3; i++) expect((await upload({ peer: a, env })).status).toBe(201);
+    for (let i = 0; i < 2; i++) expect((await del(a, m + "-" + rnd(), { env })).status).toBe(404);
+    const r = await del(a, m + "-" + rnd(), { env });
+    expect(r.status).toBe(429);
+    expect(r.body.error).toBe("rate limited");
+    expect((env.RL_FILE as ReturnType<typeof countingLimit>).seen.every((k) => k === "file:" + a.id)).toBe(true);
+  });
+
+  it("a storage error -> 502; a storage cap -> 503 files paused until 00:00 UTC, then refused with no storage call", async () => {
+    const a = await approvedSender();
+    const m = minuteOf(Math.floor(Date.now() / 1000) + 600);
+    store.next = "throw";
+    expect(await del(a, m + "-" + rnd())).toEqual({ status: 502, body: { error: "storage error" } });
+    store.next = "cap";
+    const r = await del(a, m + "-" + rnd());
+    expect(r.status).toBe(503);
+    expect(r.body.error).toBe("files paused");
+    const now = Math.floor(Date.now() / 1000);
+    expect((now + (r.body.retry_after as number)) % 86400).toBe(0);
+    store.calls.length = 0;
+    expect((await del(a, m + "-" + rnd())).status).toBe(503);
+    expect((await upload({ peer: a })).status).toBe(503);
+    expect(store.calls).toEqual([]);
+  });
+});
+
 describe("vectors (worker_only sections)", () => {
   it("ttl table", () => {
     for (const c of vectors.ttl.cases.filter((x) => x.status === 201)) {
@@ -453,6 +597,9 @@ describe("vectors (worker_only sections)", () => {
     for (const c of vectors.file_sig.cases.filter((x) => x.method === "POST")) {
       const got = fileSignedBytes(c.pa_time, c.content_length!, c.file_sha256!, c.send_id!);
       expect(b64urlEncode(got), c.name).toBe(c.signed_bytes);
+    }
+    for (const c of vectors.file_sig.cases.filter((x) => x.method === "DELETE")) {
+      expect(b64urlEncode(fileDeleteSignedBytes(c.id!, c.pa_time)), c.name).toBe(c.signed_bytes);
     }
     expect(b64urlDecode(vectors.upload_request.signed_bytes)).toEqual(
       fileSignedBytes(vectors.upload_request.headers["PA-Time"], Number(vectors.upload_request.headers["Content-Length"]), vectors.upload_request.headers["PA-File-SHA256"], vectors.upload_request.headers["PA-Send-ID"]),

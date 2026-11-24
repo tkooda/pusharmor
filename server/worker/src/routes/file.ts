@@ -2,6 +2,7 @@
 // Check order: 1 Content-Length and headers, 2 PA-Time, 3 PA-ID MAC, 4 one D1 read, 5 caller
 // checks with PA-FILE1, 6 approved by another peer, 7 RL_FILE, 8 pause and storage cap,
 // 9 quota charge, 10 stream the body to storage. Steps 1-8 never charge the quota.
+// DELETE /v1/file/<id>: early delete of every version of one object of the caller's account.
 import type { Ctx } from "../context";
 import { b64urlDecode } from "../codec/b64url";
 import { hmac } from "../crypto/hash";
@@ -10,8 +11,9 @@ import * as SQL from "../db/sql";
 import { ApiError } from "../errors";
 import { json } from "../http";
 import { enforce } from "../pipeline/limits";
-import { fileSignedBytes } from "../pipeline/signed";
+import { fileDeleteSignedBytes, fileSignedBytes } from "../pipeline/signed";
 import { nextDay, type Quota } from "../file/quota";
+import { B2Error } from "../file/b2";
 import { storeDeps } from "../file/store";
 import { callerCheck, signedStart, type CallerRow } from "./common";
 
@@ -29,6 +31,16 @@ export function ttlMinutes(size: number): number {
 export function minuteOf(t: number): string {
   return new Date(Math.floor(t / 60) * 60_000).toISOString().replace(/[-T:]/g, "").slice(0, 12);
 }
+
+// Unix second at the start of a YYYYMMDDHHMM minute, or null when it is not a real UTC minute.
+export function minuteStart(m: string): number | null {
+  if (!/^[0-9]{12}$/.test(m)) return null;
+  const t = Date.UTC(+m.slice(0, 4), +m.slice(4, 6) - 1, +m.slice(6, 8), +m.slice(8, 10), +m.slice(10, 12)) / 1000;
+  return minuteOf(t) === m ? t : null;
+}
+
+// A key minute later than this many seconds ahead cannot belong to a live file: 404, no storage call.
+export const AHEAD_MAX = 86400 + 60;
 
 // First 16 lowercase hex of HMAC-SHA256(FILE_ACCT_SECRET, raw account id bytes).
 export async function acctHash(secret: string, acct: string): Promise<string> {
@@ -76,8 +88,20 @@ export const testing = {
   },
 };
 
+// Seconds left on a remembered storage cap (0: none).
+export function capLeft(now: number): number {
+  return now < capUntil ? capUntil - now : 0;
+}
+
+// Remembers a storage cap until 00:00 UTC; returns 503 "files paused" with retry_after.
+export function capHit(c: Ctx): ApiError {
+  const t = Math.floor(Date.now() / 1000);
+  capUntil = nextDay(t);
+  return paused(c, "cap", capUntil - t);
+}
+
 // 503 "files paused". Alerts only the first time this isolate sees the condition.
-function paused(c: Ctx, why: "paused" | "config" | "cap", retryAfter?: number): ApiError {
+export function paused(c: Ctx, why: "paused" | "config" | "cap", retryAfter?: number): ApiError {
   c.log.file = why;
   const key = why === "cap" ? "cap:" + capUntil : why;
   if (why !== "paused" && !alerted.has(key)) {
@@ -146,17 +170,67 @@ export async function uploadFile(c: Ctx): Promise<Response> {
     if (day || month) c.log.file = day && month ? "day-cap,month-cap" : day ? "day-cap" : "month-cap";
   }
   // 10. expires is fixed here, at accept time; a slow upload uses part of the lifetime.
-  // TODO: an upload still streaming when its expiry passes is not handled yet (no rule to abort
-  // it or to refuse the 201); the object then lives until the cleanup of its expiry minute.
   const expires = now + ttlMinutes(length - BLOB_OVERHEAD) * 60;
   const name = fileName(minuteOf(expires), hash, hex(crypto.getRandomValues(new Uint8Array(16))));
   const body = c.req.body ?? new ReadableStream<Uint8Array>({ start: (ctl) => ctl.close() });
   const put = await store.put(name.key, body, length, sha);
   if (put === "mismatch") throw new ApiError(400, "hash mismatch");
-  if (put === "cap") {
-    const t = Math.floor(Date.now() / 1000);
-    capUntil = nextDay(t);
-    throw paused(c, "cap", capUntil - t);
+  if (put === "cap") throw capHit(c);
+  // An upload that ends after its own expiry: delete the object, take back this charge, and
+  // refuse it. A failed delete leaves the object to the cleanup of its expiry minute.
+  if (Math.floor(Date.now() / 1000) >= expires) {
+    try {
+      await store.remove(name.key);
+    } catch {
+      // cleanup removes it
+    }
+    if (r.charged) await q.refund(now);
+    throw new ApiError(410, "expired");
   }
   return json(201, { id: name.id, expires, url: name.url, quota: r.quota });
+}
+
+// Log value for a failed storage call: the B2 status and error code, never the message.
+export function storageError(e: unknown): string {
+  return e instanceof B2Error ? e.status + " " + e.code : "fetch";
+}
+
+// DELETE /v1/file/<id>. The id minute already passed -> 410, more than 24 h + 1 min ahead (or
+// not a real minute) -> 404, both with no storage call; then the POST steps 2-7 (PA-FILE1 DELETE
+// string; counts on RL_FILE). The key comes from the caller's account and the id, so only the
+// account's own objects can be deleted. No quota refund. Storage: no such key -> 404, cap -> 503,
+// any other error -> 502.
+export async function deleteFile(c: Ctx): Promise<Response> {
+  const id = c.params[0];
+  const minute = id.slice(0, 12);
+  const start = minuteStart(minute);
+  const now0 = Math.floor(Date.now() / 1000);
+  if (start === null || start > now0 + AHEAD_MAX) throw new ApiError(404, "not found");
+  if (now0 >= start + 60) throw new ApiError(410, "expired");
+  const s = await signedStart(c);
+  const rows = await all<CallerRow & { approved: number }>(c.env.DB.prepare(SQL.Q_FILE).bind(s.me, s.acct));
+  const caller = rows[0];
+  await callerCheck(c, s, caller, false, fileDeleteSignedBytes(id, s.paTime));
+  if (caller.approved !== 1) throw new ApiError(403, "unapproved");
+  await enforce(c.env, "RL_FILE", "file:" + s.me, c.log);
+  const now = Math.floor(Date.now() / 1000);
+  if (capLeft(now) > 0) throw paused(c, "cap", capLeft(now));
+  const store = storeDeps.store(c.env);
+  let hash: string;
+  try {
+    hash = await acctHash(c.env.FILE_ACCT_SECRET, s.acct);
+  } catch {
+    throw paused(c, "config");
+  }
+  if (!store) throw paused(c, "config");
+  let r: Awaited<ReturnType<typeof store.remove>>;
+  try {
+    r = await store.remove(fileName(minute, hash, id.slice(13)).key);
+  } catch (e) {
+    c.log.extra.storage = storageError(e);
+    throw new ApiError(502, "storage error");
+  }
+  if (r === "cap") throw capHit(c);
+  if (r === "missing") throw new ApiError(404, "not found");
+  return json(200, {});
 }

@@ -1,6 +1,7 @@
 // Per-account file upload quota: one Durable Object per account (named by the account id), one
 // storage-backed row. A missing row reads as all zeros. Count limits only; a charge is never
-// refunded (not on abort, storage failure, or hash mismatch).
+// refunded (not on abort, storage failure, or hash mismatch), except for an upload that ends
+// after its own expiry (its object is deleted and the upload is refused).
 import { DurableObject } from "cloudflare:workers";
 
 // day and month are the UTC start (unix s) of the period the counts belong to. sends holds, per
@@ -90,6 +91,23 @@ export function chargeRow(old: QuotaRow | undefined, device: string, sendId: str
   return { row: r, result: { ok: true, charged: true, quota: quota() } };
 }
 
+// Pure refund step: takes back one charge made at chargedAt, in the periods that are still
+// current. The device slot is kept. Returns the new row, or null when unchanged.
+export function refundRow(old: QuotaRow | undefined, chargedAt: number): QuotaRow | null {
+  if (!old) return null;
+  const r: QuotaRow = { ...old };
+  let changed = false;
+  if (r.day === dayOf(chargedAt) && r.day_count > 0) {
+    r.day_count--;
+    changed = true;
+  }
+  if (r.month === monthOf(chargedAt) && r.month_count > 0) {
+    r.month_count--;
+    changed = true;
+  }
+  return changed ? r : null;
+}
+
 export class FileQuota extends DurableObject {
   // Storage calls hold the object's input gate, so no other call runs between this get and put:
   // the read-modify-write is atomic.
@@ -97,5 +115,10 @@ export class FileQuota extends DurableObject {
     const { row, result } = chargeRow(await this.ctx.storage.get<QuotaRow>(ROW), device, sendId, dayLimit, monthLimit, now);
     if (row) await this.ctx.storage.put(ROW, row);
     return result;
+  }
+
+  async refund(chargedAt: number): Promise<void> {
+    const row = refundRow(await this.ctx.storage.get<QuotaRow>(ROW), chargedAt);
+    if (row) await this.ctx.storage.put(ROW, row);
   }
 }

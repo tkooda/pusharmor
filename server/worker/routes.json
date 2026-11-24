@@ -22,6 +22,7 @@
     "POST /v1/pair/:id",
     "POST /v1/send",
     "POST /v1/file",
+    "DELETE /v1/file/:file",
     "GET /v1/health",
     "OPTIONS /v1/auth/email",
     "OPTIONS /v1/auth/email/verify",

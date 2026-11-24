@@ -15,6 +15,8 @@ export interface Env {
   RL_PROBE: RateLimit;
   RL_ACCT: RateLimit;
   RL_FILE: RateLimit;
+  RL_DL_IP: RateLimit;
+  RL_DL_KEY: RateLimit;
   FILE_QUOTA: DurableObjectNamespace<import("./file/quota").FileQuota>;
 
   PA_ALLOWED_PUSH_ENDPOINTS: string;
@@ -50,12 +52,17 @@ export interface Env {
   PA_TOTP_KEY_RELEASE_TEST?: string; // secret; base32 TOTP key of the release-gate test login
   PA_FILE_DAY_LIMIT?: string; // dashboard variable: file uploads per account per UTC day; 0 = paused
   PA_FILE_MONTH_LIMIT?: string; // dashboard variable: file uploads per account per UTC month; 0 = paused
+  B2_BUCKET?: string; // file storage bucket (private)
+  B2_S3_ENDPOINT?: string; // file storage S3 endpoint, https://s3.<region>.backblazeb2.com
+  B2_REGION?: string;
 
   PA_ID_SECRET: string;
   PA_CODE_SECRET: string;
   PA_CONFIRM_SECRET: string;
   PA_TOKEN_SECRET: string;
   FILE_ACCT_SECRET: string; // acct-hash in file storage keys
+  B2_KEY_ID?: string; // file storage application key id
+  B2_APP_KEY?: string; // file storage application key
   CLOUDFLARE_TURNSTILE_SECRET: string;
   AWS_SES_ACCESS_KEY_ID: string;
   AWS_SES_SECRET_ACCESS_KEY: string;
