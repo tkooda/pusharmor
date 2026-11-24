@@ -24,7 +24,6 @@ class FakeWorker {
         var loggedOut = false
         var platform = "android"
         var listening = true
-        var version: String? = null
         var skewNext = 0
         var rateLimitNext = 0
         var offline = false
@@ -129,7 +128,7 @@ class FakeWorker {
             gate("peers")?.let { return it }
             return ApiResult.Ok(PeersReply(null, d.allow.toList(), devices.values.map { p ->
                 ListedPeer(p.id, B64url.encode(p.keys.signPub), B64url.encode(p.keys.encPub), p.platform, 1761300000, p.loggedOut, p.allow.size, 0,
-                    d.id in p.allow, d.id in p.deny, true, null, p.listening, p.version)
+                    d.id in p.allow, d.id in p.deny, true, null, p.listening)
             }))
         }
 

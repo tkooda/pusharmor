@@ -115,7 +115,7 @@ fun PeerEntity.toPeer() = Peer(
     listDeniesMe = listDeniesMe, listAfterVerify = listAfterVerify, declined = declined, reachable = reachable, loggedOut = loggedOut, logoutN = logoutN,
     hidden = hidden, name = name, nameN = nameN, removed = removed, missing = missing, lastN = lastN, channelId = channelId,
     storedApprove = storedApprove, storedApproveName = storedApproveName, lastApproveResult = lastApproveResult, lastSendAt = lastSendAt, note = note,
-    pairAgain = pairAgain, listening = listening, version = version,
+    pairAgain = pairAgain, listening = listening,
 )
 
 /** Keeps the per-peer switches of [old] (they are not part of the protocol view). */
@@ -124,7 +124,7 @@ fun Peer.toEntity(old: PeerEntity?) = PeerEntity(
     listDeniesMe, listAfterVerify, declined, reachable, loggedOut, logoutN, hidden, name, nameN, removed, missing, old?.lastN ?: lastN,
     channelId ?: old?.channelId, storedApprove, storedApproveName, lastApproveResult, lastSendAt, note, pairAgain,
     lockScreen = old?.lockScreen ?: true, watch = old?.watch ?: true, hideContent = old?.hideContent ?: false, listening = listening,
-    showContent = old?.showContent ?: true, version = version,
+    showContent = old?.showContent ?: true,
 )
 
 fun PairingEntity.toRow() = PairingRow(

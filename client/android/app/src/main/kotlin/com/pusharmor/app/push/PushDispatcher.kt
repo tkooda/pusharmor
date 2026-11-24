@@ -20,8 +20,6 @@ object PushDispatcher {
             g.session.updateShortcuts() // a pairing that completed here becomes a direct share target at once
             g.session.purgeHistory()
         }
-        // after an app update: one GET /peers, silent on any failure
-        try { g.session.reportVersion(inPush = true) } catch (_: Exception) {}
     }
 
     /** The relay server's test push (Check again), dropped silently: FCM data {"check":"1"}. */

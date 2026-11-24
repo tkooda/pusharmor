@@ -71,7 +71,7 @@ data class PeerEntity(
     @ColumnInfo(defaultValue = "1") val listening: Boolean = true,
     /** "Allow message content in notifications" for this peer; the inverse of the old hide_content. */
     @ColumnInfo(name = "show_content", defaultValue = "1") val showContent: Boolean = true,
-    /** The peer's last reported app version from the last GET /peers; null when unknown. */
+    /** Unused: always null (kept so the schema stays at version 11). */
     val version: String? = null,
 )
 

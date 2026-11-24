@@ -102,7 +102,7 @@ class Session(private val g: Graph) {
         return if (s.flag(Settings.K.SIGNED_OUT, false)) Start.SIGNED_OUT else Start.READY
     }
 
-    /** App start / open work when signed in (no GET /peers on app open, except once after an app update). */
+    /** App start / open work when signed in (no GET /peers on app open). */
     fun onAppOpen(now: Long) {
         if (BuildConfig.SCREENSHOT_MODE && ScreenshotMode.on) return
         // Another thread's removal check may wipe: its reply decides, and this open waits for the next one.
@@ -118,19 +118,6 @@ class Session(private val g: Graph) {
         checkTimeouts(now, refetch = false)
         for (r in g.store.pairings()) if (r.pendingMessage != null) Work.pairSend(g.app, r.peerId, replace = true)
         purgeHistory()
-        reportVersion()
-    }
-
-    /**
-     * After an app update, the first app open or push makes one GET /peers so the relay server learns this
-     * version; the version is stored when a GET /peers succeeds. At most one try per 60 s window (shared with
-     * every GET /peers): a failed try waits for the next app open or push after it, with no queued retry.
-     */
-    fun reportVersion(inPush: Boolean = false) {
-        if (g.identity() == null || s.flag(Settings.K.SIGNED_OUT, false)) return
-        if (s.get(Settings.K.REPORTED_VERSION) == BuildConfig.VERSION_NAME) return
-        if (System.currentTimeMillis() - (s.get(Settings.K.LAST_FETCH) ?: 0) < Work.FETCH_WINDOW_MS) return
-        fetchPeers(force = true, inPush = inPush, queueRetry = false)
     }
 
     /** foss cannot serve a stored fcm push: clear it, tell once, run the distributor flow. */
@@ -253,8 +240,7 @@ class Session(private val g: Graph) {
                 val raw = Ids.decodeId(id)
                 if (raw == null || !raw.copyOfRange(9, 21).contentEquals(Ids.keyhash(k.signPub, k.encPub))) return SignIn.Error(ErrorText.text(action, ErrorText.BAD_REPLY))
                 dao.putSelf(SelfEntity(id = id, accountPrefix = raw.copyOf(9), email = email, name = defaultName(), clockOffset = g.offset.offsetS))
-                g.sync().merge(r.registered.peers, fromGet = false)
-                s.set(Settings.K.REPORTED_VERSION, BuildConfig.VERSION_NAME) // stored with the registration
+                g.sync().merge(r.registered.peers)
                 s.set(Settings.K.SIGNED_OUT, false)
                 s.set(Settings.K.SIGN_IN_KEYS, null)
                 deleteOldId()
@@ -430,8 +416,7 @@ class Session(private val g: Graph) {
     /** Result of the last GET /peers that did not settle, for the Refresh message. */
     @Volatile private var lastFetchFailure: ApiResult<*>? = null
 
-    /** [queueRetry]: a failed GET in a push queues the WorkManager retry (not for the version report). */
-    fun fetchPeers(force: Boolean = false, inPush: Boolean = false, queueRetry: Boolean = true): Boolean {
+    fun fetchPeers(force: Boolean = false, inPush: Boolean = false): Boolean {
         if (g.identity() == null) return true
         val now = System.currentTimeMillis()
         val last = s.get(Settings.K.LAST_FETCH) ?: 0
@@ -442,7 +427,6 @@ class Session(private val g: Graph) {
             is ApiResult.Ok -> {
                 g.sync().merge(r.value)
                 s.set(Settings.K.RELAY_FAULT, r.value.myRelayFault)
-                s.set(Settings.K.REPORTED_VERSION, BuildConfig.VERSION_NAME)
                 if (r.pushMissing || (r.value.myPushSha256 != currentPushHash() && currentPushHash() != null)) Work.patchPush(g.app)
                 if (inPush) Work.reconcile(g.app) else g.reconcile().run()
                 updateShortcuts()
@@ -455,7 +439,7 @@ class Session(private val g: Graph) {
             }
             ApiResult.Network -> false
         }
-        if (!ok && inPush && queueRetry) Work.fetchPeers(g.app, s)
+        if (!ok && inPush) Work.fetchPeers(g.app, s)
         if (!ok) lastFetchFailure = r
         return ok
     }

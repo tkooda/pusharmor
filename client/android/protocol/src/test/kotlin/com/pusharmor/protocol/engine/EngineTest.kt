@@ -786,32 +786,6 @@ class EngineTest {
         assertTrue(n.store.peer(x.id)!!.inAll)
     }
 
-    @Test fun peerVersionFollowsGetPeers() {
-        pairShown(); approveBoth(); n.fetch()
-        assertNull(n.store.peer(x.id)!!.version)
-        x.version = "0.0.54"
-        n.fetch()
-        assertEquals("0.0.54", n.store.peer(x.id)!!.version)
-        // the relay server no longer says: unknown again
-        x.version = null
-        n.fetch()
-        assertNull(n.store.peer(x.id)!!.version)
-    }
-
-    @Test fun aListThatIsNotFromGetPeersKeepsTheStoredVersion() {
-        pairShown(); approveBoth()
-        x.version = "0.0.54"
-        n.fetch()
-        assertEquals("0.0.54", n.store.peer(x.id)!!.version)
-        // a POST /peers reply: the same list with no version field
-        x.version = null
-        val reply = (n.api.peers() as ApiResult.Ok).value
-        n.sync.merge(reply, fromGet = false)
-        assertEquals("0.0.54", n.store.peer(x.id)!!.version)
-        n.sync.merge(reply)
-        assertNull(n.store.peer(x.id)!!.version)
-    }
-
     // ---- sync deletions ----
 
     /** Paired N and X; N sent "a" to X and X sent "b" to N, so each side has one out row and one in row with an id. */
