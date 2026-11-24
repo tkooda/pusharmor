@@ -300,6 +300,12 @@ async function main(): Promise<void> {
     [...document.querySelectorAll<HTMLElement>(".sh")].find((x) => x.textContent === "Files")?.scrollIntoView({ block: "start" });
     await new Promise((done) => setTimeout(done, 200));
   }
+  // ?openid=N: History row N is opened (its actions show)
+  if (q.has("openid")) {
+    await new Promise((done) => setTimeout(done, 500));
+    document.getElementById("h-" + q.get("openid"))?.click();
+    await new Promise((done) => setTimeout(done, 300));
+  }
   // ?open: the newest History row is opened (its actions show)
   if (q.has("open")) {
     await new Promise((done) => setTimeout(done, 500));

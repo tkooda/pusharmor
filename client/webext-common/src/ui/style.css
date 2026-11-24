@@ -434,6 +434,7 @@ dialog.sendprog { width: min(340px, calc(100vw - 48px)); }
 /* History file rows: state lines, Download or Decrypt with the expiry right of it, progress. */
 .fline { display: flex; align-items: center; gap: 4px; margin-top: 4px; font-size: 13px; }
 .fline svg { flex: none; }
+.fline span { white-space: pre-line; }
 .fline.bad { color: var(--err); }
 .fbtn { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
 progress.fprog { display: block; width: 100%; height: 4px; margin-top: 6px; }

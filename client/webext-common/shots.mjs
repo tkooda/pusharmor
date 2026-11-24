@@ -51,6 +51,7 @@ const FILES = [
   ["23-history-files", "shots.html?bare&files#history"],
   ["23b-history-files-end", "shots.html?bare&files&scroll#history"],
   ["24-history-image-open", "shots.html?bare&files&open#history"],
+  ["24b-history-file-open", "shots.html?bare&files&openid=17#history"],
   ["25-image-view", "shots.html?bare&files&view#history"],
   ["26-settings-files", "shots.html?bare&top&filesettings#settings"],
 ];

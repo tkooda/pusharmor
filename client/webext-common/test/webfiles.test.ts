@@ -276,10 +276,10 @@ test("decrypt: the mark is written before the decrypt starts and cleared after; 
   assert.ok((await s.fb.here()).has(fileKey(id)));
 });
 
-test("decrypt: a process that closes (out of memory) leaves the memory error; a mark found later is the same error and is never tried again; Decrypt tries", async () => {
+test("decrypt: out of memory leaves the memory error; a mark found later is the same error and is never tried again; Decrypt tries", async () => {
   const s = await fileSetup();
   const id = await downloadedRow(s);
-  s.hostB.answer = async () => Promise.reject(new HostGone());
+  s.hostB.answer = async () => ({ result: "memory" });
   assert.deepEqual(await s.fb.decryptShown(), ["cat.png"]);
   assert.deepEqual((await s.b.db.get<HistoryRow>("history", id))!.fs, { got: true, mark: false, mem: true });
   s.hostB.reqs = [];
@@ -346,8 +346,12 @@ test("manifest permission diff: Chrome adds only offscreen; no new host permissi
   assert.deepEqual(firefox.optional_permissions, ["downloads"]);
 });
 
-test("decrypt: a host that fails (not one that closed) says it could not open the file, with Decrypt; never a memory error", async () => {
+test("decrypt: a host that fails or closes says it could not open the file, with Decrypt; never a memory error", async () => {
   const s = await fileSetup();
+  const gone = await downloadedRow(s);
+  s.hostB.answer = async () => Promise.reject(new HostGone());
+  assert.deepEqual(await s.fb.decryptShown(), []);
+  assert.equal((await s.b.db.get<HistoryRow>("history", gone))!.fs!.text, "Unable to open this file.\nTry again.");
   const id = await downloadedRow(s);
   s.hostB.answer = async () => Promise.reject(new Error("no document"));
   assert.deepEqual(await s.fb.decryptShown(), []);
@@ -407,7 +411,10 @@ test("send: a failure the popup does not show (it closed) becomes a notification
   const p2 = await s.storeA.putPicked(new Blob(["y"]));
   await s.fa.send(p2, "b.txt", 1, "all");
   s.fa.shown(p2);
+  const p3 = await s.storeA.putPicked(new Blob(["z"]));
+  await s.fa.send(p3, "c.txt", 1, "all", undefined, true); // a menu send says its own result
   await new Promise((r) => setTimeout(r, 5200));
+  assert.equal(s.a.p.noteLog.filter((n) => n.id === "send-result").length, 1, "one notification: the popup showed one, the menu send gives its own");
   assert.equal(s.a.p.notes.get("send-result")?.body, "Unable to send.\nFile sending is paused. Try again later");
   assert.equal(await s.storeA.picked(p1), null);
   assert.ok(await s.storeA.picked(p2));

@@ -8,7 +8,7 @@ import { BUSY, STEP } from "../model/busy.ts";
 import { FILE_DAMAGED, catchUpDue, storageFullText } from "../model/filerules.ts";
 
 /** A decrypt that could not run (not a damaged file and not short of memory). */
-export const FILE_OPEN_FAILED = "Unable to open this file. Try again";
+export const FILE_OPEN_FAILED = "Unable to open this file.\nTry again.";
 import { DOWNLOAD_FAILED, type FileState, decryptPlan, kind, storageLimit, storageOptions, toRemove, tooLarge, unreadable } from "../model/filerow.ts";
 import { sanitizeName } from "../model/filename.ts";
 import type { FileValue } from "../model/message.ts";
@@ -109,11 +109,12 @@ export class Files implements FilesHook {
   // ---- send ----
 
   /**
+   * quiet: a menu send, which shows its own result (no second notification from afterFailure).
    * Sends the picked file (stored under picked by the Send view): sealed and uploaded where transfers
    * run, then the file message goes to each device as a message does. The picked file is dropped once
    * a device got it.
    */
-  async send(picked: string, name: string, size: number, targets: string[] | "all", shown?: string[]): Promise<SendResult> {
+  async send(picked: string, name: string, size: number, targets: string[] | "all", shown?: string[], quiet = false): Promise<SendResult> {
     const self = await this.e.self();
     if (!self) throw new ReasonError(R.loggedOut);
     const clean = sanitizeName(name, this.nowSec(), kind(name) === "image");
@@ -131,13 +132,13 @@ export class Files implements FilesHook {
     if (!out.ok) {
       await this.e.step(null);
       const r: SendResult = { sent: 0, total: to.ids.length + to.skipped.length, all: to.all.length, failures: [], error: sendFileError(out.err, clean) };
-      this.afterFailure(picked, r.error!);
+      if (!quiet) this.afterFailure(picked, r.error!);
       return r;
     }
     const value: FileValue = { url: out.url, expires: out.expires, key: out.key, name: clean, size, sha256: out.sha256 };
     const r = await this.e.deliver(self, to, { type: "file", value }, { type: "file", content: clean, file: value });
     if (r.sent > 0) await this.dropPicked(picked);
-    if (r.error || r.sent < r.total) this.afterFailure(picked, r.error || [actionLine("send"), ...r.failures.map((f) => f.text)].join("\n"), r.sent > 0);
+    if (!quiet && (r.error || r.sent < r.total)) this.afterFailure(picked, r.error || [actionLine("send"), ...r.failures.map((f) => f.text)].join("\n"), r.sent > 0);
     return r;
   }
 
@@ -256,8 +257,9 @@ export class Files implements FilesHook {
       try {
         out = (await this.host.run({ op: "decrypt", key: fileKey(id), fileKey: r.file.key })) as DecryptOut;
       } catch (e) {
-        // the host closed during the decrypt: its process ran short of memory; any other failure is not
-        out = e instanceof HostGone ? { result: "memory" } : { result: "host" };
+        // the host failed or closed during the decrypt: a failure to try again (memory is said only by the decrypt itself)
+        void e;
+        out = { result: "host" };
       }
       this.decrypting.delete(id);
       await this.setFs(id, (x) => {

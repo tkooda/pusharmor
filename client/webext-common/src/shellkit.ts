@@ -465,7 +465,7 @@ async function imageSend(b: Browser, boot: () => Promise<Booted>, info: MenuInfo
     if (got && engine.files) {
       const name = webImageName(src, got.head, got.type, Math.floor(engine.p.now() / 1000));
       const picked = await (await fileStore()).putPicked(got.blob);
-      r = await (engine.files as Files).send(picked, name, got.blob.size, targets);
+      r = await (engine.files as Files).send(picked, name, got.blob.size, targets, undefined, true); // quiet: notified below
       if (r.sent === 0) await (await fileStore()).deletePicked(picked).catch(() => undefined);
     } else if (/^https?:/i.test(src)) {
       r = (await menuSend(engine, src, child, false)).result ?? { sent: 0, total: 1, failures: [], error: actionLine("send") + "\n" + R.tooLong };
