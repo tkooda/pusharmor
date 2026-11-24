@@ -688,7 +688,7 @@ def test_failed_confirm_says_unable_to_confirm(net, tmp_path, monkeypatch, capsy
         in capsys.readouterr().err.splitlines()
 
 
-def test_rejected_device_is_hidden_until_it_asks_again_or_pair_id_runs(net, tmp_path, monkeypatch, capsys):
+def test_rejected_device_is_listed_as_rejected_until_it_asks_again_or_pair_id_runs(net, tmp_path, monkeypatch, capsys):
     a, b = tmp_path / "a", tmp_path / "b"
     ida, idb = login(monkeypatch, a), login(monkeypatch, b)
     assert pair_with_b_answer(monkeypatch, net, a, b, ida, idb, "n") == pa.EXIT_ERR
@@ -696,11 +696,14 @@ def test_rejected_device_is_hidden_until_it_asks_again_or_pair_id_runs(net, tmp_
     capsys.readouterr()
     assert run(b, "pair") == 0
     out = capsys.readouterr().out
-    assert pa.id_hex(ida)[:6] not in out and "rejected" not in out and "this device" in out
-    assert "No other devices yet. Log in on another device, then run pusharmor pair." in out
+    row = [l for l in out.splitlines() if pa.id_hex(ida)[:6] in l]
+    assert len(row) == 1 and row[0].endswith("  rejected") and "this device" in out
+    assert out.index("this device") < out.index(row[0])
+    assert "To pair with a device: pusharmor pair ID" in out
+    assert "No other devices yet" not in out
     assert run(b, "devices") == 0
-    assert "No other devices yet" not in capsys.readouterr().out
-    # pair ID still finds the hidden device and clears the denied state
+    assert "  rejected" in capsys.readouterr().out
+    # pair ID pairs with the rejected device and clears the denied state
     monkeypatch.setattr(pa, "PAIR_WAIT_S", 1)
     assert run(b, "pair", pa.id_hex(ida)[:8]) == 1
     assert state(b)["peers"][ida]["ruling"] == "none"
@@ -719,12 +722,14 @@ def test_incoming_request_shows_a_rejected_device_again(net, tmp_path, monkeypat
         d["peers"][ida]["ruling"] = "denied"
     capsys.readouterr()
     assert run(b, "pair") == 0
-    assert pa.id_hex(ida)[:6] not in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert any(pa.id_hex(ida)[:6] in l and l.endswith("  rejected") for l in out.splitlines())
     pa.on_commit(cx, ida, b"d" * 32, "yes")
     assert state(b)["peers"][ida]["ruling"] == "none"
     capsys.readouterr()
     assert run(b, "pair") == 0
-    assert pa.id_hex(ida)[:6] in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert pa.id_hex(ida)[:6] in out and "rejected" not in out
 
 
 def test_abort_then_decides_the_new_commit(net, tmp_path, monkeypatch, capsys):

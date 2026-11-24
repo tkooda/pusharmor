@@ -2846,11 +2846,15 @@ def pair_list(cx, hint=False):
     with cx.store.state(write=False) as d:
         ids = list(d["peers"]) + [cx.me]
         rows = [("ID", "NAME", "DEVICE", "STATUS"), (short_id(cx.me, ids), d["name"], "Command line", "this device")]
+        rejected = []
         for pid, p in sorted(d["peers"].items(), key=lambda kv: kv[1]["created"]):
             if p["ruling"] == "denied" and pid not in d["pairs"]:
-                continue  # rejected: hidden until it asks again or pair ID is run
+                # rejected: listed last until it asks again or pair ID is run
+                rejected.append((short_id(pid, ids), peer_label(p), platform_label(p["platform"]), "rejected"))
+                continue
             rows.append((short_id(pid, ids), peer_label(p), platform_label(p["platform"]),
                          peer_status(p, d["pairs"].get(pid))))
+        rows += rejected
     w = [max(len(r[i]) for r in rows) for i in range(3)]
     for r in rows:
         print("  ".join(c.ljust(w[i]) for i, c in enumerate(r[:3])) + "  " + r[3])
