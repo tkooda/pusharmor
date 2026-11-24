@@ -111,16 +111,24 @@ export class FileWorker {
     try {
       const have = await this.d.store.size(key);
       let start = have;
+      let shown = -1;
+      // progress goes out at each whole percent, not at each piece read
+      const tell = (n: number) => {
+        const pct = Math.floor((n * 100) / total);
+        if (pct === shown) return;
+        shown = pct;
+        this.d.progress(id, n, total);
+      };
       const deps = {
         ...this.d.file,
         freeBytes,
         fetch: async (i: string, init: RequestInit) => {
           const range = (init.headers as Record<string, string> | undefined)?.Range;
           start = range ? Number(/bytes=(\d+)-/.exec(range)?.[1] ?? 0) : 0;
-          return counted(await this.d.fetch(i, init), (n) => this.d.progress(id, start + n, total));
+          return counted(await this.d.fetch(i, init), (n) => tell(start + n));
         },
       };
-      this.d.progress(id, have, total);
+      tell(have);
       await downloadFile(deps, this.d.store, key, ref, t);
       return { ok: true, tries: t.n };
     } catch (e) {

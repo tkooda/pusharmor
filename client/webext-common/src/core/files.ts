@@ -13,6 +13,7 @@ import type { HistoryRow } from "../store/db.ts";
 import type { FileStore } from "../store/files.ts";
 import type { Engine, FilesHook, SendResult } from "./engine.ts";
 import type { DecryptOut, DownloadOut, JobError, JobReq, UploadOut } from "./fileworker.ts";
+import { ReasonError } from "./failtext.ts";
 import { R, actionLine } from "./texts.ts";
 
 /** Runs a job where transfers run; rejects when that place went away (its process closed). */
@@ -100,7 +101,7 @@ export class Files implements FilesHook {
    */
   async send(picked: string, name: string, size: number, targets: string[] | "all", shown?: string[]): Promise<SendResult> {
     const self = await this.e.self();
-    if (!self) throw new Error(R.loggedOut);
+    if (!self) throw new ReasonError(R.loggedOut);
     const clean = sanitizeName(name, this.nowSec(), kind(name) === "image");
     if (size > MAX_FILE) return { sent: 0, total: 0, failures: [], error: tooLarge(clean) };
     const to = await this.e.sendTargets(targets, shown);
