@@ -31,9 +31,10 @@ export interface WorkerDeps {
   store: FileStore;
   self(): Promise<SelfKeys | null>;
   file: Omit<FileDeps, "fetch">;
-  fetch(input: string, init: RequestInit): Promise<Response>;
-  /** Download progress of row id: bytes of the blob stored so far, of total. */
-  progress(id: number, have: number, total: number): void;
+  /** sent: an upload, told the bytes of the body sent so far. */
+  fetch(input: string, init: RequestInit, sent?: (n: number) => void): Promise<Response>;
+  /** Download progress of row id (a number), or upload progress of a picked key (a string): bytes so far, of total. */
+  progress(id: number | string, have: number, total: number): void;
   /** Saves the bytes as application/octet-stream under name (see SaveOut); the blob URL lives in this page, not in the popup. */
   save(blob: Blob, name: string): Promise<SaveOut>;
 }
@@ -110,7 +111,8 @@ export class FileWorker {
       const self = await this.d.self();
       if (!self) throw new FileError("failed", null, 401, "logged out");
       const signer = { id: self.id, key: self.sign.privateKey };
-      const deps: FileDeps = { ...this.d.file, fetch: (i, init) => this.d.fetch(i, init) };
+      let sent: ((n: number) => void) | undefined;
+      const deps: FileDeps = { ...this.d.file, fetch: (i, init) => this.d.fetch(i, init, sent) };
       const p = this.prior.get(picked);
       if (p && Math.floor(deps.now() / 1000) + (await deps.getOffset()) < p.reply.expires) return { ok: true, url: p.reply.url, expires: p.reply.expires, key: p.key, sha256: p.sha256 };
       const file = await this.d.store.picked(picked);
@@ -124,6 +126,14 @@ export class FileWorker {
       const key = newFileKey();
       const blob = await sealFile(key, new Uint8Array(bytes));
       const sha256 = await sha256Blob(blob);
+      let shown = -1;
+      // progress goes out at each whole percent, not at each piece sent
+      sent = (n) => {
+        const pct = Math.floor((n * 100) / blob.size);
+        if (pct === shown) return;
+        shown = pct;
+        this.d.progress(picked, n, blob.size);
+      };
       const reply = await uploadFile(deps, signer, blob, sha256, newSendId());
       const k = b64urlEncode(key);
       this.prior.set(picked, { reply, key: k, sha256 });
@@ -203,7 +213,7 @@ export function openWorker(client: string, progress: WorkerDeps["progress"], sav
         return new FileWorker({
           store,
           self: async () => (await db.self()) ?? null,
-          fetch: (i, init) => fetch(i, init),
+          fetch: (i, init, sent) => (sent ? sendCounted(i, init, sent) : fetch(i, init)),
           progress,
           save,
           file: {
@@ -219,6 +229,36 @@ export function openWorker(client: string, progress: WorkerDeps["progress"], sav
     }
     return p;
   };
+}
+
+/** fetch for an upload that tells the bytes sent so far (fetch cannot): XMLHttpRequest upload progress. */
+function sendCounted(url: string, init: RequestInit, sent: (n: number) => void): Promise<Response> {
+  return new Promise((resolve, reject) => {
+    const x = new XMLHttpRequest();
+    x.open(init.method ?? "GET", url);
+    for (const [k, v] of Object.entries((init.headers ?? {}) as Record<string, string>)) x.setRequestHeader(k, v);
+    x.responseType = "arraybuffer";
+    x.upload.onprogress = (ev) => sent(ev.loaded);
+    x.onload = () => {
+      try {
+        // a redirect fails, as fetch with redirect "manual" does
+        if (x.responseURL !== new URL(url).href) throw new TypeError("redirected");
+        const headers = new Headers();
+        for (const line of x.getAllResponseHeaders().split("\r\n")) {
+          const i = line.indexOf(":");
+          if (i > 0) headers.append(line.slice(0, i).trim(), line.slice(i + 1).trim());
+        }
+        const empty = [101, 204, 205, 304].includes(x.status);
+        resolve(new Response(empty ? null : (x.response as ArrayBuffer), { status: x.status, statusText: x.statusText, headers }));
+      } catch (e) {
+        reject(e);
+      }
+    };
+    x.onerror = x.ontimeout = () => reject(new TypeError("network error"));
+    x.onabort = () => reject(new DOMException("aborted", "AbortError"));
+    init.signal?.addEventListener("abort", () => x.abort());
+    x.send(init.body as XMLHttpRequestBodyInit);
+  });
 }
 
 /** The octet-stream copy of a file for a download link (never shown or run, only saved). */

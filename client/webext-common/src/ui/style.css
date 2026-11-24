@@ -233,6 +233,8 @@ input.hsel, input.hselall { margin: 2px 0 0; width: 18px; height: 18px; accent-c
 .hselbar[hidden] { display: none; }
 .busy { padding: 8px 16px 0; }
 .busy progress { display: block; width: 100%; }
+.busy progress[hidden] { display: none; }
+.busy-cap { display: flex; align-items: center; gap: 8px; }
 .busy[hidden] { display: none; }
 form .busy, .oauth .busy { padding: 8px 0 0; }
 .content.struck { text-decoration: line-through; }

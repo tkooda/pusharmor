@@ -141,34 +141,43 @@ export function nextTabIndex(key: string, i: number, n: number): number | null {
 
 export interface BusyBar {
   el: HTMLElement;
-  /** Shows the bar (with cap when given) and follows the steps the background writes. */
-  start(cap?: string): void;
+  /**
+   * Shows the bar (with cap when given) and follows the steps the background writes. steps: the
+   * captions of the action in order; the bar fills by the step its caption is on.
+   */
+  start(cap?: string, steps?: string[]): void;
   stop(): void;
 }
 
-/** A thin stock progress bar with a caption under it; indeterminate unless a step carries done and total. */
+/** A thin stock progress bar with a caption under it; a spinner by the caption when the action has no step count. */
 export function busyBar(env: UiEnv): BusyBar {
   const bar = h("progress", {}) as HTMLProgressElement;
-  const cap = h("div", { class: "dim", role: "status" });
+  const spin = h("span", { class: "fp-spin", "aria-hidden": "true" });
+  const text = h("span", {});
+  const cap = h("div", { class: "dim busy-cap", role: "status" }, spin, text);
   const el = h("div", { class: "busy", hidden: true }, bar, cap);
   let unwatch: (() => void) | null = null;
-  let determinate = false;
+  let plan: string[] = [];
+  let at = 0; // the step of plan shown; it never goes back
   const show = (b: Busy) => {
-    if (b.total !== undefined) {
-      bar.max = b.total;
-      bar.value = b.done ?? 0;
-      determinate = true;
-    } else if (determinate) {
-      bar.removeAttribute("value"); // back to indeterminate
-      determinate = false;
+    at = Math.max(at, plan.indexOf(b.cap));
+    // step N of a plan of M fills N of M + 1 (as the Send bar does): never empty, never full while it runs
+    const n = b.total !== undefined ? { done: b.done ?? 0, total: b.total } : plan.length > 1 ? { done: at + 1, total: plan.length + 1 } : null;
+    if (n) {
+      bar.max = n.total;
+      bar.value = n.done;
     }
-    cap.textContent = b.cap;
+    bar.hidden = n === null;
+    spin.hidden = n !== null;
+    text.textContent = b.cap;
     el.hidden = false;
   };
   return {
     el,
-    start(c?: string) {
+    start(c?: string, steps?: string[]) {
       unwatch?.();
+      plan = steps ?? [];
+      at = 0;
       unwatch = env.session?.watch(BUSY, (v) => {
         const b = readBusy(v);
         if (b) show(b);

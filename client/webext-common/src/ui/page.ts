@@ -275,7 +275,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
     resetNotes();
     // both buttons are off while one runs
     for (const b of oauthBtns) b.disabled = true;
-    oauthBar.start();
+    oauthBar.start(undefined, purpose === "delete-account" ? [STEP.deletingAccount] : [STEP.setUp, STEP.loading]);
     try {
       const r = await rpc<LoginResult>(env, "oauth", { provider, purpose });
       // Firefox: this tab goes to Google or Apple and comes back with the result
@@ -353,7 +353,7 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
     busy = true;
     lastTried = code.value.replace(/[\s-]/g, "");
     signBtn.disabled = true;
-    signBar.start(STEP.checkingCode);
+    signBar.start(STEP.checkingCode, purpose === "delete-account" ? [STEP.checkingCode, STEP.deletingAccount] : [STEP.checkingCode, STEP.setUp, STEP.loading]);
     try {
       await done(await rpc<LoginResult>(env, "emailVerify", { code: code.value }));
     } catch (e) {
@@ -572,8 +572,8 @@ function limitView(env: UiEnv, root: HTMLElement, body: Record<string, unknown>,
           busy = true;
           const evict = boxes.filter((b) => b.box.checked).map((b) => b.id);
           const names = peers.filter((p) => evict.includes(p.id)).map((p) => platformLabel(p.platform));
-          if (names.length) evictBar.start(STEP.removing(names));
-          else evictBar.start(STEP.setUp);
+          if (names.length) evictBar.start(STEP.removing(names), [STEP.removing(names), STEP.loggingIn]);
+          else evictBar.start(STEP.setUp, [STEP.setUp, STEP.loading]);
           try {
             const r = await rpc<LoginResult>(env, "evict", { ticket, evict });
             if (r.done) {

@@ -70,6 +70,8 @@ export class Files implements FilesHook {
   /** Downloads running now: row id -> percent. */
   readonly running = new Map<number, number>();
   private readonly decrypting = new Set<number>();
+  /** Uploads running now: picked key -> the device names (for the Send bar caption). */
+  private readonly uploads = new Map<string, string[]>();
   /** Failed sends whose popup did not yet say it showed the failure, by picked key. */
   private readonly unshown = new Map<string, true>();
   /** Free-storage quota of this browser, for the storage choices; null = unknown. */
@@ -124,10 +126,13 @@ export class Files implements FilesHook {
     const names = await Promise.all(to.ids.map((id) => this.e.peerName(id)));
     await this.e.p.storageSession.set({ [BUSY]: { cap: STEP.encryptingFor(names), done: 1, total: 4 } });
     let out: UploadOut;
+    this.uploads.set(picked, names);
     try {
       out = (await this.host.run({ op: "upload", picked })) as UploadOut;
     } catch {
       out = { ok: false, err: { code: "failed", text: null, status: 0, error: "host" } };
+    } finally {
+      this.uploads.delete(picked);
     }
     if (!out.ok) {
       await this.e.step(null);
@@ -223,13 +228,21 @@ export class Files implements FilesHook {
     this.tell({ op: "fileEvent", id });
   }
 
-  /** Download progress from the host; open views are told at each whole percent. */
-  progress(id: number, have: number, total: number): void {
+  /** Download progress from the host (open views are told at each whole percent), or upload progress of a picked key. */
+  progress(id: number | string, have: number, total: number): void {
+    if (typeof id === "string") return this.uploaded(id, have, total);
     if (!this.running.has(id)) return;
     const pct = total > 0 ? Math.floor((have * 100) / total) : 0;
     if (pct === this.running.get(id)) return;
     this.running.set(id, pct);
     this.tell({ op: "fileEvent", id, pct });
+  }
+
+  /** The Send bar during an upload: from a quarter to 95 percent by the bytes sent. */
+  private uploaded(picked: string, sent: number, total: number): void {
+    const names = this.uploads.get(picked);
+    if (!names || total <= 0) return;
+    void this.e.p.storageSession.set({ [BUSY]: { cap: STEP.encryptingFor(names), done: 25 + Math.floor((Math.min(sent, total) * 70) / total), total: 100 } });
   }
 
   // ---- decrypt (only while History shows) ----

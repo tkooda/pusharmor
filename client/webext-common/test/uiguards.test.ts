@@ -15,7 +15,7 @@ const find = (n: N, f: (x: N) => boolean): N | undefined => (f(n) ? n : n.kids.m
 
 test("Continue with Google and Continue with Apple are off while one runs", () => {
   const oauth = page.slice(page.indexOf("const oauth = "), page.indexOf("const title = "));
-  assert.match(oauth, /for \(const b of oauthBtns\) b\.disabled = true;\s+oauthBar\.start\(\);/);
+  assert.match(oauth, /for \(const b of oauthBtns\) b\.disabled = true;\s+oauthBar\.start\(undefined, [^\n]*\);/);
   assert.match(oauth, /finally \{\s+oauthBar\.stop\(\);\s+for \(const b of oauthBtns\) b\.disabled = false;/);
   assert.match(oauth, /const oauthBtns = \[\s+h\("button", \{ type: "button", class: "big google"[^\n]*\n\s+h\("button", \{ type: "button", class: "big apple"/);
   assert.match(page, /\.\.\.oauthBtns,\s+oauthBar\.el,/);

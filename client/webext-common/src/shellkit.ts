@@ -131,7 +131,7 @@ const BOOT_ERROR = "PushArmor could not open its local database. Close this wind
 
 /** Where file transfers run (host), and how open views hear of a file row change (tell). */
 export interface FileShell {
-  host(progress: (id: number, have: number, total: number) => void): FileHost;
+  host(progress: (id: number | string, have: number, total: number) => void): FileHost;
   tell(m: FileEvent): void;
 }
 
@@ -277,7 +277,7 @@ export function onRuntimeMessage(boot: () => Promise<Booted>, extra?: (msg: Req,
     if (m.op === "fileBeat" || m.op === "fileEvent" || (msg as { target?: unknown }).target === "offscreen") return false;
     if (m.op === "fileProgress") {
       const a = msg as { id?: unknown; have?: unknown; total?: unknown };
-      void boot().then((b) => (b.engine.files as Files | null)?.progress(Number(a.id), Number(a.have), Number(a.total)), () => undefined);
+      void boot().then((b) => (b.engine.files as Files | null)?.progress(typeof a.id === "string" ? a.id : Number(a.id), Number(a.have), Number(a.total)), () => undefined);
       return false;
     }
     if (m.op === "menuSendClaim") {

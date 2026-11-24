@@ -681,7 +681,8 @@ function sendProgress(env: UiEnv, caption: string, first: string, names: string[
     const b = readBusy(v);
     if (!b) return;
     step.textContent = b.cap;
-    if (b.done !== undefined && b.total) bar.value = Math.round((b.done / b.total) * 100);
+    // the bar never goes back (the steps after a file upload start again at a quarter)
+    if (b.done !== undefined && b.total) bar.value = Math.max(bar.value, Math.round((b.done / b.total) * 100));
   });
   document.body.append(dlg);
   dlg.showModal();
