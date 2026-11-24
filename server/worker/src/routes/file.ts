@@ -67,11 +67,25 @@ export function quotaLimits(env: { PA_FILE_DAY_LIMIT?: string; PA_FILE_MONTH_LIM
 
 // A storage cap seen by this isolate: refuse uploads before the charge until 00:00 UTC.
 let capUntil = 0;
+// Conditions already alerted by this isolate: "config" once, "cap" once per cap period.
+const alerted = new Set<string>();
 export const testing = {
   reset(): void {
     capUntil = 0;
+    alerted.clear();
   },
 };
+
+// 503 "files paused". Alerts only the first time this isolate sees the condition.
+function paused(c: Ctx, why: "paused" | "config" | "cap", retryAfter?: number): ApiError {
+  c.log.file = why;
+  const key = why === "cap" ? "cap:" + capUntil : why;
+  if (why !== "paused" && !alerted.has(key)) {
+    alerted.add(key);
+    c.log.fileAlert = true;
+  }
+  return new ApiError(503, "files paused", retryAfter === undefined ? undefined : { retry_after: retryAfter });
+}
 
 const SEND_ID = /^[A-Za-z0-9_-]{22}$/;
 const SHA = /^[A-Za-z0-9_-]{43}$/;
@@ -88,7 +102,7 @@ export async function uploadFile(c: Ctx): Promise<Response> {
   // 1. Content-Length, PA-Send-ID, PA-File-SHA256.
   const cl = h.get("Content-Length");
   if (cl === null) throw new ApiError(411, "length required");
-  if (!/^[0-9]+$/.test(cl)) throw new ApiError(400, "bad request");
+  if (!/^(0|[1-9][0-9]*)$/.test(cl)) throw new ApiError(400, "bad request");
   const length = Number(cl);
   if (length > MAX_FILE + BLOB_OVERHEAD) throw new ApiError(413, "too large");
   if (length < BLOB_OVERHEAD) throw new ApiError(400, "bad request");
@@ -109,35 +123,40 @@ export async function uploadFile(c: Ctx): Promise<Response> {
   if (caller.approved !== 1) throw new ApiError(403, "unapproved");
   // 7. Every attempt counts.
   await enforce(c.env, "RL_FILE", "file:" + s.me, c.log);
-  // 8. Pause vars and a remembered storage cap.
+  // 8. Pause vars, a remembered storage cap, storage and acct-hash secret configured.
   const limits = quotaLimits(c.env);
-  if (typeof limits === "string") {
-    c.log.file = limits;
-    throw new ApiError(503, "files paused");
-  }
+  if (typeof limits === "string") throw paused(c, limits);
   const now = Math.floor(Date.now() / 1000);
-  if (now < capUntil) {
-    c.log.file = "cap";
-    throw new ApiError(503, "files paused", { retry_after: capUntil - now });
+  if (now < capUntil) throw paused(c, "cap", capUntil - now);
+  const store = storeDeps.store(c.env);
+  let hash: string;
+  try {
+    hash = await acctHash(c.env.FILE_ACCT_SECRET, s.acct);
+  } catch {
+    throw paused(c, "config");
   }
-  // 9. Charge the account (a free retry when PA-Send-ID matches the last charged send).
+  if (!store) throw paused(c, "config");
+  // 9. Charge the account (a free retry when PA-Send-ID matches this device's last charged send).
   const q = c.env.FILE_QUOTA.get(c.env.FILE_QUOTA.idFromName(s.acct));
-  const r = await q.charge(sendId, limits.day, limits.month, now);
+  const r = await q.charge(s.me, sendId, limits.day, limits.month, now);
   if (!r.ok) throw new ApiError(429, "file quota", { quota: r.quota, retry_after: quotaRetryAfter(r.quota, now) });
-  if (r.charged && r.quota.day.used === r.quota.day.limit) c.log.file = "day-cap";
-  else if (r.charged && r.quota.month.used === r.quota.month.limit) c.log.file = "month-cap";
+  if (r.charged) {
+    const day = r.quota.day.used === r.quota.day.limit;
+    const month = r.quota.month.used === r.quota.month.limit;
+    if (day || month) c.log.file = day && month ? "day-cap,month-cap" : day ? "day-cap" : "month-cap";
+  }
   // 10. expires is fixed here, at accept time; a slow upload uses part of the lifetime.
   // TODO: an upload still streaming when its expiry passes is not handled yet (no rule to abort
   // it or to refuse the 201); the object then lives until the cleanup of its expiry minute.
   const expires = now + ttlMinutes(length - BLOB_OVERHEAD) * 60;
-  const name = fileName(minuteOf(expires), await acctHash(c.env.FILE_ACCT_SECRET, s.acct), hex(crypto.getRandomValues(new Uint8Array(16))));
+  const name = fileName(minuteOf(expires), hash, hex(crypto.getRandomValues(new Uint8Array(16))));
   const body = c.req.body ?? new ReadableStream<Uint8Array>({ start: (ctl) => ctl.close() });
-  const put = await storeDeps.store(c.env).put(name.key, body, length, sha);
+  const put = await store.put(name.key, body, length, sha);
   if (put === "mismatch") throw new ApiError(400, "hash mismatch");
   if (put === "cap") {
-    capUntil = nextDay(Math.floor(Date.now() / 1000));
-    c.log.file = "cap";
-    throw new ApiError(503, "files paused", { retry_after: capUntil - Math.floor(Date.now() / 1000) });
+    const t = Math.floor(Date.now() / 1000);
+    capUntil = nextDay(t);
+    throw paused(c, "cap", capUntil - t);
   }
   return json(201, { id: name.id, expires, url: name.url, quota: r.quota });
 }

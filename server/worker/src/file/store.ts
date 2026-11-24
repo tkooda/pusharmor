@@ -10,10 +10,7 @@ export interface FileStore {
   put(key: string, body: ReadableStream<Uint8Array>, length: number, sha256: Uint8Array): Promise<PutResult>;
 }
 
-const unconfigured: FileStore = {
-  put: () => Promise.reject(new Error("file storage not configured")),
-};
-
+// null: no storage configured; uploads are refused before the charge.
 export const storeDeps = {
-  store: (_env: Env): FileStore => unconfigured,
+  store: (_env: Env): FileStore | null => null,
 };

@@ -3,19 +3,25 @@
 // refunded (not on abort, storage failure, or hash mismatch).
 import { DurableObject } from "cloudflare:workers";
 
-// day and month are the UTC start (unix s) of the period the counts belong to. send_id and
-// attempts belong to the last charged upload: a POST with the same PA-Send-ID and attempts < 3
-// (the first try plus 2 automatic retries) is not charged again. No timer.
+// day and month are the UTC start (unix s) of the period the counts belong to. sends holds, per
+// device id, the last charged upload of that device: a POST from that device with the same
+// PA-Send-ID and attempts < 3 (the first try plus 2 automatic retries) is not charged again. No
+// timer. At most MAX_SLOTS devices are kept; the least recently charged slot is dropped first.
+export interface SendSlot {
+  send_id: string;
+  attempts: number;
+}
+
 export interface QuotaRow {
   day: number;
   day_count: number;
   month: number;
   month_count: number;
-  send_id: string;
-  attempts: number;
+  sends: Record<string, SendSlot>;
 }
 
 export const FREE_ATTEMPTS = 3;
+export const MAX_SLOTS = 16;
 const ROW = "q";
 
 export interface Period {
@@ -54,8 +60,8 @@ export function nextMonth(t: number): number {
 }
 
 // Pure charge step: returns the new row (null when unchanged) and the result.
-export function chargeRow(old: QuotaRow | undefined, sendId: string, dayLimit: number, monthLimit: number, now: number): { row: QuotaRow | null; result: ChargeResult } {
-  const r: QuotaRow = old ? { ...old } : { day: 0, day_count: 0, month: 0, month_count: 0, send_id: "", attempts: 0 };
+export function chargeRow(old: QuotaRow | undefined, device: string, sendId: string, dayLimit: number, monthLimit: number, now: number): { row: QuotaRow | null; result: ChargeResult } {
+  const r: QuotaRow = old ? { ...old, sends: { ...old.sends } } : { day: 0, day_count: 0, month: 0, month_count: 0, sends: {} };
   if (r.day !== dayOf(now)) {
     r.day = dayOf(now);
     r.day_count = 0;
@@ -68,22 +74,27 @@ export function chargeRow(old: QuotaRow | undefined, sendId: string, dayLimit: n
     day: { used: r.day_count, limit: dayLimit, resets_at: nextDay(now) },
     month: { used: r.month_count, limit: monthLimit, resets_at: nextMonth(now) },
   });
-  if (r.send_id === sendId && r.attempts < FREE_ATTEMPTS) {
-    r.attempts++;
+  const slot = Object.hasOwn(r.sends, device) ? r.sends[device] : undefined;
+  if (slot && slot.send_id === sendId && slot.attempts < FREE_ATTEMPTS) {
+    r.sends[device] = { send_id: sendId, attempts: slot.attempts + 1 };
     return { row: r, result: { ok: true, charged: false, quota: quota() } };
   }
   if (r.day_count >= dayLimit || r.month_count >= monthLimit) return { row: null, result: { ok: false, charged: false, quota: quota() } };
   r.day_count++;
   r.month_count++;
-  r.send_id = sendId;
-  r.attempts = 1;
+  // Re-insert so key order is charge order; drop the oldest slots past MAX_SLOTS.
+  delete r.sends[device];
+  r.sends[device] = { send_id: sendId, attempts: 1 };
+  const ids = Object.keys(r.sends);
+  for (const id of ids.slice(0, Math.max(0, ids.length - MAX_SLOTS))) delete r.sends[id];
   return { row: r, result: { ok: true, charged: true, quota: quota() } };
 }
 
 export class FileQuota extends DurableObject {
-  // One call at a time per object (no await between get and put), so the read-modify-write is atomic.
-  async charge(sendId: string, dayLimit: number, monthLimit: number, now: number): Promise<ChargeResult> {
-    const { row, result } = chargeRow(await this.ctx.storage.get<QuotaRow>(ROW), sendId, dayLimit, monthLimit, now);
+  // Storage calls hold the object's input gate, so no other call runs between this get and put:
+  // the read-modify-write is atomic.
+  async charge(device: string, sendId: string, dayLimit: number, monthLimit: number, now: number): Promise<ChargeResult> {
+    const { row, result } = chargeRow(await this.ctx.storage.get<QuotaRow>(ROW), device, sendId, dayLimit, monthLimit, now);
     if (row) await this.ctx.storage.put(ROW, row);
     return result;
   }

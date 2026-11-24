@@ -9,7 +9,8 @@ import { b64urlDecode, b64urlEncode } from "../src/codec/b64url";
 import { sha256 } from "../src/crypto/hash";
 import { fileSignedBytes } from "../src/pipeline/signed";
 import { BLOB_OVERHEAD, MAX_FILE, acctHash, fileName, minuteOf, testing, ttlMinutes } from "../src/routes/file";
-import { chargeRow, type QuotaRow } from "../src/file/quota";
+import { chargeRow, MAX_SLOTS, type QuotaRow } from "../src/file/quota";
+import { testing as logTesting } from "../src/log";
 import { storeDeps, type FileStore, type PutResult } from "../src/file/store";
 import { captured, countingLimit, freshIp, initP256, newPeer, randBytes, randomEmail, setAllow, testEnv, type Peer } from "./helpers";
 import { TEST_SECRETS as S } from "./secrets";
@@ -37,6 +38,7 @@ beforeEach(() => {
   store = new MemStore();
   storeDeps.store = () => store;
   testing.reset();
+  logTesting.reset();
 });
 afterEach(() => {
   testing.reset();
@@ -234,14 +236,46 @@ describe("check 7: RL_FILE", () => {
 });
 
 describe("check 8: pause vars and storage cap", () => {
-  it("vars missing -> 503 files paused with no retry_after and an alert", async () => {
+  it("vars missing -> 503 files paused with no retry_after; one alert per isolate, then refusal lines", async () => {
     const a = await approvedSender();
+    const lines: string[][] = [];
     for (const over of [{ PA_FILE_DAY_LIMIT: undefined }, { PA_FILE_MONTH_LIMIT: "" }, { PA_FILE_DAY_LIMIT: "x1" }]) {
       captured.length = 0;
       const r = await upload({ peer: a, env: await looseEnv(over) });
       expect(r.status).toBe(503);
       expect(r.body).toEqual({ error: "files paused" });
-      expect(captured.some((l) => l.includes('"alert":"files"'))).toBe(true);
+      lines.push(captured.filter((l) => l.includes('"route":"POST /v1/file"')));
+    }
+    expect(lines[0].some((l) => l.includes('"alert":"files"') && l.includes('"file":"config"'))).toBe(true);
+    for (const ls of lines.slice(1)) {
+      expect(ls.some((l) => l.includes('"file":"config"'))).toBe(true);
+      expect(ls.some((l) => l.includes('"alert"'))).toBe(false);
+    }
+    expect(await quotaRow(a.acct)).toBeUndefined();
+  });
+
+  it("paused refusal lines count toward the per-isolate refusal cap", async () => {
+    const a = await approvedSender();
+    const env = await looseEnv({ PA_FILE_DAY_LIMIT: "0" });
+    captured.length = 0;
+    for (let i = 0; i < 12; i++) expect((await upload({ peer: a, env })).status).toBe(503);
+    expect(captured.filter((l) => l.includes('"file":"paused"'))).toHaveLength(10);
+  });
+
+  it("no storage or a bad FILE_ACCT_SECRET -> 503 files paused with an alert and no charge", async () => {
+    const a = await approvedSender();
+    storeDeps.store = () => null;
+    captured.length = 0;
+    const r1 = await upload({ peer: a });
+    expect(r1.status).toBe(503);
+    expect(r1.body).toEqual({ error: "files paused" });
+    expect(captured.some((l) => l.includes('"alert":"files"'))).toBe(true);
+    storeDeps.store = () => store;
+    testing.reset();
+    for (const bad of ["", "short", undefined as unknown as string]) {
+      const r = await upload({ peer: a, env: await looseEnv({ FILE_ACCT_SECRET: bad }) });
+      expect(r.status).toBe(503);
+      expect(r.body).toEqual({ error: "files paused" });
     }
     expect(await quotaRow(a.acct)).toBeUndefined();
   });
@@ -280,7 +314,33 @@ describe("check 9: quota", () => {
       store.next = "throw";
       expect((await upload({ peer: a, sid })).status).toBe(503);
     }
-    expect(await quotaRow(a.acct)).toMatchObject({ day_count: 1, month_count: 1, send_id: sid, attempts: 3 });
+    expect(await quotaRow(a.acct)).toMatchObject({ day_count: 1, month_count: 1, sends: { [a.id]: { send_id: sid, attempts: 3 } } });
+  });
+
+  it("send slots are per device: A fails X, B uploads Y, A retries X -> not charged", async () => {
+    const email = randomEmail();
+    const a = await newPeer(email, "android");
+    const b = await newPeer(email, "chrome");
+    await setAllow(a, [b.id]);
+    await setAllow(b, [a.id]);
+    const x = sendId();
+    store.next = "throw";
+    expect((await upload({ peer: a, sid: x })).status).toBe(503);
+    expect((await upload({ peer: b })).status).toBe(201);
+    const r = await upload({ peer: a, sid: x });
+    expect(r.status).toBe(201);
+    expect((r.body.quota as { day: { used: number } }).day.used).toBe(2);
+  });
+
+  it("a retry 20 min after the first attempt is not charged", async () => {
+    const a = await approvedSender();
+    const sid = sendId();
+    store.next = "throw";
+    expect((await upload({ peer: a, sid })).status).toBe(503);
+    const stub = baseEnv.FILE_QUOTA.get(baseEnv.FILE_QUOTA.idFromName(a.acct));
+    const r = await stub.charge(a.id, sid, 20, 100, Math.floor(Date.now() / 1000) + 1200);
+    expect(r).toMatchObject({ ok: true, charged: false });
+    expect(await quotaRow(a.acct)).toMatchObject({ day_count: 1, sends: { [a.id]: { send_id: sid, attempts: 2 } } });
   });
 
   it("the 4th POST of one id is charged", async () => {
@@ -338,11 +398,35 @@ describe("check 9: quota", () => {
     expect(captured.filter((l) => l.includes('"file":"day-cap"'))).toHaveLength(1);
   });
 
+  it("logs both caps when one upload uses the last of the day and of the month", async () => {
+    const a = await approvedSender();
+    const env = await looseEnv({ PA_FILE_DAY_LIMIT: "1", PA_FILE_MONTH_LIMIT: "1", PA_LOG_SAMPLE: "0" });
+    captured.length = 0;
+    expect((await upload({ peer: a, env })).status).toBe(201);
+    expect(captured.filter((l) => l.includes('"file":"day-cap,month-cap"'))).toHaveLength(1);
+  });
+
+  it("Content-Length must be canonical decimal", async () => {
+    const a = await approvedSender();
+    for (const v of ["0100", "+100", "1e2", "00"]) {
+      const r = await upload({ peer: a, headers: { "Content-Length": v } });
+      expect(r.status, v).toBe(400);
+    }
+  });
+
+  it("keeps at most MAX_SLOTS device slots, dropping the oldest", () => {
+    let row: QuotaRow | undefined;
+    for (let i = 0; i <= MAX_SLOTS; i++) row = chargeRow(row, "dev" + i, "s" + i, 1000, 1000, 1_800_000_000).row!;
+    expect(Object.keys(row!.sends)).toHaveLength(MAX_SLOTS);
+    expect(row!.sends.dev0).toBeUndefined();
+    expect(row!.sends["dev" + MAX_SLOTS]).toEqual({ send_id: "s" + MAX_SLOTS, attempts: 1 });
+  });
+
   it("chargeRow resets counts on a new UTC day and month", () => {
     const t = Date.UTC(2026, 10, 30, 23, 59, 0) / 1000;
-    const r1 = chargeRow(undefined, "a", 20, 100, t).row!;
-    expect(r1).toMatchObject({ day_count: 1, month_count: 1, attempts: 1 });
-    const r2 = chargeRow(r1, "b", 20, 100, t + 120).row!;
+    const r1 = chargeRow(undefined, "d", "a", 20, 100, t).row!;
+    expect(r1).toMatchObject({ day_count: 1, month_count: 1, sends: { d: { send_id: "a", attempts: 1 } } });
+    const r2 = chargeRow(r1, "d", "b", 20, 100, t + 120).row!;
     expect(r2).toMatchObject({ day_count: 1, month_count: 1, month: Date.UTC(2026, 11, 1) / 1000 });
   });
 });

@@ -28,7 +28,7 @@ export function logLevel(v: string | undefined): Level {
   return v === "error" || v === "warn" || v === "debug" ? v : "info";
 }
 
-// Refusals (401/403/429) are always logged, at most REFUSAL_MAX per fixed window of REFUSAL_WINDOW_MS
+// Refusals (401/403/429, and 503 "files paused" past its one alert line) are always logged, at most REFUSAL_MAX per fixed window of REFUSAL_WINDOW_MS
 // per isolate. A window starts at the first refusal after the previous window ended. Past the
 // limit a refusal is only counted; the next log call after the window ends first emits one
 // "suppressed" summary line. IPs are kept only as prefixes (IPv4 /24, IPv6 /48). The IP prefix
@@ -83,9 +83,12 @@ export class Log {
   gone_write?: "failed";
   endpoint_reject?: { host?: string; prefix_len?: number; reason?: string };
   exception?: string;
-  // POST /v1/file: "paused" (quota var 0), "config" (quota vars missing or bad), "cap" (storage
-  // cap), "day-cap" / "month-cap" (this upload used the account's last one of the period).
-  file?: "paused" | "config" | "cap" | "day-cap" | "month-cap";
+  // POST /v1/file: "paused" (quota var 0), "config" (quota vars, storage, or acct-hash secret not
+  // set up), "cap" (storage cap): a 503 refusal; fileAlert marks the first one per condition in
+  // the isolate. "day-cap" / "month-cap" / "day-cap,month-cap": this upload used the account's
+  // last one of the period.
+  file?: "paused" | "config" | "cap" | "day-cap" | "month-cap" | "day-cap,month-cap";
+  fileAlert = false;
   pushAuth = false; // a push hit a relay-side fault (results.ts Outcome.relay, or a token mint failure)
   extra: Record<string, string | number> = {};
   private readonly t0 = Date.now();
@@ -112,8 +115,8 @@ export class Log {
   alert(): Alert | undefined {
     if (this.route.startsWith("cron")) return this.exception || this.error ? "cron" : undefined;
     if (this.error === "email send failed") return "mail";
-    if (this.file === "config" || this.file === "cap") return "files";
-    if (this.file === "paused") return undefined;
+    if (this.fileAlert) return "files";
+    if (this.filePaused()) return undefined;
     if (this.exception || this.status >= 500 || this.gone_write) return "db";
     if (this.pushAuth) return "push-auth";
     if (this.rl_error.length) return "ratelimit";
@@ -152,14 +155,20 @@ export class Log {
   // logged line by line.
   notable(): boolean {
     if (this.alert()) return true;
-    if (this.exception || this.rl_error.length || this.gone_write || this.endpoint_reject || this.file) return true;
-    if (this.status >= 500) return true;
+    if (this.exception || this.rl_error.length || this.gone_write || this.endpoint_reject) return true;
+    if (this.file && !this.filePaused()) return true; // a day or month cap line
+    if (this.status >= 500 && !this.filePaused()) return true;
     return this.recipients.some((r) => r.result !== "sent" || r.retry);
   }
 
-  // A relay fault: an alert, an uncaught exception, or any 5xx.
+  // A file upload refused with 503 "files paused" and no exception: a refusal, not a fault.
+  private filePaused(): boolean {
+    return (this.file === "paused" || this.file === "config" || this.file === "cap") && !this.exception;
+  }
+
+  // A relay fault: an alert, an uncaught exception, or any 5xx (except a files-paused refusal).
   private fault(): boolean {
-    return !!(this.alert() || this.exception || this.status >= 500);
+    return !!(this.alert() || this.exception || (this.status >= 500 && !this.filePaused()));
   }
 
   // Workers Logs bills every line, so plain successes and other 4xx are sampled at `rate` (0..1).
@@ -169,7 +178,7 @@ export class Log {
     if (level === "debug") return void console.log(this.line());
     if (level === "error") return this.fault() ? void console.log(this.line()) : undefined;
     if (this.notable()) return void console.log(this.line());
-    if ([401, 403, 429].includes(this.status)) return this.refusal();
+    if ([401, 403, 429].includes(this.status) || this.filePaused()) return this.refusal();
     if (level === "warn" || rate <= 0 || (rate < 1 && Math.random() >= rate)) return;
     if (rate < 1) this.extra.sample = Math.round(1 / rate);
     console.log(this.line());
