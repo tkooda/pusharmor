@@ -51,9 +51,6 @@ object FileUi {
     fun autoNow(size: Long, expires: Long, nowSec: Long, wifi: Long, mobile: Long, dataSaver: Boolean, metered: Boolean?): Auto? =
         if (nowSec >= expires) null else auto(size, wifi, mobile, dataSaver, metered)
 
-    /** Data Saver turns the mobile picker Off; an app the user allow-listed in Data Saver is not restricted. */
-    fun dataSaverOn(restrictBackgroundStatus: Int): Boolean = restrictBackgroundStatus == android.net.ConnectivityManager.RESTRICT_BACKGROUND_STATUS_ENABLED
-
     /** What a Paste does in the message box: [IMAGE] takes the clipboard image as the file, [REFUSE] shows [PASTE_IMAGE_CLEAR], [TEXT] pastes as usual. */
     enum class Paste { IMAGE, REFUSE, TEXT }
 

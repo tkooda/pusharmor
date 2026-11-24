@@ -106,12 +106,6 @@ class FileUiTest {
         assertEquals("Clear the message to paste an image", FileUi.PASTE_IMAGE_CLEAR)
     }
 
-    @Test fun dataSaverAllowListedCountsAsOff() {
-        assertEquals(true, FileUi.dataSaverOn(android.net.ConnectivityManager.RESTRICT_BACKGROUND_STATUS_ENABLED))
-        assertEquals(false, FileUi.dataSaverOn(android.net.ConnectivityManager.RESTRICT_BACKGROUND_STATUS_WHITELISTED))
-        assertEquals(false, FileUi.dataSaverOn(android.net.ConnectivityManager.RESTRICT_BACKGROUND_STATUS_DISABLED))
-    }
-
     @Test fun onlyDecryptedFilesAreServed() {
         assertEquals(true, OutFileProvider.served(listOf("received", "12", "out", "a.pdf")))
         assertEquals(false, OutFileProvider.served(listOf("received", "12", "blob")))
