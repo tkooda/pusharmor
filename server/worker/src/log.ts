@@ -65,7 +65,7 @@ export function ipPrefix(ip: string): string | undefined {
 
 // Relay-side fault kinds for the "alert" field. Never set for client errors (4xx) or
 // device-side push failures.
-export type Alert = "cron" | "mail" | "db" | "push-auth" | "ratelimit";
+export type Alert = "cron" | "mail" | "db" | "push-auth" | "ratelimit" | "files";
 
 export class Log {
   route = "";
@@ -83,6 +83,9 @@ export class Log {
   gone_write?: "failed";
   endpoint_reject?: { host?: string; prefix_len?: number; reason?: string };
   exception?: string;
+  // POST /v1/file: "paused" (quota var 0), "config" (quota vars missing or bad), "cap" (storage
+  // cap), "day-cap" / "month-cap" (this upload used the account's last one of the period).
+  file?: "paused" | "config" | "cap" | "day-cap" | "month-cap";
   pushAuth = false; // a push hit a relay-side fault (results.ts Outcome.relay, or a token mint failure)
   extra: Record<string, string | number> = {};
   private readonly t0 = Date.now();
@@ -104,10 +107,13 @@ export class Log {
   // One kind per line, in this priority order: cron (a scheduled job failed), mail (SES did not
   // send a login code: 502 "email send failed"), db (D1 error, uncaught exception, any 5xx, or a
   // failed write-back), push-auth (a vendor refused our credentials or a token mint failed),
-  // ratelimit (a rate-limit binding threw).
+  // ratelimit (a rate-limit binding threw). files: file sending refused for a quota var error or a
+  // storage cap (a manual pause, quota var 0, is not an alert).
   alert(): Alert | undefined {
     if (this.route.startsWith("cron")) return this.exception || this.error ? "cron" : undefined;
     if (this.error === "email send failed") return "mail";
+    if (this.file === "config" || this.file === "cap") return "files";
+    if (this.file === "paused") return undefined;
     if (this.exception || this.status >= 500 || this.gone_write) return "db";
     if (this.pushAuth) return "push-auth";
     if (this.rl_error.length) return "ratelimit";
@@ -132,6 +138,7 @@ export class Log {
     if (this.rl_error.length) o["rl-error"] = this.rl_error;
     if (this.gone_write) o.gone_write = this.gone_write;
     if (this.endpoint_reject) o.endpoint_reject = this.endpoint_reject;
+    if (this.file) o.file = this.file;
     if (this.exception) o.exception = this.exception;
     const alert = this.alert();
     if (alert) o.alert = alert;
@@ -145,7 +152,7 @@ export class Log {
   // logged line by line.
   notable(): boolean {
     if (this.alert()) return true;
-    if (this.exception || this.rl_error.length || this.gone_write || this.endpoint_reject) return true;
+    if (this.exception || this.rl_error.length || this.gone_write || this.endpoint_reject || this.file) return true;
     if (this.status >= 500) return true;
     return this.recipients.some((r) => r.result !== "sent" || r.retry);
   }

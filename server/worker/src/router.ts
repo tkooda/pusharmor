@@ -11,6 +11,7 @@ import { approve, deny } from "./routes/approve";
 import { pair } from "./routes/pair";
 import { send } from "./routes/send";
 import { health } from "./routes/health";
+import { uploadFile } from "./routes/file";
 
 export type Handler = (c: Ctx) => Promise<Response>;
 
@@ -18,6 +19,7 @@ interface Route {
   method: string;
   path: string; // template, ":id" for an id segment
   handler: Handler | "preflight";
+  stream?: true; // the handler reads req.body itself; no capped body read
 }
 
 export const ROUTES: Route[] = [
@@ -42,6 +44,7 @@ export const ROUTES: Route[] = [
   { method: "POST", path: "/v1/deny/:id", handler: deny },
   { method: "POST", path: "/v1/pair/:id", handler: pair },
   { method: "POST", path: "/v1/send", handler: send },
+  { method: "POST", path: "/v1/file", handler: uploadFile, stream: true },
   { method: "GET", path: "/v1/health", handler: health },
   { method: "OPTIONS", path: "/v1/auth/email", handler: "preflight" },
   { method: "OPTIONS", path: "/v1/auth/email/verify", handler: "preflight" },
@@ -64,6 +67,7 @@ export interface Match {
   template: string;
   handler: Handler | "preflight";
   params: string[];
+  stream: boolean;
 }
 
 // Unknown path -> 404, known path with another method -> 405, bad id segment -> 400.
@@ -75,7 +79,7 @@ export function route(method: string, path: string): Match {
     pathKnown = true;
     if (r.method !== method) continue;
     if (!params.every(isId)) throw new ApiError(400, "bad request");
-    return { template: `${r.method} ${r.path}`, handler: r.handler, params };
+    return { template: `${r.method} ${r.path}`, handler: r.handler, params, stream: r.stream === true };
   }
   throw pathKnown ? new ApiError(405, "method not allowed") : new ApiError(404, "not found");
 }

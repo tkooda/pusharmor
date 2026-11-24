@@ -47,6 +47,11 @@ export const Q_CTX = (ids: number): string => ctxSql(ids, false);
 // POST /send: Q_CTX plus the account's last_seen_month.
 export const Q_CTX_SEND = (ids: number): string => ctxSql(ids, true);
 
+// POST /v1/file: caller row and whether any other peer of the account approves it. ?1 me, ?2 acct
+export const Q_FILE = `SELECT sign_pub, enc_pub, logged_out,
+  EXISTS (SELECT 1 FROM peers o WHERE o.account = ?2 AND o.id != ?1 AND json_type(o.allow, ${P(1)}) IS NOT NULL) AS approved
+FROM peers WHERE account = ?2 AND id = ?1`;
+
 // POST /peers read. ?1 acct, ?2 id, ?3 JSON array of evict ids
 export const Q_REG = `SELECT (SELECT status FROM accounts WHERE id = ?1) AS status,
   (SELECT sign_pub FROM peers WHERE account = ?1 AND id = ?2) AS old_sign,

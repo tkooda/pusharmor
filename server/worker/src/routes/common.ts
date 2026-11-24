@@ -37,10 +37,10 @@ export interface CallerRow {
 
 // Steps d, e, f. RL_PEER and RL_ACCT are charged only here, after the signature and keyhash
 // pass, so unsigned or badly signed calls with a known PA-ID cannot use up the peer's or the
-// account's budget.
-export async function callerCheck(c: Ctx, s: Signed, row: CallerRow | undefined | null, allowLoggedOut = false): Promise<void> {
+// account's budget. `signed` replaces the PA-REQ1 bytes (POST /v1/file signs PA-FILE1).
+export async function callerCheck(c: Ctx, s: Signed, row: CallerRow | undefined | null, allowLoggedOut = false, signed?: Uint8Array): Promise<void> {
   if (!row) throw new ApiError(401, "unknown peer");
-  await checkSig(row.sign_pub, c.req.headers, c.method, c.path, s.paTime, c.body);
+  await checkSig(row.sign_pub, c.req.headers, c.method, c.path, s.paTime, c.body, signed);
   await checkKeyhash(s.me, row.sign_pub, row.enc_pub);
   await enforce(c.env, "RL_PEER", "id:" + s.me, c.log);
   if (row.logged_out === 1 && !allowLoggedOut) throw new ApiError(401, "logged out");

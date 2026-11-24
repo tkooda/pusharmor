@@ -21,6 +21,7 @@
     "POST /v1/deny/:id",
     "POST /v1/pair/:id",
     "POST /v1/send",
+    "POST /v1/file",
     "GET /v1/health",
     "OPTIONS /v1/auth/email",
     "OPTIONS /v1/auth/email/verify",

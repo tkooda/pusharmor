@@ -27,15 +27,21 @@ export function signedBytes(method: string, path: string, paTime: string, body: 
   return concat(utf8("PA-REQ1\n" + method + "\n" + path + "\n" + paTime + "\n"), body);
 }
 
-// Step e. Verifies PA-Sig with sign_pub (stored b64url text).
-export async function checkSig(signPub: string, headers: Headers, method: string, path: string, paTime: string, body: Uint8Array): Promise<void> {
+// "PA-FILE1\nPOST\n/v1/file\n" + PA-Time + "\n" + Content-Length + "\n" + PA-File-SHA256 + "\n" + PA-Send-ID
+export function fileSignedBytes(paTime: string, contentLength: number, fileSha256: string, sendId: string): Uint8Array {
+  return utf8("PA-FILE1\nPOST\n/v1/file\n" + paTime + "\n" + contentLength + "\n" + fileSha256 + "\n" + sendId);
+}
+
+// Step e. Verifies PA-Sig with sign_pub (stored b64url text) over PA-REQ1, or over `signed`
+// when given (PA-FILE1).
+export async function checkSig(signPub: string, headers: Headers, method: string, path: string, paTime: string, body: Uint8Array, signed?: Uint8Array): Promise<void> {
   const fail = () => new ApiError(401, "invalid client signature");
   const sigHdr = headers.get("PA-Sig");
   const sig = sigHdr === null || sigHdr.length !== 86 ? null : b64urlDecode(sigHdr);
   const raw = rawPoint(signPub);
   if (!sig || sig.length !== 64 || !raw) throw fail();
   const key = await importVerifyKey(raw);
-  if (!key || !(await verifyRaw(key, sig, signedBytes(method, path, paTime, body)))) throw fail();
+  if (!key || !(await verifyRaw(key, sig, signed ?? signedBytes(method, path, paTime, body)))) throw fail();
 }
 
 // Step e, second half: keyhash of the stored keys equals the PA-ID keyhash bytes.

@@ -2,6 +2,9 @@
 // Deployment ids (GOOGLE_*, APPLE_*, WEBPUSH_*, AWS_*, *_AUD_*, PA_OAUTH_REDIRECT_CHROME) and
 // PA_LOG_SAMPLE and LOG_LEVEL are Cloudflare dashboard variables, never in this file; keep_vars keeps them on deploy.
 // The D1 binding names the database; wrangler looks its id up by name.
+// File sending: dashboard variables PA_FILE_DAY_LIMIT and PA_FILE_MONTH_LIMIT (uploads per account
+// per UTC day and month; 0 pauses file sending; missing or not an integer also pauses it), secret
+// FILE_ACCT_SECRET (b64url of 32 random bytes).
 {
   "name": "pusharmor-api",
   "main": "src/index.ts",
@@ -39,8 +42,13 @@
     { "name": "RL_PAIR", "namespace_id": "1006", "simple": { "limit": 1, "period": 60 } },
     { "name": "RL_PROBE", "namespace_id": "1007", "simple": { "limit": 2, "period": 60 } },
     { "name": "RL_CODE", "namespace_id": "1013", "simple": { "limit": 5, "period": 60 } },
-    { "name": "RL_ACCT", "namespace_id": "1009", "simple": { "limit": 60, "period": 60 } }
+    { "name": "RL_ACCT", "namespace_id": "1009", "simple": { "limit": 60, "period": 60 } },
+    // RL_FILE: POST /v1/file attempts per device (key "file:" + peer id).
+    { "name": "RL_FILE", "namespace_id": "1014", "simple": { "limit": 5, "period": 60 } }
   ],
+  // FILE_QUOTA: one object per account (named by the account id) holding the file upload counts.
+  "durable_objects": { "bindings": [{ "name": "FILE_QUOTA", "class_name": "FileQuota" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["FileQuota"] }],
   "vars": {
     "PA_ALLOWED_PUSH_ENDPOINTS": "[{\"host\":\"google.com\",\"paths\":[\"/fcm/send/\",\"/wp/\"]},{\"suffix\":\".google.com\",\"paths\":[\"/fcm/send/\",\"/wp/\"]},{\"host\":\"googleapis.com\",\"paths\":[\"/fcm/send/\",\"/wp/\"]},{\"suffix\":\".googleapis.com\",\"paths\":[\"/fcm/send/\",\"/wp/\"]},{\"suffix\":\".push.services.mozilla.com\",\"paths\":[\"/wpush/\"]},{\"suffix\":\".notify.windows.com\",\"paths\":[\"/w/\"]},{\"suffix\":\".push.apple.com\",\"paths\":[\"/\"]}]",
     "PA_ALLOWED_UP_HOSTS": "[\"ntfy.sh\",\"updates.push.services.mozilla.com\"]",

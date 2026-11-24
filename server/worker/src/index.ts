@@ -10,6 +10,8 @@ import { enforce, ipKey } from "./pipeline/limits";
 import { route } from "./router";
 import { scheduled } from "./scheduled";
 
+export { FileQuota } from "./file/quota";
+
 export async function handle(req: Request, env: Env, exec: ExecutionContext): Promise<Response> {
   const log = new Log();
   log.setIp(req.headers.get("CF-Connecting-IP"));
@@ -35,9 +37,9 @@ export async function handle(req: Request, env: Env, exec: ExecutionContext): Pr
       checkSiteRoute(ch, m.template);
       const signed = req.headers.has("PA-ID") || req.headers.has("PA-Sig");
       if (!isSiteValue(ch)) checkMinClient(client, env.PA_MIN_CLIENT, signed);
-      // 4. Capped body read; raw bytes kept for PA-Sig.
-      const body = await readBody(req);
-      log.body_bytes = body.length;
+      // 4. Capped body read; raw bytes kept for PA-Sig. Stream routes read req.body themselves.
+      const body = m.stream ? new Uint8Array(0) : await readBody(req);
+      if (!m.stream) log.body_bytes = body.length;
       const c: Ctx = { env, exec, req, method: req.method, path, params: m.params, body, log };
       res = await m.handler(c);
     }

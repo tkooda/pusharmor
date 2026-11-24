@@ -16,6 +16,8 @@ export default defineConfig(async () => {
             TEST_MIGRATIONS: migrations,
             // Every request line is logged in tests (scrub check, D1 cost lines).
             PA_LOG_SAMPLE: "1",
+            PA_FILE_DAY_LIMIT: "20",
+            PA_FILE_MONTH_LIMIT: "100",
             GOOGLE_FCM_PROJECT_ID: "test-project",
             APPLE_APNS_TOPIC: "com.example.pusharmor",
             APPLE_APNS_KEY_ID: "TESTAPNSKID",

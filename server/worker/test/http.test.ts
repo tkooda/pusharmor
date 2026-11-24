@@ -159,7 +159,7 @@ describe("crons", () => {
     const got = Object.fromEntries(cfg.ratelimits.map((r: { name: string; simple: { limit: number; period: number } }) => [r.name, [r.simple.limit, r.simple.period]]));
     expect(got).toEqual({
       RL_IP: [100, 60], RL_PEER: [30, 60], RL_MAIL_EMAIL: [2, 60], RL_MAIL_IP: [10, 60], RL_MAIL_GLOBAL: [600, 60],
-      RL_CODE: [5, 60], RL_PAIR: [1, 60], RL_PROBE: [2, 60], RL_ACCT: [60, 60],
+      RL_CODE: [5, 60], RL_PAIR: [1, 60], RL_PROBE: [2, 60], RL_ACCT: [60, 60], RL_FILE: [5, 60],
     });
     const union = /export type Binding = ([^;]+);/.exec(limitsSrc)![1].match(/RL_[A-Z_]+/g)!;
     expect([...union].sort()).toEqual(Object.keys(got).sort());

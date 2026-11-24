@@ -14,6 +14,8 @@ export interface Env {
   RL_PAIR: RateLimit;
   RL_PROBE: RateLimit;
   RL_ACCT: RateLimit;
+  RL_FILE: RateLimit;
+  FILE_QUOTA: DurableObjectNamespace<import("./file/quota").FileQuota>;
 
   PA_ALLOWED_PUSH_ENDPOINTS: string;
   PA_ALLOWED_UP_HOSTS: string;
@@ -46,11 +48,14 @@ export interface Env {
   PA_HEALTHCHECK_URL?: string; // secret; GET after each passing 15-minute self-check
   PA_TOTP_KEY_REVIEWER?: string; // secret; base32 TOTP key of the store review login (auth/totp.ts)
   PA_TOTP_KEY_RELEASE_TEST?: string; // secret; base32 TOTP key of the release-gate test login
+  PA_FILE_DAY_LIMIT?: string; // dashboard variable: file uploads per account per UTC day; 0 = paused
+  PA_FILE_MONTH_LIMIT?: string; // dashboard variable: file uploads per account per UTC month; 0 = paused
 
   PA_ID_SECRET: string;
   PA_CODE_SECRET: string;
   PA_CONFIRM_SECRET: string;
   PA_TOKEN_SECRET: string;
+  FILE_ACCT_SECRET: string; // acct-hash in file storage keys
   CLOUDFLARE_TURNSTILE_SECRET: string;
   AWS_SES_ACCESS_KEY_ID: string;
   AWS_SES_SECRET_ACCESS_KEY: string;
