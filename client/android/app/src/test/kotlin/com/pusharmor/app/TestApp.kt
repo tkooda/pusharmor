@@ -25,6 +25,9 @@ class TestApp : PaApp() {
 
     override fun retrySleep(ms: Long) { retrySleeps.add(ms) }
 
+    /** Start-up work runs inline, so it never races a test. */
+    override fun inBackground(block: () -> Unit) = block()
+
     override fun onCreate() {
         if (!WorkManager.isInitialized()) WorkManager.initialize(this, Configuration.Builder().setExecutor { it.run() }.build())
         super.onCreate()

@@ -41,6 +41,9 @@ open class PaApp : Application() {
     /** The wait between retries of a relay server call; tests replace it, so they do not sleep. */
     open fun retrySleep(ms: Long) = Thread.sleep(ms)
 
+    /** Runs start-up work off the main thread; tests replace it, so no untracked thread races them. */
+    open fun inBackground(block: () -> Unit) = Thread(block).start()
+
     /** Room's invalidation across processes; tests turn it off (Robolectric answers its service bind with no name). */
     open fun multiInstanceDb(): Boolean = true
 
@@ -51,7 +54,7 @@ open class PaApp : Application() {
         Work.scheduleDaily(this)
         // a decrypt that the app did not finish: the memory error on a low-memory exit, else the mark is cleared (off the main thread)
         val started = System.currentTimeMillis()
-        Thread { try { graph.fileStore.reviewMarks({ FileWork.lowMemoryExits(this) }, started) } catch (e: Exception) { } }.start()
+        inBackground { try { graph.fileStore.reviewMarks({ FileWork.lowMemoryExits(this) }, started) } catch (e: Exception) { } }
     }
 }
 

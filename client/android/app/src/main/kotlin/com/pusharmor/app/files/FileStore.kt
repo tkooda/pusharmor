@@ -61,10 +61,8 @@ class FileStore(
     /** Records a tap on Download: the next run is manual (one GET even after expires; the automatic count starts again). */
     fun markManual(key: String) { dir(key).mkdirs(); File(dir(key), "manual").createNewFile() }
 
-    /** A tap recorded by [markManual] and not yet taken by a run ([clearManual] once the run's state is stored). */
-    fun manualPending(key: String): Boolean = File(dir(key), "manual").exists()
-
-    fun clearManual(key: String) { File(dir(key), "manual").delete() }
+    /** Takes a tap recorded by [markManual] in one step: true when there was one, and it is gone. */
+    fun takeManual(key: String): Boolean = File(dir(key), "manual").delete()
 
     fun dir(key: String): File {
         require(validKey(key)) { "bad file key" }

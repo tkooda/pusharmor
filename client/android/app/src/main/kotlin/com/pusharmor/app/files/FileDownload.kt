@@ -42,8 +42,9 @@ class FileDownload(
 
     private fun runLocked(key: String, f: FileValue, name: String, stopped: () -> Boolean): Run {
         var s = store.state(key)
-        if (s.downloaded) { store.clearManual(key); return Run.Done }
-        val manual = store.manualPending(key)
+        if (s.downloaded) { store.takeManual(key); return Run.Done }
+        // taken in one step: a tap that lands later stays for the next run
+        val manual = store.takeManual(key)
         if (manual) s = s.copy(attempts = Attempts(), redownloaded = false, code = null, text = null)
         else {
             if (s.code != null) return Run.Final(s.code!!, s.text)
@@ -53,7 +54,6 @@ class FileDownload(
         val next = s.attempts.start(blob.length()) ?: return final(key, s, FinalCode.FAILED, FileRules.DOWNLOAD_FAILED)
         s = s.copy(attempts = next)
         store.put(key, s)
-        store.clearManual(key) // taken: a later run (after a stop or a killed process) is automatic
         // 2 x size + margin in all; the bytes already stored need no new space
         if (!FileRules.enoughStorage(store.freeBytes()?.let { it + minOf(blob.length(), f.size + FileCrypt.BLOB_OVERHEAD) }, f.size)) return final(key, s, FinalCode.STORAGE, FileRules.storageFullText(false, name))
         try {

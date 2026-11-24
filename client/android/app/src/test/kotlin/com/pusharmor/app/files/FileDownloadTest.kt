@@ -174,6 +174,16 @@ class FileDownloadTest {
         assertEquals(2, calls)
     }
 
+    /** A tap that lands while a run is in progress is kept for the next run. */
+    @Test fun aTapDuringARunIsKept() {
+        steps += { store.markManual("k1"); Fetch.Retry(null) }
+        assertEquals(FileDownload.Run.Retry(null), run())
+        clockMs += 600_000 // past expires: only a manual run sends a GET
+        steps += whole()
+        assertEquals(FileDownload.Run.Done, run())
+        assertEquals(2, calls)
+    }
+
     /** Two runs of one file never overlap: a tap waits for the run in progress. */
     @Test fun runsOfOneFileDoNotOverlap() {
         val inside = java.util.concurrent.atomic.AtomicInteger()
