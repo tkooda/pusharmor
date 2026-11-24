@@ -68,6 +68,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
 
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
         FileTransfers.shared.stampActive()
+        // a file that arrived now was left to the app (the NSE skips while the app is in front)
+        FileTransfers.shared.catchUpInFront()
         Task { @MainActor in model.reload() }
         return [.banner, .sound, .list]
     }

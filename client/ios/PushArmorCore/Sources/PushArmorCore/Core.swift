@@ -22,10 +22,13 @@ public protocol PlatformHooks: AnyObject {
     func isProtectedDataLocked() -> Bool
     /// Remove the delivered notifications whose userInfo "rowid" is one of `rowids`.
     func removeDeliveredNotifications(rowids: [Int64]) async
+    /// Cancel these file transfer tasks ("<session> <task>") and remove every local file.
+    func wipeFiles(tasks: [String])
 }
 
 public extension PlatformHooks {
     func removeDeliveredNotifications(rowids: [Int64]) async {}
+    func wipeFiles(tasks: [String]) {}
 }
 
 /// Settings keys (section 11).
@@ -88,6 +91,7 @@ public final class Core: @unchecked Sendable {
                 if !(await confirmRemoval(timeout: min(timeout, 15))) { return .network }
             } else if r.status == 401 && r.error == "logged out" {
                 try? store.setMe("logged_out", .int(1))
+                wipeFiles()
             }
             if case .bool(true)? = r.json?["push_missing"] { try? store.setMe("push_missing", .int(1)) }
         }
@@ -183,7 +187,9 @@ public final class Core: @unchecked Sendable {
     /// pair_cap, counters and replay rows gone; history kept. The DB part commits first: if it
     /// fails, the keys stay so the next signed call gets the 401 and tries again.
     public func selfRemoved() {
+        let tasks = fileTaskKeys()
         do { try store.wipe() } catch { return }
+        hooks?.wipeFiles(tasks: tasks)
         hooks?.wipeKeys()
         hooks?.removeLockedInbox()
         hooks?.removeDeliveredNotifications()

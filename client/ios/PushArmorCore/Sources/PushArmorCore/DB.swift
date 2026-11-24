@@ -271,7 +271,7 @@ enum Schema {
           name TEXT NOT NULL, size INTEGER NOT NULL, sha256 TEXT,
           state TEXT NOT NULL, code TEXT, error TEXT,
           attempts INTEGER NOT NULL DEFAULT 0, open_at INTEGER NOT NULL DEFAULT -1,
-          again INTEGER NOT NULL DEFAULT 0,
+          again INTEGER NOT NULL DEFAULT 0, manual INTEGER NOT NULL DEFAULT 0, have INTEGER NOT NULL DEFAULT 0,
           task TEXT,
           status INTEGER NOT NULL DEFAULT 0, reply_error TEXT, retry_after INTEGER,
           decrypt_mark INTEGER,

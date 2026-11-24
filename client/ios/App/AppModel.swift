@@ -215,6 +215,7 @@ final class AppModel: ObservableObject {
     /// After a reset, as after Delete broken keys: the locked inbox and the delivered
     /// notifications belong to the old store, so they go too.
     static func clearAfterReset(hooks: PlatformHooks) {
+        hooks.wipeFiles(tasks: [])
         hooks.removeLockedInbox()
         hooks.removeDeliveredNotifications()
     }
@@ -240,7 +241,9 @@ final class AppModel: ObservableObject {
     /// if it fails the keys stay. Then the keys, the locked inbox, and the delivered
     /// notifications. The next screen is the sign-in.
     static func deleteBrokenKeys(store: Store, hooks: PlatformHooks) throws -> Phase {
+        let tasks = ((try? store.allFiles()) ?? []).compactMap { $0.task }
         try store.keysLost()
+        hooks.wipeFiles(tasks: tasks)
         // the next register makes new keys
         try store.setSetting(KeyBootstrap.registerKeysSetting, nil)
         hooks.wipeKeys()

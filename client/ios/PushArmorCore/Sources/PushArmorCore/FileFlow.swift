@@ -88,6 +88,12 @@ extension Core {
     static func receivedFile(_ f: FileRef, historyRowid: Int64, now: Int64) -> FileRecord {
         var r = FileRecord(dir: .incoming, key: f.key, name: FileFlow.name(f.name, timeSec: now), size: f.size,
                            state: "pending", created: now)
+        if f.expires <= now {
+            // already past expires on arrival (local clock): only the row, never a download
+            r.state = "failed"
+            r.code = FileRules.FinalCode.expired.rawValue
+            r.error = "Expired"
+        }
         r.historyRowid = historyRowid
         r.url = f.url
         r.expires = f.expires
@@ -131,15 +137,18 @@ extension Core {
         return out
     }
 
-    /// A download task starts for `id` (`have`: bytes kept from an earlier try). false: the
-    /// automatic attempts are used up (the row then shows "Download failed"), or the file is
-    /// not waiting for a download. `manual`: the Download button, which always starts.
-    public func fileDownloadStarts(_ id: Int64, task: String, have: Int64, manual: Bool = false) throws -> Bool {
+    /// A download task starts for `id`: one task per file, so only a file waiting for a download
+    /// (pending; failed only for the button) starts. false: not waiting, or the automatic attempts
+    /// are used up (the row then shows "Download failed"). `manual`: the Download button, which
+    /// always starts; the file keeps that mark for its later automatic tries.
+    public func fileDownloadStarts(_ id: Int64, task: String, manual: Bool = false) throws -> Bool {
         try store.db.write {
-            guard var f = try store.file(id), f.dir == .incoming, ["pending", "loading", "failed"].contains(f.state) else { return false }
+            guard var f = try store.file(id), f.dir == .incoming,
+                  f.state == "pending" || (manual && f.state == "failed") else { return false }
             if manual {
-                f.attemptsState = FileRules.Attempts(used: 0, openAt: -1).start(have: have)!
-            } else if let a = f.attemptsState.start(have: have) {
+                f.attemptsState = FileRules.Attempts(used: 0, openAt: -1).start(have: f.have)!
+                f.manual = true
+            } else if let a = f.attemptsState.start(have: f.have) {
                 f.attemptsState = a
             } else {
                 f.state = "failed"
@@ -158,22 +167,11 @@ extension Core {
         }
     }
 
-    /// The task of `id` ended (any process): its reply, before any check. blobArrived: the
-    /// downloaded body is now at the record's blob name.
-    public func fileTaskEnded(_ id: Int64, status: Int, body: Data?, blobArrived: Bool) throws {
-        try store.db.write {
-            guard var f = try store.file(id) else { return }
-            let j = body.flatMap { $0.count <= 4096 ? try? StrictJSON.parse($0) : nil }
-            f.status = status
-            f.replyError = j?["error"]?.stringValue
-            if case .number(let t)? = j?["retry_after"] { f.retryAfter = FileRef.uint(t) } else { f.retryAfter = nil }
-            f.task = nil
-            if f.dir == .incoming {
-                f.attemptsState = f.attemptsState.end()
-                f.state = blobArrived ? "blob" : "pending"
-            }
-            try store.saveFile(f)
-        }
+    /// The download task of `id` ended (see Store.fileTaskEnded).
+    public func fileTaskEnded(_ id: Int64, task: String, status: Int, body: Data?, blobArrived: Bool, received: Int64 = 0,
+                              resumable: Bool = false) throws {
+        try store.fileTaskEnded(id, task: task, status: status, body: body, blobArrived: blobArrived, received: received,
+                                resumable: resumable)
     }
 
     /// App only: checks an arrived blob (HTTP status first, then size and sha256) and moves
@@ -198,7 +196,9 @@ extension Core {
             f.state = "ready"
         case .again:
             try? FileManager.default.removeItem(at: blob)
+            try? FileManager.default.removeItem(at: dir.appendingPathComponent(f.resumeName))
             f.again = true
+            f.have = 0
             f.state = "pending"
         case .retry:
             if f.state == "blob" { try? FileManager.default.removeItem(at: blob) }
@@ -355,13 +355,18 @@ extension Core {
     /// An upload try of send `id` ended with this reply (status 0 = transport error). PA-Epoch
     /// updates the clock offset before a resubmit is signed.
     @discardableResult
-    public func fileUploadEnded(_ id: Int64, status: Int, body: Data?, epoch: String?) throws -> FileFlow.UploadNext? {
+    public func fileUploadEnded(_ id: Int64, status: Int, body: Data?, epoch: String?, task: String? = nil) throws -> FileFlow.UploadNext? {
         if let e = epoch, let sec = Int64(e), (1 ... APIClient.maxEpochS).contains(sec) { api.setOffset(sec - api.clockMs() / 1000) }
         if status == 426 { NotificationCenter.default.post(name: APIClient.upgradeRequired, object: api) }
         let j = body.flatMap { $0.count <= 4096 ? try? StrictJSON.parse($0) : nil }
-        if status == 401 && j?["error"]?.stringValue == "logged out" { try? store.setMe("logged_out", .int(1)) }
+        if status == 401 && j?["error"]?.stringValue == "logged out" {
+            try? store.setMe("logged_out", .int(1))
+            wipeFiles()
+            return nil
+        }
         return try store.db.write { () -> FileFlow.UploadNext? in
-            guard var f = try store.file(id), f.dir == .outgoing, f.state == "uploading" else { return nil }
+            // only the reply of the send's current try counts
+            guard var f = try store.file(id), f.dir == .outgoing, f.state == "uploading", task == nil || f.task == task else { return nil }
             let next = FileFlow.afterUpload(status: status, json: j, tries: f.tries)
             f.task = nil
             f.status = status
@@ -386,9 +391,15 @@ extension Core {
     /// on a later try of the same send). On success the outgoing row is written and the blob
     /// goes. A send whose file expired fails.
     public func fileSendMessage(_ id: Int64, dir: URL) async throws -> SendReport {
-        guard var f = try store.file(id), f.dir == .outgoing, f.state == "uploaded", let ref = f.ref, let msgId = f.msgId else {
-            throw FileSendError.unreadable
+        // one sender only: the send is claimed (uploaded -> sending) in one transaction, so a second
+        // caller (app open, a session event) finds it taken and sends nothing
+        let claimed = try store.db.write { () -> FileRecord? in
+            guard var g = try store.file(id), g.dir == .outgoing, g.state == "uploaded" else { return nil }
+            g.state = "sending"
+            try store.saveFile(g)
+            return g
         }
+        guard var f = claimed, let ref = f.ref, let msgId = f.msgId else { throw FileSendError.unreadable }
         if fileNowSec >= ref.expires {
             f.state = "failed"
             f.code = FileRules.FinalCode.expired.rawValue
@@ -398,8 +409,16 @@ extension Core {
             throw FileSendError.unreadable
         }
         let ids = f.recipients.compactMap { PeerId(text: $0) }
-        let rep = try await sendContent(.file(ref), rowType: "unknown", rowContent: "file", msgId: msgId, to: ids,
+        let rep: SendReport
+        do {
+            rep = try await sendContent(.file(ref), rowType: "unknown", rowContent: "file", msgId: msgId, to: ids,
                                         allCount: f.allCount)
+        } catch {
+            // nothing was relayed: the next try uses the same upload
+            f.state = "uploaded"
+            try? store.saveFile(f)
+            throw error
+        }
         f.state = "sent"
         f.historyRowid = rep.rowid
         try store.saveFile(f)
@@ -407,9 +426,32 @@ extension Core {
         return rep
     }
 
+    /// App launch: a send left "sending" by a process that ended during it may have been relayed;
+    /// it is never sent again, so it fails.
+    public func settleSends(except busy: Set<Int64> = []) throws {
+        try store.db.write {
+            for var f in try store.files(dir: .outgoing, states: ["sending"]) where !busy.contains(f.id) {
+                f.state = "failed"
+                f.code = FileRules.FinalCode.failed.rawValue
+                try store.saveFile(f)
+            }
+        }
+    }
+
+    /// The task keys of every running transfer.
+    public func fileTaskKeys() -> [String] { ((try? store.allFiles()) ?? []).compactMap { $0.task } }
+
+    /// Logout and removal: every received and sent file goes (records, blobs, decrypted files),
+    /// and the platform cancels their transfers.
+    public func wipeFiles() {
+        let tasks = fileTaskKeys()
+        try? store.db.exec("DELETE FROM files")
+        hooks?.wipeFiles(tasks: tasks)
+    }
+
     /// A send that cannot finish (its upload failed or the app gave up): its blob goes.
     public func fileSendFailed(_ id: Int64, dir: URL, code: FileRules.FinalCode, text: String?) throws {
-        guard var f = try store.file(id), f.dir == .outgoing, f.state != "sent" else { return }
+        guard var f = try store.file(id), f.dir == .outgoing, f.state != "sent", f.state != "sending" else { return }
         f.state = "failed"
         f.code = code.rawValue
         f.error = text

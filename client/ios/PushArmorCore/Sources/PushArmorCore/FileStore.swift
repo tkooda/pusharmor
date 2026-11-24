@@ -27,6 +27,10 @@ public struct FileRecord: Equatable, Sendable {
     public var openAt: Int64 = -1
     /// The blob failed its check once and is being downloaded again.
     public var again: Bool = false
+    /// The Download button started it: its later automatic tries may use mobile data too.
+    public var manual: Bool = false
+    /// Bytes kept by saved resume data (0 = none).
+    public var have: Int64 = 0
     /// The running transfer task: "<session identifier> <task identifier>".
     public var task: String?
     /// The last transfer reply: HTTP status (0 = none), error word, retry_after seconds.
@@ -85,6 +89,8 @@ extension Store {
         f.attempts = Int(r.int("attempts") ?? 0)
         f.openAt = r.int("open_at") ?? -1
         f.again = (r.int("again") ?? 0) != 0
+        f.manual = (r.int("manual") ?? 0) != 0
+        f.have = r.int("have") ?? 0
         f.task = r.text("task")
         f.status = Int(r.int("status") ?? 0)
         f.replyError = r.text("reply_error")
@@ -101,13 +107,13 @@ extension Store {
     }
 
     static let fileColumns = ["dir", "history_rowid", "url", "expires", "key", "name", "size", "sha256", "state", "code",
-                              "error", "attempts", "open_at", "again", "task", "status", "reply_error", "retry_after",
+                              "error", "attempts", "open_at", "again", "manual", "have", "task", "status", "reply_error", "retry_after",
                               "decrypt_mark", "send_id", "tries", "recipients", "msg_id", "all_count", "created"]
 
     static func fileValues(_ f: FileRecord) -> [SQLValue] {
         [.text(f.dir.rawValue), .opt(f.historyRowid), .opt(f.url), .opt(f.expires), .text(f.key), .text(f.name), .int(f.size),
          .opt(f.sha256), .text(f.state), .opt(f.code), .opt(f.error), .int(Int64(f.attempts)), .int(f.openAt),
-         .bool(f.again), .opt(f.task), .int(Int64(f.status)), .opt(f.replyError), .opt(f.retryAfter), .opt(f.decryptMark),
+         .bool(f.again), .bool(f.manual), .int(f.have), .opt(f.task), .int(Int64(f.status)), .opt(f.replyError), .opt(f.retryAfter), .opt(f.decryptMark),
          .opt(f.sendId), .int(Int64(f.tries)), .text(JOut.arr(f.recipients.map { .str($0) }).text), .opt(f.msgId),
          .int(Int64(f.allCount)), .int(f.created)]
     }
@@ -144,6 +150,34 @@ extension Store {
 
     public func allFiles() throws -> [FileRecord] {
         try db.query("SELECT * FROM files ORDER BY id").compactMap(Store.fileRecord)
+    }
+
+    /// A download task of file `id` ended (any process; needs only the store, no keys). It applies
+    /// only while the record still waits for that very task, so a stale or second completion never
+    /// overwrites a later state. blobArrived: the body is now at the record's blob name. Else
+    /// `received` bytes arrived in this run and `resumable` says resume data keeps them: a run that
+    /// kept bytes is not counted as an attempt.
+    public func fileTaskEnded(_ id: Int64, task: String, status: Int, body: Data?, blobArrived: Bool, received: Int64 = 0,
+                              resumable: Bool = false) throws {
+        try db.write {
+            guard var f = try file(id), f.dir == .incoming, f.state == "loading", f.task == task else { return }
+            let j = body.flatMap { $0.count <= 4096 ? try? StrictJSON.parse($0) : nil }
+            f.status = status
+            f.replyError = j?["error"]?.stringValue
+            if case .number(let t)? = j?["retry_after"] { f.retryAfter = FileRef.uint(t) } else { f.retryAfter = nil }
+            f.task = nil
+            if blobArrived {
+                f.attemptsState = f.attemptsState.end()
+                f.have = 0
+                f.state = "blob"
+            } else {
+                let kept = resumable ? max(f.openAt, 0) + max(received, 0) : 0
+                f.attemptsState = resumable && received > 0 ? f.attemptsState.stopped(have: kept) : f.attemptsState.end()
+                f.have = kept
+                f.state = "pending"
+            }
+            try saveFile(f)
+        }
     }
 
     /// Files whose History row is gone (deleted, synced del, trimmed); returns them, so their

@@ -356,6 +356,11 @@ final class FileTests: XCTestCase {
         // the file message goes to the device; the blob goes; the sent row is the unknown-type row for now
         let rep = try await n.core.fileSendMessage(f.id, dir: nDir)
         XCTAssertTrue(rep.allSent)
+        // a second caller (app open, a session event) sends nothing more
+        do {
+            _ = try await n.core.fileSendMessage(f.id, dir: nDir)
+            XCTFail("sent twice")
+        } catch {}
         XCTAssertFalse(FileManager.default.fileExists(atPath: blob.path))
         f = try XCTUnwrap(try n.core.store.file(f.id))
         XCTAssertEqual(f.state, "sent")
@@ -390,11 +395,15 @@ final class FileTests: XCTestCase {
         XCTAssertEqual(try x.core.fileCatchUp(network: .wifi, lowData: false, free: nil).map { $0.id }, [fid])
 
         // download: the blob arrives, its status and hash are checked, then the decrypt
-        XCTAssertTrue(try x.core.fileDownloadStarts(fid, task: "s 1", have: 0))
+        XCTAssertTrue(try x.core.fileDownloadStarts(fid, task: "s 1"))
         XCTAssertEqual(try x.core.store.file(fid)?.state, "loading")
         try blobData.write(to: xDir.appendingPathComponent(g.blobName))
-        try x.core.fileTaskEnded(fid, status: 200, body: nil, blobArrived: true)
+        try x.core.fileTaskEnded(fid, task: "s 1", status: 200, body: nil, blobArrived: true)
         XCTAssertEqual(try x.core.fileCheck(fid, dir: xDir), .ready)
+        // a second or stale completion never moves a ready file back, and a ready file takes no new task
+        try x.core.fileTaskEnded(fid, task: "s 1", status: 0, body: nil, blobArrived: false)
+        XCTAssertEqual(try x.core.store.file(fid)?.state, "ready")
+        XCTAssertFalse(try x.core.fileDownloadStarts(fid, task: "s 2"))
         XCTAssertEqual(try x.core.fileDecrypt(fid, dir: xDir, freeMemory: 1, manual: false), .noMemory)
         g = try XCTUnwrap(try x.core.store.file(fid))
         XCTAssertEqual(g.error, "Not enough memory to decrypt")
@@ -437,29 +446,29 @@ final class FileTests: XCTestCase {
         // five automatic attempts, then "Download failed"; the Download button still starts
         let a = try add()
         for i in 0 ..< 5 {
-            XCTAssertTrue(try x.core.fileDownloadStarts(a, task: "s \(i)", have: 0), "\(i)")
-            try x.core.fileTaskEnded(a, status: 502, body: nil, blobArrived: false)
+            XCTAssertTrue(try x.core.fileDownloadStarts(a, task: "s \(i)"), "\(i)")
+            try x.core.fileTaskEnded(a, task: "s \(i)", status: 502, body: nil, blobArrived: false)
             XCTAssertEqual(try x.core.fileCheck(a, dir: dir), .retry(nil))
         }
-        XCTAssertFalse(try x.core.fileDownloadStarts(a, task: "s 5", have: 0))
+        XCTAssertFalse(try x.core.fileDownloadStarts(a, task: "s 5"))
         XCTAssertEqual(try x.core.store.file(a)?.error, "Download failed")
-        XCTAssertTrue(try x.core.fileDownloadStarts(a, task: "s 6", have: 0, manual: true))
+        XCTAssertTrue(try x.core.fileDownloadStarts(a, task: "s 6", manual: true))
 
         // a blob that fails its check is downloaded once more, then is damaged
         let d = try add()
         for (i, want) in [FileFlow.DownloadNext.again, .final(.damaged, FileRules.fileDamaged)].enumerated() {
-            XCTAssertTrue(try x.core.fileDownloadStarts(d, task: "d \(i)", have: 0))
+            XCTAssertTrue(try x.core.fileDownloadStarts(d, task: "d \(i)"))
             let rec = try XCTUnwrap(try x.core.store.file(d))
             try Data(count: 1028).write(to: dir.appendingPathComponent(rec.blobName))
-            try x.core.fileTaskEnded(d, status: 200, body: nil, blobArrived: true)
+            try x.core.fileTaskEnded(d, task: "d \(i)", status: 200, body: nil, blobArrived: true)
             XCTAssertEqual(try x.core.fileCheck(d, dir: dir), want)
         }
         XCTAssertEqual(try x.core.store.file(d)?.state, "failed")
 
         // a 410 reply is "Expired", read from the reply body
         let e = try add()
-        XCTAssertTrue(try x.core.fileDownloadStarts(e, task: "e", have: 0))
-        try x.core.fileTaskEnded(e, status: 410, body: Data("{\"error\":\"expired\"}".utf8), blobArrived: false)
+        XCTAssertTrue(try x.core.fileDownloadStarts(e, task: "e"))
+        try x.core.fileTaskEnded(e, task: "e", status: 410, body: Data("{\"error\":\"expired\"}".utf8), blobArrived: false)
         XCTAssertEqual(try x.core.fileCheck(e, dir: dir), .final(.expired, "Expired"))
 
         // no room: the storage error, final, and no download starts
@@ -468,5 +477,84 @@ final class FileTests: XCTestCase {
         let rec = try XCTUnwrap(try x.core.store.file(s))
         XCTAssertEqual(rec.state, "failed")
         XCTAssertEqual(rec.error, "Not enough storage to download \"report (1).pdf\"")
+    }
+
+    func testOneTaskPerFileManualMarkAndKeptBytes() throws {
+        let w = FakeWorker(), clock = TestClock()
+        let x = try Device(worker: w, clock: clock, name: "Xdev")
+        let ref = FileRef(url: Self.ref.url, expires: 4_000_000_000, key: Self.ref.key, name: "a.bin", size: 1000,
+                          sha256: Self.ref.sha256)
+        let id = try x.core.store.addFile(Core.receivedFile(ref, historyRowid: 1, now: clock.now))
+        XCTAssertTrue(try x.core.fileDownloadStarts(id, task: "t 1"))
+        // loading: no second task, not even from the button
+        XCTAssertFalse(try x.core.fileDownloadStarts(id, task: "t 2"))
+        XCTAssertFalse(try x.core.fileDownloadStarts(id, task: "t 2", manual: true))
+        // only the running task's completion applies
+        try x.core.fileTaskEnded(id, task: "t 9", status: 0, body: nil, blobArrived: false)
+        XCTAssertEqual(try x.core.store.file(id)?.state, "loading")
+        // a run that kept bytes in resume data is not an attempt; the kept bytes carry to the next run
+        try x.core.fileTaskEnded(id, task: "t 1", status: 0, body: nil, blobArrived: false, received: 400, resumable: true)
+        var f = try XCTUnwrap(try x.core.store.file(id))
+        XCTAssertEqual(f.state, "pending")
+        XCTAssertEqual(f.attempts, 0)
+        XCTAssertEqual(f.have, 400)
+        XCTAssertTrue(try x.core.fileDownloadStarts(id, task: "t 3"))
+        try x.core.fileTaskEnded(id, task: "t 3", status: 0, body: nil, blobArrived: false, received: 0, resumable: true)
+        f = try XCTUnwrap(try x.core.store.file(id))
+        XCTAssertEqual(f.attempts, 1)
+        XCTAssertEqual(f.have, 400)
+        // the button mark stays for the later automatic tries
+        XCTAssertTrue(try x.core.fileDownloadStarts(id, task: "t 4", manual: true))
+        try x.core.fileTaskEnded(id, task: "t 4", status: 0, body: nil, blobArrived: false)
+        f = try XCTUnwrap(try x.core.store.file(id))
+        XCTAssertTrue(f.manual)
+        XCTAssertEqual(f.have, 0)
+    }
+
+    func testExpiredOnArrivalHasNoBannerAndNoDownload() async throws {
+        let w = FakeWorker(), clock = TestClock()
+        let n = try Device(worker: w, clock: clock, name: "Ndev"), x = try Device(worker: w, clock: clock, name: "Xdev")
+        try await Scenario.pairFully(w, n, x)
+        await n.core.fetchPeers(force: true)
+        let old = FileRef(url: Self.ref.url, expires: clock.now - 1, key: Self.ref.key, name: "a.bin", size: 10, sha256: Self.ref.sha256)
+        _ = try await n.core.sendContent(.file(old), rowType: "unknown", rowContent: "file", msgId: InnerJSON.newId(), to: [x.id], allCount: 1)
+        let pushed = w.take(x.id)
+        XCTAssertEqual(pushed.count, 1)
+        let r = await x.core.receive(pushed[0], mode: .nse)
+        XCTAssertTrue(r.silent)
+        XCTAssertNil(r.banner)
+        let f = try XCTUnwrap(try x.core.store.file(r.fileId!))
+        XCTAssertEqual(f.state, "failed")
+        XCTAssertEqual(f.error, "Expired")
+        XCTAssertEqual(try x.core.fileCatchUp(network: .wifi, lowData: false, free: nil).count, 0)
+        // the NSE flow delivers no content for it
+        let again = await x.core.receive(pushed[0], mode: .nse)
+        XCTAssertTrue(again.silent)
+    }
+
+    func testLogoutWipesFilesAndSettleSends() throws {
+        final class Hooks: PlatformHooks {
+            var wiped: [[String]] = []
+            func wipeKeys() {}
+            func removeLockedInbox() {}
+            func removeDeliveredNotifications() {}
+            func isProtectedDataLocked() -> Bool { false }
+            func wipeFiles(tasks: [String]) { wiped.append(tasks) }
+        }
+        let w = FakeWorker(), clock = TestClock()
+        let x = try Device(worker: w, clock: clock, name: "Xdev")
+        let hooks = Hooks()
+        x.core.hooks = hooks
+        let id = try x.core.store.addFile(Core.receivedFile(Self.ref, historyRowid: 1, now: clock.now))
+        XCTAssertTrue(try x.core.fileDownloadStarts(id, task: "s 7"))
+        var out = FileRecord(dir: .outgoing, key: Self.ref.key, name: "b.bin", size: 1, state: "sending", created: clock.now)
+        out.id = try x.core.store.addFile(out)
+        try x.core.settleSends(except: [out.id])
+        XCTAssertEqual(try x.core.store.file(out.id)?.state, "sending")
+        try x.core.settleSends()
+        XCTAssertEqual(try x.core.store.file(out.id)?.state, "failed")
+        try x.core.logoutLocal()
+        XCTAssertEqual(try x.core.store.allFiles().count, 0)
+        XCTAssertEqual(hooks.wiped, [["s 7"]])
     }
 }

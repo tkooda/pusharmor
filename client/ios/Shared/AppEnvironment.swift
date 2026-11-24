@@ -102,6 +102,7 @@ final class AppEnvironment: PlatformHooks {
     func wipeKeys() { keychain.deleteAll() }
     func removeLockedInbox() { inbox.removeAll() }
     func removeDeliveredNotifications() { UNUserNotificationCenter.current().removeAllDeliveredNotifications() }
+    func wipeFiles(tasks: [String]) { FileTransfers.shared.wipeAll(tasks: tasks) }
 
     /// Sync deletions: the delivered notifications of the deleted History rows go.
     /// Awaited, so the NSE does not hand over its content before the removal is asked for.

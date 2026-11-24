@@ -29,6 +29,8 @@ public struct ReceiveResult: Sendable {
     var deletedRowids: [Int64] = []
     /// A file message wrote this files record (the NSE may start its download).
     public var fileId: Int64?
+    /// No notification at all (a file already past expires on arrival: only the row).
+    public var silent = false
 
     static func plain(_ b: Banner?) -> ReceiveResult {
         ReceiveResult(banner: b, rowid: nil, committed: false, newMessage: false, approveVerified: false)
@@ -122,6 +124,7 @@ extension Core {
         /// History rows a del removed: their delivered notifications go after the commit.
         var deletedRowids: [Int64] = []
         var fileId: Int64?
+        var silent = false
     }
 
     /// Steps 4-8 and the step 9 table for an inner message against the stored pins and windows.
@@ -185,6 +188,7 @@ extension Core {
                 res.removalSignal = a.removalSignal
                 res.deletedRowids = a.deletedRowids
                 res.fileId = a.fileId
+                res.silent = a.silent
                 return res
             case .invalid:
                 return drop(mode, peer: r.verifiedFrom, invalid: true)
@@ -193,8 +197,14 @@ extension Core {
                       let row = try? store.historyRow(peer: from, pairingId: pid, n: j.n) else { return .plain(nil) }
                 // a row of a type from a newer version re-presents the generic fallback
                 let b = row.type == "unknown" ? Banner.fallback : banner(forRow: row)
-                return ReceiveResult(banner: b, rowid: row.rowid, committed: true, newMessage: false,
-                                     approveVerified: false)
+                var res = ReceiveResult(banner: b, rowid: row.rowid, committed: true, newMessage: false,
+                                        approveVerified: false)
+                // an expired file never shows a notification
+                if let fr = try? store.file(historyRowid: row.rowid), fr.code == FileRules.FinalCode.expired.rawValue {
+                    res.banner = nil
+                    res.silent = true
+                }
+                return res
             case .noop:
                 guard mode == .nse, let from = r.verifiedFrom, let j = r.json else { return .plain(nil) }
                 let p = try? store.peer(from)
@@ -268,9 +278,15 @@ extension Core {
             let rowid = try store.addMessage(dir: .incoming, peer: from, type: "unknown", content: "file", n: j.n,
                                              pairingId: pid, read: false, results: nil, now: now, msgId: j.id)
             a.rowid = rowid
-            a.fileId = try store.addFile(Core.receivedFile(f, historyRowid: rowid, now: now))
+            let rec = Core.receivedFile(f, historyRowid: rowid, now: now)
+            a.fileId = try store.addFile(rec)
             a.newMessage = true
-            a.banner = Banner.fallback
+            if rec.state == "failed" {
+                // already past expires: only the row, no notification
+                a.silent = true
+            } else {
+                a.banner = Banner.fallback
+            }
             return a
         case .unknown(let k):
             // a row with no actions that shows S.unknownType (content: the raw type key), stored

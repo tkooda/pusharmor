@@ -118,7 +118,10 @@ extension Core {
     /// Log out = mark this peer logged out, with a logout message for every allowed peer.
     public func logout() async throws -> APIOutcome {
         let out = try await sendLogout()
-        if out.reply?.ok == true { try store.setMe("logged_out", .int(1)) }
+        if out.reply?.ok == true {
+            try store.setMe("logged_out", .int(1))
+            wipeFiles()
+        }
         return out
     }
 
@@ -137,6 +140,7 @@ extension Core {
             try store.setMe("logged_out", .int(1))
             try store.setSetting(Core.logoutPendingKey, "1")
         }
+        wipeFiles()
     }
 
     static let logoutPendingKey = "logout_pending"
