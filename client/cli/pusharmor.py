@@ -2768,7 +2768,7 @@ def prepare_file(path):
     st2 = os.fstat(f.fileno())
     if not stat.S_ISREG(st2.st_mode) or (st2.st_dev, st2.st_ino, st2.st_size) != (st.st_dev, st.st_ino, st.st_size):
         f.close()
-        raise Fail("The file %s changed while it was opened. Try again." % quoted_path(path))
+        raise Fail("The file %s changed while it was read. Try again." % quoted_path(path))
     return f, st.st_size, name
 
 
