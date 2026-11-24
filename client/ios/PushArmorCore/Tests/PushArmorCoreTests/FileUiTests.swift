@@ -81,6 +81,11 @@ final class FileUiTests: XCTestCase {
         XCTAssertEqual(FileUi.actions(name: "a.png", decodes: true), [.view, .copy, .share, .save])
         XCTAssertEqual(FileUi.actions(name: "a.png", decodes: false), [.open, .share, .save])
         XCTAssertEqual(FileUi.actions(name: "a.pdf", decodes: false), [.open, .share, .save])
+        // web content is never previewed: Share and Save only
+        for n in ["a.html", "a.HTM", "a.svg", "a.webarchive", "a.mhtml", "a.xhtml"] {
+            XCTAssertEqual(FileUi.actions(name: n, decodes: false), [.share, .save], n)
+        }
+        XCTAssertEqual(FileUi.actions(name: "a.txt", decodes: false), [.open, .share, .save])
         XCTAssertTrue(FileUi.previewNotAvailable(name: "a.png", decodes: false))
         XCTAssertFalse(FileUi.previewNotAvailable(name: "a.pdf", decodes: false))
         XCTAssertEqual(MessageActions.actions(forType: "file"), [])
@@ -106,6 +111,9 @@ final class FileUiTests: XCTestCase {
         XCTAssertEqual(st(rec("blob")), .decrypting)
         XCTAssertEqual(st(rec("ready")), .decrypting)
         XCTAssertEqual(st(rec("ready", code: "memory", error: S.notEnoughMemory)), .noMemory)
+        XCTAssertEqual(st(rec("ready", code: "failed", error: FileUi.openFailed)), .decryptFailed(text: FileUi.openFailed))
+        let full = FileRules.storageFullText(upload: false, name: "a.pdf")
+        XCTAssertEqual(st(rec("ready", code: "storage", error: full)), .decryptFailed(text: full))
         XCTAssertEqual(st(rec("done"), plain: true), .ready)
         XCTAssertEqual(st(rec("done")), .failed(text: "Removed from this device", download: true, expires: "expires in 5 h"))
         XCTAssertEqual(st(rec("done", expires: now - 1)), .failed(text: "Removed from this device", download: false, expires: nil))

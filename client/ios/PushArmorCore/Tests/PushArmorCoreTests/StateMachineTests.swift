@@ -2097,7 +2097,7 @@ final class StateMachineTests: XCTestCase {
         let path = NSTemporaryDirectory() + "pa-mig-\(UUID().uuidString).sqlite"
         _ = try Store(path: path)
         let s = try Store(path: path)
-        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 6)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 7)
         XCTAssertEqual(try s.db.one("PRAGMA journal_mode")?.text("journal_mode"), "wal")
         XCTAssertNil(try s.me().id)
     }
@@ -2119,7 +2119,7 @@ final class StateMachineTests: XCTestCase {
             try db.exec("INSERT INTO pairing (peer_id, role, state, started_at, last_send_at) VALUES (?, 'N', 'committed', 1000, 1010)", [.text(id.text)])
         }
         let s = try Store(path: path)
-        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 6)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 7)
         let e = try XCTUnwrap(try s.pairing(id))
         XCTAssertEqual(e.startedAt, 1000)
         XCTAssertEqual(e.lastSendAt, 1010)
@@ -2142,7 +2142,7 @@ final class StateMachineTests: XCTestCase {
                         [.text(id.text)])
         }
         let s = try Store(path: path)
-        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 6)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 7)
         let rows = try s.history()
         XCTAssertEqual(rows.count, 1)
         XCTAssertEqual(rows[0].content, "kept")
@@ -2169,7 +2169,7 @@ final class StateMachineTests: XCTestCase {
                         [.text(id.text)])
         }
         let s = try Store(path: path)
-        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 6)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 7)
         let rows = try s.history()
         XCTAssertEqual(rows.count, 1)
         XCTAssertEqual(rows[0].content, "kept")
@@ -2192,7 +2192,7 @@ final class StateMachineTests: XCTestCase {
         let s = try await StoreRepair.reset(path: path, vault: FakeVault()) { called += 1 }
         XCTAssertEqual(called, 1)
         XCTAssertNil(try s.me().id)
-        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 6)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 7)
         try s.setMe("name", .text("kept"))
         let s2 = try XCTUnwrap(try StoreRepair.open(path: path))
         XCTAssertEqual(called, 1)
@@ -2424,10 +2424,37 @@ final class StateMachineTests: XCTestCase {
             try db.exec("INSERT INTO peers (id, platform, name) VALUES (?, 'android', 'kept')", [.text(id.text)])
         }
         let s = try Store(path: path)
-        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 6)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 7)
         let p = try XCTUnwrap(try s.peer(id))
         XCTAssertEqual(p.name, "kept")
         XCTAssertEqual(p.platform, "android")
+    }
+
+    /// a version 6 file row stored as the unknown type (content "file") opens at version 7 as a
+    /// file row named by its file; one with no file record and a real unknown type stay unknown.
+    func testDBMigration6To7MakesFileRows() throws {
+        let path = NSTemporaryDirectory() + "pa-mig6-\(UUID().uuidString).sqlite"
+        do {
+            let db = try DB(path: path)
+            try db.exec("PRAGMA user_version = 6")
+            try db.exec("INSERT INTO history (rowid, dir, peer_id, type, content, created_local) VALUES (1, 'in', 'p', 'unknown', 'file', 10)")
+            try db.exec("INSERT INTO history (rowid, dir, peer_id, type, content, created_local) VALUES (2, 'out', NULL, 'unknown', 'file', 11)")
+            try db.exec("INSERT INTO history (rowid, dir, peer_id, type, content, created_local) VALUES (3, 'in', 'p', 'unknown', 'file', 12)")
+            try db.exec("INSERT INTO history (rowid, dir, peer_id, type, content, created_local) VALUES (4, 'in', 'p', 'unknown', 'poll', 13)")
+            try db.exec("INSERT INTO files (dir, history_rowid, key, name, size, state, created) VALUES ('in', 1, 'k', 'Trail map.pdf', 5, 'pending', 10)")
+            try db.exec("INSERT INTO files (dir, history_rowid, key, name, size, state, created) VALUES ('out', 2, 'k', 'notes.txt', 5, 'done', 11)")
+        }
+        let s = try Store(path: path)
+        XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 7)
+        let rows = Dictionary(uniqueKeysWithValues: try s.history().map { ($0.rowid, $0) })
+        XCTAssertEqual(rows[1]?.type, "file")
+        XCTAssertEqual(rows[1]?.content, "Trail map.pdf")
+        XCTAssertEqual(rows[2]?.type, "file")
+        XCTAssertEqual(rows[2]?.content, "notes.txt")
+        XCTAssertEqual(rows[3]?.type, "unknown")
+        XCTAssertEqual(rows[3]?.content, "file")
+        XCTAssertEqual(rows[4]?.type, "unknown")
+        XCTAssertEqual(rows[4]?.content, "poll")
     }
 
     func testSendFailureResultsEachShowALine() async throws {

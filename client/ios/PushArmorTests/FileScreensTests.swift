@@ -8,13 +8,16 @@ final class FileScreensTests: XCTestCase {
         return try String(contentsOf: url, encoding: .utf8)
     }
 
-    /// "Will be sent as ..." shows only once the box has content or a file is chosen; the file
-    /// buttons show only while the box is empty; a chosen file replaces the box.
+    /// "Will be sent as ..." shows only once the box has content or a file is chosen; Choose file
+    /// shows only while the box is empty, Paste always (an image pasted over text says to clear
+    /// it); a chosen file replaces the box; the file send popup can be closed.
     func testSendScreenFileRules() throws {
         let src = try source("App/Views/ComposeView.swift")
         XCTAssertTrue(src.contains("if chosen != nil {\n                Label(FileUi.willSendFile"))
         XCTAssertTrue(src.contains("} else if !text.isEmpty {"))
-        XCTAssertTrue(src.contains(".overlay(alignment: .bottomTrailing) {\n                        if text.isEmpty {"))
+        XCTAssertTrue(src.contains("if text.isEmpty {\n                                Button { picking = true }"))
+        XCTAssertTrue(src.contains("guard FileUi.paste(clipHasImage: true, textEmpty: text.isEmpty) == .image else {\n            model.toast = FileUi.pasteImageClear"))
+        XCTAssertTrue(src.contains("onClose: model.sendingFile != nil ? { model.leaveFileSend() } : nil"))
         XCTAssertTrue(src.contains("PasteButton(payloadType: PastedImage.self)"))
         XCTAssertTrue(src.contains("Label(FileUi.chooseFile, systemImage: \"paperclip\")"))
         XCTAssertTrue(src.contains("if let c = chosen {\n                fileCard(c)"))
@@ -39,9 +42,11 @@ final class FileScreensTests: XCTestCase {
     /// only while History shows.
     func testHistoryFileRows() throws {
         let row = try source("App/Views/HistoryView.swift")
-        XCTAssertTrue(row.contains("if let f = file, !selecting { FileRowDetail(file: f, outgoing: outgoing) }"))
+        XCTAssertTrue(row.contains("if let f = file, !selecting { FileRowDetail(file: f, outgoing: outgoing).padding(.leading, textInset + 10) }"))
         XCTAssertTrue(row.contains("if isUnknownType || isFile { return }"))
-        XCTAssertTrue(row.contains("ForEach(model.pendingSends, id: \\.id) { PendingSendRow(file: $0) }"))
+        XCTAssertTrue(row.contains("let pending = effective == .all ? model.pendingSends : []"))
+        XCTAssertTrue(row.contains("ForEach(pending, id: \\.id) { PendingSendRow(file: $0) }"))
+        XCTAssertTrue(row.contains("if rows.isEmpty && pending.isEmpty {"))
         let main = try source("App/Views/MainView.swift")
         XCTAssertTrue(main.contains(".onAppear { model.setHistoryVisible(true) }"))
         XCTAssertTrue(main.contains(".onDisappear { model.setHistoryVisible(false) }"))
@@ -51,6 +56,10 @@ final class FileScreensTests: XCTestCase {
         XCTAssertTrue(views.contains("downloadRow(exp)"))
         XCTAssertTrue(views.contains("Button { model.decryptNow(file) } label: { Label(\"Decrypt\""))
         XCTAssertTrue(views.contains(".quickLookPreview($preview)"))
+        XCTAssertTrue(views.contains("case .decryptFailed(let text):"))
+        XCTAssertTrue(views.contains("model.toast = FileUi.noApp(file.name)"))
+        XCTAssertTrue(views.contains("UIDocumentPickerViewController(forExporting: [url], asCopy: true)"))
+        XCTAssertTrue(model.contains("return !AppModel.historyShown.on"))
     }
 
     /// A deleted file row takes its file off this device at once (not only at the next launch).
@@ -58,6 +67,8 @@ final class FileScreensTests: XCTestCase {
         let src = try source("App/AppModel.swift")
         let del = src.components(separatedBy: "func deleteRows(")[1].components(separatedBy: "func copy(")[0]
         XCTAssertTrue(del.contains("try? core.pruneFiles(dir: filesDir)\n            reload()"))
+        // a row gone by a synced delete or the age limit too
+        XCTAssertTrue(try source("App/FileModel.swift").contains("if let core = core, (try? store?.db.one(orphan)) != nil { try? core.pruneFiles(dir: filesDir) }"))
     }
 
     /// Share sheet: one photo, video, or file opens it; a file sends with the popup on the upload,
@@ -73,5 +84,8 @@ final class FileScreensTests: XCTestCase {
         XCTAssertTrue(src.contains("guard shown.on else { return false }"))
         XCTAssertTrue(src.contains("shown.on = false\n        context?.completeRequest(returningItems: nil)"))
         XCTAssertTrue(src.contains("guard Int64(size) <= FileRules.maxFile else {"))
+        // Cancel during the encrypt stops it and waits for its clean up
+        XCTAssertTrue(src.contains("encryptWanted.on = false"))
+        XCTAssertTrue(src.contains("cancelled: { !wanted.on }"))
     }
 }

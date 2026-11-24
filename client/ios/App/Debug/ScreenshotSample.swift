@@ -12,7 +12,8 @@ import PushArmorCore
 /// has no messages; -PAScreenshotsSent shows send results that stay on screen
 /// (-PAScreenshotsSentOK: a full success);
 /// -PAScreenshotsUpdate opens the update-required screen; -PAScreenshotsFiles adds file rows in
-/// their states (no file on this device, so no ready row).
+/// their states (no file on this device, so no ready row); -PAScreenshotsSendEmpty opens Send
+/// with an empty message box; -PAScreenshotsChosenFile with a chosen file in its place.
 enum ScreenshotSample {
     private static let args = ProcessInfo.processInfo.arguments
     static var isOn: Bool { args.contains("-PAScreenshots") }
@@ -28,6 +29,8 @@ enum ScreenshotSample {
         return args.contains("-PAScreenshotsSent") ? [S.sentTo(2, 3), ErrorCopy.sendResultText("logged out", "Tablet")!].joined(separator: "\n") : nil
     }
     static var sentOK: Bool { args.contains("-PAScreenshotsSentOK") }
+    static var sendEmpty: Bool { args.contains("-PAScreenshotsSendEmpty") }
+    static var chosenFile: Bool { args.contains("-PAScreenshotsChosenFile") }
 
     /// Compose box prefill.
     static var draft: String { store ? "https://www.nasa.gov/image-of-the-day/" : "https://example.com/guide/hiking-trails" }
@@ -157,8 +160,8 @@ enum ScreenshotSample {
         return store
     }
 
-    /// File rows for screen review: waiting for a tap, failed, the memory error, expired, sent,
-    /// and a send on its way.
+    /// File rows for screen review: waiting for a tap, failed, the memory error, a decrypt that
+    /// could not run, expired, sent, and a send on its way.
     private static func addFiles(_ store: Store, laptop: PeerId, desktop: PeerId, now: Int64, clock: Int64) throws {
         func add(_ dir: HistoryDir, _ peer: PeerId, _ name: String, _ size: Int64, _ state: String, at: Int64,
                  code: String? = nil, error: String? = nil, expires: Int64) throws {
@@ -177,6 +180,8 @@ enum ScreenshotSample {
                 expires: now + 20 * 3600)
         try add(.incoming, desktop, "slides.key", 48_200_000, "failed", at: clock - 4200, code: "failed",
                 error: FileRules.downloadFailed, expires: now + 6 * 3600)
+        try add(.incoming, desktop, "Site backup.zip", 30_200_000, "ready", at: clock - 3600, code: "failed",
+                error: FileUi.openFailed, expires: now + 10 * 3600)
         try add(.outgoing, laptop, "notes.txt", 12_400, "sent", at: clock - 3000, expires: now + 23 * 3600)
         try add(.incoming, laptop, "Trail map.pdf", 64_500_000, "pending", at: clock - 60, expires: now + 3 * 3600 + 600)
         var s = FileRecord(dir: .outgoing, key: "k", name: "photo.jpg", size: 2_600_000, state: "uploading", created: now)

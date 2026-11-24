@@ -82,6 +82,8 @@ extension Core {
         /// Not enough storage: the text names the file.
         case storage(String)
         case unreadable
+        /// The user cancelled during the encrypt: the record and the blob are gone.
+        case cancelled
     }
 
     /// The files record of a received file message; the receiver applies the name rule itself.
@@ -234,12 +236,18 @@ extension Core {
         /// The tag failed: downloaded once more (`again`), or damaged.
         case again
         case damaged
+        /// The decrypt could not run (not enough storage, or a file system error): the row
+        /// shows the text with a Decrypt button; it is not tried again by itself.
+        case failed(String)
+        /// `cancelled` stopped it: the file stays ready and is decrypted later.
+        case cancelled
     }
 
     /// Decrypts a ready file into `dir`/<in-id>/<name>. `freeMemory` nil = unknown. The mark is
     /// set before the decrypt and cleared after it, whatever the result; `manual` (the
-    /// Decrypt button) skips the memory check.
-    public func fileDecrypt(_ id: Int64, dir: URL, freeMemory: Int64?, manual: Bool) throws -> DecryptResult {
+    /// Decrypt button) skips the memory check. `cancelled` is asked before each chunk.
+    public func fileDecrypt(_ id: Int64, dir: URL, freeMemory: Int64?, manual: Bool,
+                            cancelled: () -> Bool = { false }) throws -> DecryptResult {
         guard var f = try store.file(id), f.dir == .incoming, f.state == "ready", let key = B64URL.decode(f.key) else { return .damaged }
         if !manual, let m = freeMemory, m < FileRules.workingMemory {
             f.code = "memory"
@@ -257,7 +265,7 @@ extension Core {
         let result: DecryptResult
         do {
             try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
-            try FileCrypto.decrypt(input: blob, output: out, key: key)
+            try FileCrypto.decrypt(input: blob, output: out, key: key, cancelled: cancelled)
             try? FileManager.default.removeItem(at: blob)
             f.state = "done"
             result = .done(out)
@@ -279,11 +287,21 @@ extension Core {
             f.code = FileRules.FinalCode.damaged.rawValue
             f.error = FileRules.fileDamaged
             result = .damaged
+        } catch FileCrypto.Failure.cancelled {
+            // an orderly stop: the file stays ready, with no error
+            result = .cancelled
         } catch {
-            // not a verdict on the file (a file system error): it stays ready
-            f.decryptMark = nil
-            try? store.saveFile(f)
-            throw error
+            // not a verdict on the file (a full disk or another file system error): the blob
+            // stays, and the row shows the error with a Decrypt button
+            let free = (try? FileManager.default.attributesOfFileSystem(forPath: dir.path))?[.systemFreeSize] as? NSNumber
+            if let fr = free, fr.int64Value < f.size {
+                f.code = FileRules.FinalCode.storage.rawValue
+                f.error = FileRules.storageFullText(upload: false, name: f.name)
+            } else {
+                f.code = FileRules.FinalCode.failed.rawValue
+                f.error = FileUi.openFailed
+            }
+            result = .failed(f.error ?? FileUi.openFailed)
         }
         f.decryptMark = nil
         try store.saveFile(f)
@@ -302,7 +320,7 @@ extension Core {
     /// Share sheet step 1: checks size and room, applies the name rule, encrypts `input` into
     /// the files directory and keeps the send (state uploading). `free`: bytes free, nil = unknown.
     public func fileSendPrepare(input: URL, rawName: String, to recipients: [PeerId], allCount: Int, dir: URL,
-                                free: Int64?) throws -> FileRecord {
+                                free: Int64?, cancelled: () -> Bool = { false }) throws -> FileRecord {
         guard !recipients.isEmpty else { throw FileSendError.noRecipients }
         guard let attrs = try? FileManager.default.attributesOfItem(atPath: input.path), let sizeN = attrs[.size] as? NSNumber else {
             throw FileSendError.unreadable
@@ -325,13 +343,14 @@ extension Core {
         f.id = try store.addFile(f)
         let blob = dir.appendingPathComponent(f.blobName)
         do {
-            try FileCrypto.encrypt(input: input, output: blob, key: key)
+            try FileCrypto.encrypt(input: input, output: blob, key: key, cancelled: cancelled)
             guard let sha = FileHash.of(file: blob) else { throw FileSendError.unreadable }
             f.sha256 = sha
             try store.saveFile(f)
         } catch {
             try? FileManager.default.removeItem(at: blob)
             try? store.db.exec("DELETE FROM files WHERE id = ?", [.int(f.id)])
+            if error as? FileCrypto.Failure == .cancelled { throw FileSendError.cancelled }
             if error is FileCrypto.Failure { throw FileSendError.unreadable }
             throw error
         }

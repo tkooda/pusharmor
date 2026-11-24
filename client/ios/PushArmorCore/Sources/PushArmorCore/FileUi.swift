@@ -17,6 +17,8 @@ public enum FileUi {
     public static let expired = "Expired"
     /// A pasted image while the message box holds text: one type per message.
     public static let pasteImageClear = "Clear the message to paste an image"
+    /// A decrypt that could not run (not a damaged file and not short of memory).
+    public static let openFailed = "Unable to open this file.\nTry again."
 
     public static func noMemoryToast(_ name: String) -> String { "Not enough memory to decrypt \"" + name + "\"" }
     public static func tooLarge(_ name: String) -> String { "\"" + name + "\" is too large to send" }
@@ -202,6 +204,8 @@ public enum FileUi {
         case failed(text: String, download: Bool, expires: String?)
         /// "Not enough memory to decrypt" and a Decrypt button.
         case noMemory
+        /// The decrypt could not run: the text in red and a Decrypt button.
+        case decryptFailed(text: String)
         case expired
         /// The decrypted file is on this device.
         case ready
@@ -218,6 +222,7 @@ public enum FileUi {
                 : .failed(text: removed, download: true, expires: exp)
         }
         if f.code == "memory" { return .noMemory }
+        if f.state == "ready", f.code != nil { return .decryptFailed(text: f.error ?? openFailed) }
         // past expires by the local clock, a file not on this device has no Download button
         let gone = nowSec >= expires
         if f.state == "failed" {
@@ -239,11 +244,18 @@ public enum FileUi {
     }
 
     /// The buttons of a ready received file: an image that decodes gets View, Copy, Share and Save;
+    /// web content (HTML, SVG, web archives) Share and Save only, as it is never rendered here;
     /// any other file (an image that does not decode too) Open, Share and Save.
     public enum Action: Equatable, Sendable { case view, copy, open, share, save }
 
     public static func actions(name: String, decodes: Bool) -> [Action] {
-        kind(name) == .image && decodes ? [.view, .copy, .share, .save] : [.open, .share, .save]
+        if kind(name) == .image && decodes { return [.view, .copy, .share, .save] }
+        return webContent(name) ? [.share, .save] : [.open, .share, .save]
+    }
+
+    /// A received file that a preview would render as a web page: never previewed.
+    public static func webContent(_ name: String) -> Bool {
+        ["html", "htm", "xhtml", "xht", "shtml", "svg", "svgz", "webarchive", "mht", "mhtml"].contains(ext(name))
     }
 
     /// "Preview not available" shows for a file named as an image that does not decode.

@@ -23,17 +23,20 @@ public enum FileCrypto {
         case tagMismatch
         case engine
         case io(String)
+        /// `cancelled` returned true: no output is left.
+        case cancelled
     }
 
     /// Encrypts the file at `input` into a blob at `output` with a fresh random nonce.
-    public static func encrypt(input: URL, output: URL, key: Data) throws {
+    /// `cancelled` is asked before each chunk.
+    public static func encrypt(input: URL, output: URL, key: Data, cancelled: () -> Bool = { false }) throws {
         var g = SystemRandomNumberGenerator()
         try encrypt(input: input, output: output, key: key,
-                    nonce: Data((0..<nonceSize).map { _ in UInt8.random(in: 0...255, using: &g) }))
+                    nonce: Data((0..<nonceSize).map { _ in UInt8.random(in: 0...255, using: &g) }), cancelled: cancelled)
     }
 
     /// Fixed nonce: known-answer tests only.
-    static func encrypt(input: URL, output: URL, key: Data, nonce: Data) throws {
+    static func encrypt(input: URL, output: URL, key: Data, nonce: Data, cancelled: () -> Bool = { false }) throws {
         guard key.count == keySize, nonce.count == nonceSize else { throw Failure.badKey }
         let inFd = try openRead(input)
         defer { close(inFd) }
@@ -44,6 +47,7 @@ public enum FileCrypto {
             var out = [UInt8](repeating: 0, count: chunkSize)
             defer { wipe(&buf); wipe(&out) }
             while true {
+                if cancelled() { throw Failure.cancelled }
                 let n = try readSome(inFd, &buf, chunkSize)
                 if n == 0 { break }
                 try ctx.update(buf, n, &out)
@@ -55,8 +59,8 @@ public enum FileCrypto {
     }
 
     /// Decrypts the blob at `input` into the file at `output`. Throws `tagMismatch`
-    /// (and leaves no output) when the blob does not verify.
-    public static func decrypt(input: URL, output: URL, key: Data) throws {
+    /// (and leaves no output) when the blob does not verify. `cancelled` is asked before each chunk.
+    public static func decrypt(input: URL, output: URL, key: Data, cancelled: () -> Bool = { false }) throws {
         guard key.count == keySize else { throw Failure.badKey }
         let inFd = try openRead(input)
         defer { close(inFd) }
@@ -73,6 +77,7 @@ public enum FileCrypto {
             defer { wipe(&buf); wipe(&out) }
             var left = blobSize - Int64(overhead)
             while left > 0 {
+                if cancelled() { throw Failure.cancelled }
                 let want = Int(min(Int64(chunkSize), left))
                 try readExactly(inFd, &buf, want)
                 try ctx.update(buf, want, &out)

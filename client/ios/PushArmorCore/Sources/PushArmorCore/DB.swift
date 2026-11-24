@@ -281,6 +281,14 @@ enum Schema {
         );
         CREATE INDEX files_history ON files(history_rowid)
         """,
+        // a file row an earlier version stored as the unknown type (content "file") becomes a
+        // file row named by its file, so it gets its buttons; one with no file record stays
+        """
+        UPDATE history SET type = 'file',
+          content = (SELECT f.name FROM files f WHERE f.history_rowid = history.rowid ORDER BY f.id LIMIT 1)
+        WHERE type = 'unknown' AND content = 'file'
+          AND EXISTS (SELECT 1 FROM files f WHERE f.history_rowid = history.rowid)
+        """,
     ]
 
     /// Reads user_version first with no transaction; takes the write lock only when a

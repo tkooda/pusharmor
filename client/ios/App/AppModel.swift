@@ -116,6 +116,9 @@ final class AppModel: ObservableObject {
     /// The History tab shows: decrypts run only then.
     var historyVisible = false
     var decryptRunning = false
+    /// Files whose decrypt failed in a way the store could not record: not tried again by
+    /// themselves in this process (the Decrypt button still tries).
+    var decryptSkip = Set<Int64>()
     /// The file send the send popup shows.
     var sendingFile: Int64?
 

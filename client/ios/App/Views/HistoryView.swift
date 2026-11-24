@@ -24,6 +24,8 @@ struct HistoryView: View {
 
     var body: some View {
         let rows = HistoryFilter.apply(effective, model.history)
+        // sent files not in History yet show under All only (a device filter lists received rows)
+        let pending = effective == .all ? model.pendingSends : []
         Section {
             // a delete in several calls: a thin bar with the step under it
             if let p = model.deleteProgress, p.total > 1 {
@@ -49,8 +51,8 @@ struct HistoryView: View {
                 .listRowSeparator(.hidden)
             }
             // sent files whose message has not gone yet, newest first
-            ForEach(model.pendingSends, id: \.id) { PendingSendRow(file: $0) }
-            if rows.isEmpty {
+            ForEach(pending, id: \.id) { PendingSendRow(file: $0) }
+            if rows.isEmpty && pending.isEmpty {
                 VStack(spacing: 8) {
                     MessagesIllustration()
                     Text("No messages yet")
@@ -142,6 +144,8 @@ struct HistoryRowView: View {
     @Environment(\.dynamicTypeSize) private var typeSize
     /// The event icon grows with the text, like IconTile.
     @ScaledMetric private var eventIcon: CGFloat = 30
+    /// The icon column of a row (IconTile and its spacing): a file's state lines up with the text.
+    @ScaledMetric private var textInset: CGFloat = 30
 
     private var peer: Peer? { row.peerId.flatMap { id in model.peers.first { $0.id.text == id } } }
     private var outgoing: Bool { row.dir == .outgoing }
@@ -208,7 +212,7 @@ struct HistoryRowView: View {
         VStack(alignment: .leading, spacing: 12) {
             summary
             if isOpen { MessageDetailView(row: row, notDeletedOn: notDeletedOn) }
-            if let f = file, !selecting { FileRowDetail(file: f, outgoing: outgoing) }
+            if let f = file, !selecting { FileRowDetail(file: f, outgoing: outgoing).padding(.leading, textInset + 10) }
         }
     }
 
@@ -226,6 +230,8 @@ struct HistoryRowView: View {
                     .foregroundColor(.secondaryText)
                     .frame(width: eventIcon, height: eventIcon)
                     .accessibilityHidden(true)
+            } else if let f = file, !outgoing, f.state == "done", FileUi.kind(f.name) == .image {
+                FileThumb(url: model.plainURL(f), symbol: iconName)
             } else {
                 IconTile(iconName)
             }

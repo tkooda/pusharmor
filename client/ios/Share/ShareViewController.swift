@@ -43,6 +43,9 @@ final class ShareModel: ObservableObject {
     @Published var uploading = false
     /// The sheet is still open: a send result shows here, else as a notification.
     private let shown = ShownFlag()
+    /// The file's encrypt while it runs: Cancel stops it and waits for its clean up.
+    private var encrypting: Task<Result<Int64, Error>, Never>?
+    private let encryptWanted = ShownFlag()
 
     init(context: NSExtensionContext?) { self.context = context }
 
@@ -175,13 +178,23 @@ final class ShareModel: ObservableObject {
             Task { @MainActor in self?.fileResult(o) }
             return true
         }
-        let r: Result<Int64, Error> = await Task.detached {
-            do { return .success(try t.send(input: f.url, name: f.name, to: ids, allCount: allCount, core: core)) } catch {
+        let wanted = encryptWanted
+        let task = Task.detached { () -> Result<Int64, Error> in
+            defer {
+                // the blob is in the App Group container now (or the send ended): the shared copy goes
+                try? FileManager.default.removeItem(at: f.url.deletingLastPathComponent())
+            }
+            do {
+                return .success(try t.send(input: f.url, name: f.name, to: ids, allCount: allCount, core: core,
+                                           cancelled: { !wanted.on }))
+            } catch {
                 return .failure(error)
             }
-        }.value
-        // the blob is in the App Group container now: the shared copy goes
-        try? FileManager.default.removeItem(at: f.url.deletingLastPathComponent())
+        }
+        encrypting = task
+        let r = await task.value
+        encrypting = nil
+        if !wanted.on { return }
         switch r {
         case .success:
             sendStep = SendProgress.encrypted
@@ -213,6 +226,16 @@ final class ShareModel: ObservableObject {
     }
 
     func close() {
+        if let task = encrypting {
+            // Cancel during the encrypt: it stops, its record, blob, and shared copy go, then the sheet closes
+            encryptWanted.on = false
+            shown.on = false
+            Task {
+                _ = await task.value
+                self.context?.completeRequest(returningItems: nil)
+            }
+            return
+        }
         // a running upload goes on; its result is a notification from now on
         shown.on = false
         context?.completeRequest(returningItems: nil)

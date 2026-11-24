@@ -409,6 +409,25 @@ final class FileTests: XCTestCase {
         g = try XCTUnwrap(try x.core.store.file(fid))
         XCTAssertEqual(g.error, "Not enough memory to decrypt")
         XCTAssertNil(g.decryptMark)
+        // a cancelled decrypt (History left) leaves the file ready with no error
+        XCTAssertEqual(try x.core.fileDecrypt(fid, dir: xDir, freeMemory: nil, manual: true, cancelled: { true }), .cancelled)
+        g = try XCTUnwrap(try x.core.store.file(fid))
+        XCTAssertEqual(g.state, "ready")
+        XCTAssertNil(g.code)
+        XCTAssertNil(g.decryptMark)
+        // a decrypt that cannot run (its folder is taken by a file) keeps the blob and shows the
+        // error with a Decrypt button; it is not tried again by itself
+        let taken = xDir.appendingPathComponent(g.plainDirName)
+        try? FileManager.default.removeItem(at: taken)
+        try Data().write(to: taken)
+        XCTAssertEqual(try x.core.fileDecrypt(fid, dir: xDir, freeMemory: nil, manual: true), .failed(FileUi.openFailed))
+        g = try XCTUnwrap(try x.core.store.file(fid))
+        XCTAssertEqual(g.state, "ready")
+        XCTAssertEqual(g.code, "failed")
+        XCTAssertNil(g.decryptMark)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: xDir.appendingPathComponent(g.blobName).path))
+        XCTAssertEqual(FileUi.status(g, plainThere: false, received: nil, nowSec: 0), .decryptFailed(text: FileUi.openFailed))
+        try FileManager.default.removeItem(at: taken)
         guard case .done(let out) = try x.core.fileDecrypt(fid, dir: xDir, freeMemory: 1, manual: true) else { return XCTFail("decrypt") }
         XCTAssertEqual(out.lastPathComponent, "re port_.bin")
         XCTAssertEqual(try Data(contentsOf: out), plain)

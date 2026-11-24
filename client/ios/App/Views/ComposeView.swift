@@ -363,7 +363,9 @@ struct ComposeView: View {
         // Over the screen while a send is on its way; the layout under it does not move.
         .overlay {
             if model.busy.contains("send") {
-                SendPopup(caption: sendCaption, names: sendNames, step: model.sendStep, retry: model.sendRetry)
+                // a file upload can be left to finish in the background (Close)
+                SendPopup(caption: sendCaption, names: sendNames, step: model.sendStep, retry: model.sendRetry,
+                          onClose: model.sendingFile != nil ? { model.leaveFileSend() } : nil)
             }
         }
         .fileImporter(isPresented: $picking, allowedContentTypes: [.item]) { result in
@@ -379,7 +381,11 @@ struct ComposeView: View {
         .onAppear {
             if ScreenshotSample.isOn && !sampled {
                 sampled = true
-                text = ScreenshotSample.draft
+                if ScreenshotSample.chosenFile {
+                    chosen = ChosenFile(url: URL(fileURLWithPath: "/dev/null"), name: "Trail map.pdf", size: 64_500_000, scoped: false, temp: false)
+                } else if !ScreenshotSample.sendEmpty {
+                    text = ScreenshotSample.draft
+                }
                 selected = [ScreenshotSample.draftPeer]
             }
         }
@@ -414,20 +420,21 @@ struct ComposeView: View {
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
                             .strokeBorder(editing ? Color.brandGreen : Color(uiColor: .separator), lineWidth: editing ? 1.5 : 1)
                     )
-                    // while the box is empty: paste an image or choose a file, at its bottom right
+                    // at its bottom right: paste an image (with text in the box, a toast says to clear
+                    // it first), and while the box is empty, choose a file
                     .overlay(alignment: .bottomTrailing) {
-                        if text.isEmpty {
-                            HStack(spacing: 8) {
-                                PasteButton(payloadType: PastedImage.self) { items in
-                                    if let d = items.first?.data { Task { @MainActor in pasted(d) } }
-                                }
-                                .labelStyle(.iconOnly)
+                        HStack(spacing: 8) {
+                            PasteButton(payloadType: PastedImage.self) { items in
+                                if let d = items.first?.data { Task { @MainActor in pasted(d) } }
+                            }
+                            .labelStyle(.iconOnly)
+                            if text.isEmpty {
                                 Button { picking = true } label: { Label(FileUi.chooseFile, systemImage: "paperclip") }
                                     .buttonStyle(.bordered)
                             }
-                            .font(.footnote)
-                            .padding(8)
                         }
+                        .font(.footnote)
+                        .padding(8)
                     }
             }
             // the caption shows once there is something to send
