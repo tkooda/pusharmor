@@ -10,6 +10,52 @@ import { isListening, type RelayRow } from "../db/rows";
 import { checkTicket, relayMap } from "./common";
 import { json } from "../http";
 import { revokeAppleSealed } from "../auth/apple";
+import type { Env } from "../env";
+import { Log } from "../log";
+import { dayOf } from "../file/quota";
+import { storeDeps, type Version } from "../file/store";
+import { acctHash, storageError } from "./file";
+
+const LIST_PARALLEL = 6;
+
+// Deletes every stored file of a deleted account. No storage call when the account never
+// uploaded or its last upload day (UTC) is older than yesterday: no file of it can still exist
+// past its deletion time. Else one paged list of the minute folders, then a list of
+// v1/<minute>/<acct-hash>/ under each folder that exists, then a delete of every version found.
+// Runs after the reply; only a failure is logged, and the 5-minute cleanup removes what is left.
+export async function deleteAccountFiles(env: Env, acct: string, nowS: number): Promise<void> {
+  const log = new Log();
+  log.route = "account files";
+  log.account = acct;
+  try {
+    const q = env.FILE_QUOTA.get(env.FILE_QUOTA.idFromName(acct));
+    const day = await q.lastDay();
+    if (day === null || day < dayOf(nowS) - 86400) return;
+    const store = storeDeps.store(env);
+    if (!store || !env.FILE_ACCT_SECRET) return;
+    const hash = await acctHash(env.FILE_ACCT_SECRET, acct);
+    const dirs = await store.listPrefixes("v1/");
+    if (dirs === "cap") throw new Error("cap");
+    const found: Version[] = [];
+    let next = 0;
+    const lane = async () => {
+      while (next < dirs.length) {
+        const vs = await store.listVersions(dirs[next++] + hash + "/");
+        if (vs === "cap") throw new Error("cap");
+        found.push(...vs);
+      }
+    };
+    await Promise.all(Array.from({ length: LIST_PARALLEL }, lane));
+    log.extra.files_dirs = dirs.length;
+    log.extra.files_versions = found.length;
+    if (found.length && (await store.deleteVersions(found)) === "cap") throw new Error("cap");
+  } catch (e) {
+    log.error = "file-delete-failed";
+    log.extra.storage = e instanceof Error && e.message === "cap" ? "cap" : storageError(e);
+  } finally {
+    if (log.error) log.emit();
+  }
+}
 
 interface AcctRow {
   id: string;
@@ -49,6 +95,7 @@ export async function deleteAccount(c: Ctx): Promise<Response> {
   const rows = await all<AcctRow>(c.env.DB.prepare(SQL.Q_ACCT).bind(acct));
   const me = rows.find((r) => r.sign_pub === signPub);
   await batch(c.env.DB, [c.env.DB.prepare(SQL.W_DELALL).bind(acct), c.env.DB.prepare(SQL.W_DELACCT).bind(acct)]);
+  c.exec.waitUntil(deleteAccountFiles(c.env, acct, Math.floor(Date.now() / 1000)));
 
   let r: Record<string, string>;
   if (!me) {

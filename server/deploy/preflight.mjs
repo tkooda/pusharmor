@@ -39,6 +39,9 @@ function isEmpty(v) {
   return false;
 }
 
+// Secrets the file storage needs; without them file sending stays paused.
+const FILE_SECRETS = ["B2_KEY_ID", "B2_APP_KEY", "FILE_ACCT_SECRET"];
+
 const hasPlaceholder = (v) => JSON.stringify(v).toLowerCase().includes("placeholder");
 
 function fileChecks() {
@@ -88,9 +91,14 @@ function dashboardChecks() {
       continue;
     }
     const vars = {};
+    const secrets = new Set();
     for (const b of (v.resources && v.resources.bindings) || []) {
       if (b.type === "plain_text") vars[b.name] = b.text;
       else if (b.type === "json") vars[b.name] = JSON.stringify(b.json);
+      else if (b.type === "secret_text") secrets.add(b.name);
+    }
+    for (const k of FILE_SECRETS) {
+      if (!secrets.has(k)) problems.push("dashboard: version " + id + " secret " + k + " is missing");
     }
     for (const k of DASHBOARD_VARS) {
       if (isEmpty(vars[k])) problems.push("dashboard: version " + id + " var " + k + " is missing or empty");

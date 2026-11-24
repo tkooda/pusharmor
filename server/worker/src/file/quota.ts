@@ -24,6 +24,9 @@ export interface QuotaRow {
 export const FREE_ATTEMPTS = 3;
 export const MAX_SLOTS = 16;
 const ROW = "q";
+const SWEEP = "sweep";
+// Name of the one object that holds the last cleanup time (":" never occurs in an account id).
+export const SWEEP_OBJECT = "cron:sweep";
 
 export interface Period {
   used: number;
@@ -121,6 +124,22 @@ export class FileQuota extends DurableObject {
     const { row, result } = chargeRow(await this.ctx.storage.get<QuotaRow>(ROW), device, sendId, dayLimit, monthLimit, now);
     if (row) await this.ctx.storage.put(ROW, row);
     return result;
+  }
+
+  // Day (UTC start) of the account's last charged upload, or null when it never uploaded.
+  async lastDay(): Promise<number | null> {
+    const row = await this.ctx.storage.get<QuotaRow>(ROW);
+    return row ? row.day : null;
+  }
+
+  // The object named SWEEP_OBJECT keeps only the time of the last complete file cleanup run.
+  async markSweep(t: number): Promise<void> {
+    const old = await this.ctx.storage.get<number>(SWEEP);
+    if (old === undefined || t > old) await this.ctx.storage.put(SWEEP, t);
+  }
+
+  async lastSweep(): Promise<number | null> {
+    return (await this.ctx.storage.get<number>(SWEEP)) ?? null;
   }
 
   async refund(chargedAt: number, device: string, sendId: string, charged: boolean): Promise<void> {

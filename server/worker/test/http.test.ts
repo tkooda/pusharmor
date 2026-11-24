@@ -6,7 +6,7 @@ import { ipKey } from "../src/pipeline/limits";
 import { LABEL_REQUEST_TOKEN, makeToken } from "../src/crypto/tokens";
 import { TEST_SECRETS as S } from "./secrets";
 import type { Env, RateLimit } from "../src/env";
-import { CRON_HEALTH, CRON_MONTHLY } from "../src/crons";
+import { CRON_FILES, CRON_HEALTH, CRON_MONTHLY } from "../src/crons";
 import wranglerText from "../wrangler.jsonc?raw";
 import limitsSrc from "../src/pipeline/limits.ts?raw";
 
@@ -148,11 +148,12 @@ describe("crons", () => {
   it("cron constants equal wrangler.jsonc triggers", () => {
     const stripped = wranglerText.replace(/^\s*\/\/.*$/gm, "");
     const cfg = JSON.parse(stripped);
-    expect(cfg.triggers.crons).toEqual([CRON_MONTHLY, CRON_HEALTH]);
+    expect(cfg.triggers.crons).toEqual([CRON_MONTHLY, CRON_HEALTH, CRON_FILES]);
     expect(cfg.observability.logs.invocation_logs).toBe(false);
     expect(cfg.workers_dev).toBe(false);
     expect(cfg.preview_urls).toBe(false);
     expect(cfg.vars.PA_PUSH_TTL_SECONDS).toBe("604800");
+    expect(cfg.routes).toContainEqual({ pattern: "b2file.pusharmor.com", custom_domain: true });
   });
   it("rate limit bindings match the expected table and the Binding union", () => {
     const cfg = JSON.parse(wranglerText.replace(/^\s*\/\/.*$/gm, ""));

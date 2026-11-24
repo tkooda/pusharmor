@@ -6,6 +6,8 @@
 // per UTC day and month; 0 pauses file sending; missing or not an integer also pauses it), secret
 // FILE_ACCT_SECRET (b64url of 32 random bytes). File storage: secrets B2_KEY_ID and B2_APP_KEY;
 // vars B2_BUCKET, B2_S3_ENDPOINT and B2_REGION below. Without all five, file sending is paused.
+// The deploy preflight fails when PA_FILE_DAY_LIMIT, PA_FILE_MONTH_LIMIT, B2_KEY_ID, B2_APP_KEY
+// or FILE_ACCT_SECRET is not set on the deployed Worker.
 {
   "name": "pusharmor-api",
   "main": "src/index.ts",
@@ -18,7 +20,8 @@
     { "pattern": "b2file.pusharmor.com", "custom_domain": true }
   ],
   "limits": { "cpu_ms": 2000 },
-  "triggers": { "crons": ["0 3 1 * *", "*/15 * * * *"] },
+  // Crons (src/crons.ts): monthly purge, 15-minute health ping, 5-minute file cleanup.
+  "triggers": { "crons": ["0 3 1 * *", "*/15 * * * *", "*/5 * * * *"] },
   // head_sampling_rate stays 1 (head sampling is decided before the request runs and would drop
   // errors too). PA_LOG_SAMPLE (a dashboard variable) samples plain successes and 4xx in code;
   // 5xx errors are always logged. See README "Logs".

@@ -50,8 +50,9 @@ export interface Env {
   PA_HEALTHCHECK_URL?: string; // secret; GET after each passing 15-minute self-check
   PA_TOTP_KEY_REVIEWER?: string; // secret; base32 TOTP key of the store review login (auth/totp.ts)
   PA_TOTP_KEY_RELEASE_TEST?: string; // secret; base32 TOTP key of the release-gate test login
-  PA_FILE_DAY_LIMIT?: string; // dashboard variable: file uploads per account per UTC day; 0 = paused
-  PA_FILE_MONTH_LIMIT?: string; // dashboard variable: file uploads per account per UTC month; 0 = paused
+  // Dashboard variables: file uploads per account per UTC day and per UTC month; 0 = paused.
+  PA_FILE_DAY_LIMIT: string;
+  PA_FILE_MONTH_LIMIT: string;
   // File storage: private bucket, S3 endpoint https://s3.<region>.backblazeb2.com, region.
   B2_BUCKET: string;
   B2_S3_ENDPOINT: string;

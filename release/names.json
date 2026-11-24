@@ -16,7 +16,9 @@
     "APPLE_SIGNIN_AUD_WEB": "Apple Services ID accepted from web sign-in",
     "APPLE_SIGNIN_AUD_NATIVE": "iOS app bundle id accepted from native Apple sign-in",
     "PA_OAUTH_REDIRECT_CHROME": "JSON list of Chrome extension OAuth redirects, one per extension id (public and Beta): [\"https://<id>.chromiumapp.org/\", ...]",
-    "PA_LOG_SAMPLE": "share of plain-success and 429 request log lines kept (0..1); errors are always logged"
+    "PA_LOG_SAMPLE": "share of plain-success and 429 request log lines kept (0..1); errors are always logged",
+    "PA_FILE_DAY_LIMIT": "file uploads per account per UTC day (0 pauses file sending)",
+    "PA_FILE_MONTH_LIMIT": "file uploads per account per UTC month (0 pauses file sending)"
   },
   "cloudflare_fixed_vars": {
     "PA_ALLOWED_PUSH_ENDPOINTS": "JSON list of Web Push endpoint rules the Worker accepts: {\"host\" (exact) or \"suffix\" (starts with a dot), \"paths\" (path prefixes)}",

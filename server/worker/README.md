@@ -46,13 +46,29 @@ the request runs and would drop errors as well. Sampling is done in code with th
 `PA_LOG_SAMPLE`, a Cloudflare dashboard variable (not in wrangler.jsonc):
 
 - always logged, whatever the rate: 5xx and exceptions, rate-limit binding errors, failed gone write-backs, rejected push endpoints, any recipient not
-  delivered on the first try, and every cron run;
+  delivered on the first try, and every cron run (a file cleanup run only when it failed);
 - logged at the rate: plain successes and all 4xx; when the rate is below 1 such a line has
   `"sample": N` (N = 1 / rate), so multiply counts by N.
 
 When to lower it: when log volume grows. How: set `PA_LOG_SAMPLE` in the Cloudflare
 dashboard (for example `0.1`); a deploy keeps it (`keep_vars`). 5xx lines stay complete;
 4xx counts become estimates.
+
+## Files
+
+Stored files live under `v1/<expiry minute>/<acct-hash>/<id>` in the B2 bucket. The cron
+`*/5 * * * *` deletes every version of every object in each minute folder whose latest
+possible expires plus 5 min has passed, oldest first, up to 1,000 storage calls per run; what
+is left stays due for the next run. Only failures to delete are logged (`file-delete-failed`,
+with the storage status and code). Deleting an account also deletes its files, unless the
+account has not uploaded since yesterday (UTC).
+
+`GET /v1/health` answers `{"status":"ok","files":"on"|"paused","last_sweep":<unix s>|null}`;
+`last_sweep` is the end of the last cleanup run that left nothing due and had no failure.
+
+Admin: to delete one file by key, open the bucket in the Backblaze web console with hidden
+versions shown and delete every version of that key. To stop one account from sending files,
+use the ban tool (`server/tools/ban`).
 
 ## Client versions
 

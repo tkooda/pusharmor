@@ -1,4 +1,4 @@
-// GET /v1/health: no auth, one trivial D1 read, 200 "ok" or an empty 503.
+// GET /v1/health: no auth, one trivial D1 read, 200 with status "ok" or an empty 503.
 import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { handle } from "../src/index";
@@ -18,7 +18,7 @@ describe("GET /v1/health", () => {
   it("returns 200 ok with no-store and no auth", async () => {
     const res = await health(await testEnv());
     expect(res.status).toBe(200);
-    expect(await res.text()).toBe("ok");
+    expect(((await res.json()) as { status: string }).status).toBe("ok");
     expect(res.headers.get("Cache-Control")).toBe("no-store");
     expect(res.headers.get("PA-Epoch")).toMatch(/^[0-9]{10}$/);
   });

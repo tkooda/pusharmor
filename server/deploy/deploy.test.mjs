@@ -22,11 +22,14 @@ function tree() {
 const DASHBOARD_VARS = Object.keys(JSON.parse(readFileSync(join(REPO, "release", "names.json"), "utf8")).cloudflare_vars);
 
 // Stub wrangler: logs every call; answers the two read-only calls with the given dashboard vars.
-function stub(d, vars) {
+const FILE_SECRETS = ["B2_KEY_ID", "B2_APP_KEY", "FILE_ACCT_SECRET"];
+
+function stub(d, vars, secrets = FILE_SECRETS) {
   const bin = join(d, "bin");
   mkdirSync(bin);
   const bindings = Object.entries(vars).map(([name, text]) => ({ type: "plain_text", name, text }));
   bindings.push({ type: "secret_text", name: "VAPID_PRIVATE_JWK" });
+  for (const name of secrets) bindings.push({ type: "secret_text", name });
   writeFileSync(join(d, "status.json"), JSON.stringify({ versions: [{ version_id: "v1", percentage: 100 }] }));
   writeFileSync(join(d, "version.json"), JSON.stringify({ id: "v1", resources: { bindings } }));
   const w = join(bin, "wrangler");
@@ -70,6 +73,25 @@ test("deploy.sh aborts on missing dashboard vars after read-only wrangler calls 
     assert.match(r.stderr, /var AWS_SES_MAIL_FROM is missing or empty/);
     assert.match(r.stderr, /var GOOGLE_AUD_WEB is missing or empty/);
     assert.match(r.stderr, /var APPLE_APNS_TOPIC is a PLACEHOLDER/);
+  } finally { rmSync(d, { recursive: true, force: true }); }
+});
+
+test("dashboard preflight fails on missing file vars or file secrets", () => {
+  const d = tree();
+  try {
+    const vars = all();
+    delete vars.PA_FILE_DAY_LIMIT;
+    vars.PA_FILE_MONTH_LIMIT = "";
+    const w = stub(d, vars, ["B2_KEY_ID"]);
+    const r = spawnSync("node", [join(d, "server", "deploy", "preflight.mjs"), "--dashboard", d], {
+      encoding: "utf8", env: { ...process.env, WRANGLER: w }
+    });
+    assert.notEqual(r.status, 0);
+    assert.match(r.stderr, /var PA_FILE_DAY_LIMIT is missing or empty/);
+    assert.match(r.stderr, /var PA_FILE_MONTH_LIMIT is missing or empty/);
+    assert.match(r.stderr, /secret B2_APP_KEY is missing/);
+    assert.match(r.stderr, /secret FILE_ACCT_SECRET is missing/);
+    assert.doesNotMatch(r.stderr, /secret B2_KEY_ID/);
   } finally { rmSync(d, { recursive: true, force: true }); }
 });
 
