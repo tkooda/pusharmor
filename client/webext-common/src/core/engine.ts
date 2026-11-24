@@ -139,8 +139,10 @@ export interface FilesHook {
   catchUp(): Promise<void>;
   /** Drops the bytes of rows that are gone. */
   gc(): Promise<void>;
-  /** Removes the oldest decrypted files until the rest fit the storage limit. */
+  /** Removes the oldest files until the rest fit the storage limit. */
   evict(): Promise<void>;
+  /** Browser start: picked files left by a closed popup go. */
+  startup(): Promise<void>;
 }
 
 function now(p: Platform): number {
@@ -2406,6 +2408,7 @@ export class Engine {
   }
 
   async start(): Promise<void> {
+    await this.files?.startup().catch(() => undefined);
     await this.applySlotLocal();
     if (await this.keysLost()) {
       await this.db.setMeta("banner", T.keysLost);

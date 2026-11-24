@@ -6,20 +6,31 @@ import { DOWNLOAD_TRIES } from "../api/file.ts";
 import { MAX_FILE } from "../crypto/filecrypt.ts";
 import { BUSY, STEP } from "../model/busy.ts";
 import { FILE_DAMAGED, catchUpDue, storageFullText } from "../model/filerules.ts";
+
+/** A decrypt that could not run (not a damaged file and not short of memory). */
+export const FILE_OPEN_FAILED = "Unable to open this file. Try again";
 import { DOWNLOAD_FAILED, type FileState, decryptPlan, kind, storageLimit, storageOptions, toRemove, tooLarge, unreadable } from "../model/filerow.ts";
 import { sanitizeName } from "../model/filename.ts";
 import type { FileValue } from "../model/message.ts";
 import type { HistoryRow } from "../store/db.ts";
 import type { FileStore } from "../store/files.ts";
 import type { Engine, FilesHook, SendResult } from "./engine.ts";
-import type { DecryptOut, DownloadOut, JobError, JobReq, UploadOut } from "./fileworker.ts";
+import type { DecryptOut, DownloadOut, JobError, JobReq, SaveOut, UploadOut } from "./fileworker.ts";
 import { ReasonError } from "./failtext.ts";
 import { R, actionLine } from "./texts.ts";
 
-/** Runs a job where transfers run; rejects when that place went away (its process closed). */
+/** Runs a job where transfers run. Rejects with HostGone when that place closed while the job ran, else HostFailed. */
 export interface FileHost {
   run(req: JobReq): Promise<unknown>;
 }
+
+/** The host could not run the job (it could not start, or the job threw). */
+export class HostFailed extends Error {}
+/** The host closed while the job ran: its process ended (out of memory, or the browser closed it). */
+export class HostGone extends Error {}
+
+/** A file send that failed after the popup closed: the notification says so unless the popup shows it within this time. */
+const SHOWN_WAIT_MS = 5000;
 
 /** Told to open views: a file row changed (pct: download progress). */
 export interface FileEvent {
@@ -36,6 +47,7 @@ export function sendFileError(err: JobError, name: string): string {
   if (err.code === "storage") return storageFullText("upload", name);
   if (err.code === "too_large") return tooLarge(name);
   if (err.error === "unreadable") return unreadable(name);
+  if (err.error === "host") return actionLine("send") + "\n" + R.tryAgain;
   const why =
     err.text ??
     (err.code === "update"
@@ -58,6 +70,8 @@ export class Files implements FilesHook {
   /** Downloads running now: row id -> percent. */
   readonly running = new Map<number, number>();
   private readonly decrypting = new Set<number>();
+  /** Failed sends whose popup did not yet say it showed the failure, by picked key. */
+  private readonly unshown = new Map<string, true>();
   /** Free-storage quota of this browser, for the storage choices; null = unknown. */
   quota: () => Promise<number | null> = async () => {
     try {
@@ -112,19 +126,54 @@ export class Files implements FilesHook {
     try {
       out = (await this.host.run({ op: "upload", picked })) as UploadOut;
     } catch {
-      out = { ok: false, err: { code: "failed", text: null, status: 0, error: "" } };
+      out = { ok: false, err: { code: "failed", text: null, status: 0, error: "host" } };
     }
     if (!out.ok) {
       await this.e.step(null);
-      return { sent: 0, total: to.ids.length + to.skipped.length, all: to.all.length, failures: [], error: sendFileError(out.err, clean) };
+      const r: SendResult = { sent: 0, total: to.ids.length + to.skipped.length, all: to.all.length, failures: [], error: sendFileError(out.err, clean) };
+      this.afterFailure(picked, r.error!);
+      return r;
     }
     const value: FileValue = { url: out.url, expires: out.expires, key: out.key, name: clean, size, sha256: out.sha256 };
     const r = await this.e.deliver(self, to, { type: "file", value }, { type: "file", content: clean, file: value });
-    if (r.sent > 0) {
-      await (await this.store()).deletePicked(picked).catch(() => undefined);
-      await this.host.run({ op: "forget", picked }).catch(() => undefined);
-    }
+    if (r.sent > 0) await this.dropPicked(picked);
+    if (r.error || r.sent < r.total) this.afterFailure(picked, r.error || [actionLine("send"), ...r.failures.map((f) => f.text)].join("\n"), r.sent > 0);
     return r;
+  }
+
+  private async dropPicked(picked: string): Promise<void> {
+    await (await this.store()).deletePicked(picked).catch(() => undefined);
+    await this.host.run({ op: "forget", picked }).catch(() => undefined);
+  }
+
+  /**
+   * The background owns a send: a failure the popup does not say it showed within a few seconds (the popup
+   * closed) becomes a notification, and the picked copy goes (no popup is left to send it again).
+   */
+  private afterFailure(picked: string, text: string, dropped = false): void {
+    this.unshown.set(picked, true);
+    setTimeout(() => {
+      if (!this.unshown.delete(picked)) return;
+      this.e.p.notify("send-result", "PushArmor", text);
+      if (!dropped) void this.dropPicked(picked);
+    }, SHOWN_WAIT_MS);
+  }
+
+  /** Saves a row's decrypted file where the host runs (the blob URL outlives the popup). */
+  async save(id: number): Promise<SaveOut> {
+    const r = await this.e.db.get<HistoryRow>("history", id);
+    if (!r?.file) return { missing: true };
+    return (await this.host.run({ op: "save", key: fileKey(id), name: r.content })) as SaveOut;
+  }
+
+  /** The popup showed the result of the send of picked (it keeps the picked copy for a new try). */
+  shown(picked: string): void {
+    this.unshown.delete(picked);
+  }
+
+  /** Browser start: no send runs, so a picked copy left by a popup that closed goes. */
+  async startup(): Promise<void> {
+    await (await this.store()).clearPicked();
   }
 
   // ---- download ----
@@ -163,9 +212,10 @@ export class Files implements FilesHook {
       out = { ok: false, tries: (s.tries ?? 0) + 1, err: { code: "failed", text: DOWNLOAD_FAILED, status: 0, error: "" } };
     }
     this.running.delete(id);
+    if (out.ok) await this.evict(fileKey(id)).catch(() => undefined);
     await this.setFs(id, (x) => {
       const n: FileState = { ...x, tries: auto ? out.tries : x.tries ?? 0 };
-      if (out.ok) return { ...n, got: true };
+      if (out.ok) return { ...n, got: true, code: undefined, text: undefined };
       const text = out.err.text ?? (out.err.code === "storage" ? storageFullText("download", f.name) : DOWNLOAD_FAILED);
       return { ...n, got: false, code: out.err.code, text };
     });
@@ -199,14 +249,15 @@ export class Files implements FilesHook {
     for (const id of plan.decrypt) {
       const r = byId.get(id)!;
       // the mark is written first: a decrypt that closes the process leaves it for the next look
-      await this.setFs(id, (x) => ({ ...x, mark: true, mem: false }));
+      await this.setFs(id, ({ code: _c, text: _t, ...x }) => ({ ...x, mark: true, mem: false }));
       this.decrypting.add(id);
       this.tell({ op: "fileEvent", id });
-      let out: DecryptOut;
+      let out: DecryptOut | { result: "host" };
       try {
         out = (await this.host.run({ op: "decrypt", key: fileKey(id), fileKey: r.file.key })) as DecryptOut;
-      } catch {
-        out = { result: "memory" };
+      } catch (e) {
+        // the host closed during the decrypt: its process ran short of memory; any other failure is not
+        out = e instanceof HostGone ? { result: "memory" } : { result: "host" };
       }
       this.decrypting.delete(id);
       await this.setFs(id, (x) => {
@@ -220,12 +271,14 @@ export class Files implements FilesHook {
             return { ...n, got: false };
           case "storage":
             return { ...n, code: "storage", text: storageFullText("download", r.file.name) };
+          case "host":
+            return { ...n, code: "failed", text: FILE_OPEN_FAILED };
           default:
             return { ...n, mem: true };
         }
       });
       if (out.result === "memory") short.push(r.file.name);
-      if (out.result === "ok") await this.evict().catch(() => undefined);
+      if (out.result === "ok") await this.evict(fileKey(id)).catch(() => undefined);
       this.tell({ op: "fileEvent", id });
     }
     return short;
@@ -238,14 +291,27 @@ export class Files implements FilesHook {
     return { options: storageOptions(q), limit: storageLimit((await this.e.settings()).fileStorage, q) };
   }
 
-  /** Removes the oldest decrypted files until the rest fit the storage limit; their rows say "Removed from this device". */
-  async evict(): Promise<void> {
+  /**
+   * Removes the oldest files (downloaded blobs and decrypted files alike) until the rest fit the storage
+   * limit; their rows say "Removed from this device". keep: the file just stored. A file whose download
+   * or decrypt runs is never removed.
+   */
+  async evict(keep?: string): Promise<void> {
     const store = await this.store();
-    const sizes = await store.plainSizes();
-    const at = new Map((await this.fileRows()).map((r) => [fileKey(r.id), r.received]));
-    const files = [...sizes].map(([key, bytes]) => ({ key, at: at.get(key) ?? 0, bytes }));
+    const rows = new Map((await this.fileRows()).map((r) => [fileKey(r.id), r]));
+    const files = [...(await store.sizes())]
+      .filter(([key]) => key !== keep && !this.running.has(Number(key.slice(1))) && !this.decrypting.has(Number(key.slice(1))))
+      .map(([key, bytes]) => ({ key, at: rows.get(key)?.received ?? 0, bytes }));
+    const kept = keep ? (await store.sizes()).get(keep) ?? 0 : 0;
     const limit = (await this.storageInfo()).limit;
-    for (const k of toRemove(files, limit)) await store.remove(k);
+    // the kept file counts as the newest
+    const out = toRemove([...files, { key: "", at: Number.MAX_SAFE_INTEGER, bytes: kept }], limit);
+    for (const k of out) {
+      await store.remove(k);
+      // "plain" with no bytes here reads "Removed from this device", Download while not expired
+      const id = Number(k.slice(1));
+      if (rows.has(k)) await this.setFs(id, ({ got: _g, mark: _m, ...x }) => ({ ...x, plain: true }));
+    }
   }
 
   /** Keys whose decrypted file is on this device. */

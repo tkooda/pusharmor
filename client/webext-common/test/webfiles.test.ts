@@ -1,18 +1,19 @@
 // Chrome and Firefox file sending: the History file rows, the decrypt mark, page
-// images in 8 MB pieces up to MAX_FILE, the send and receive paths through the
+// images in 8 MB pieces up to 10,000,000 bytes, the send and receive paths through the
 // engine, and the manifest permissions.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { IDBFactory, IDBKeyRange } from "fake-indexeddb";
-import { type FileHost, Files, fileKey, sendFileError } from "../src/core/files.ts";
+import { FILE_OPEN_FAILED, type FileHost, Files, HostGone, fileKey, sendFileError } from "../src/core/files.ts";
 import type { JobReq } from "../src/core/fileworker.ts";
 import { FileWorker } from "../src/core/fileworker.ts";
-import { MAX_FILE, sealFile } from "../src/crypto/filecrypt.ts";
+import { sealFile } from "../src/crypto/filecrypt.ts";
+import { sendingCaption } from "../src/model/busy.ts";
 import { b64urlEncode } from "../src/crypto/b64url.ts";
 import { sha256Blob } from "../src/crypto/sha256.ts";
 import * as F from "../src/model/filerow.ts";
-import { ImageCollector, PIECE_B64, PIECE_RAW, collectImage, onImagePort, pageImageFetch } from "../src/model/imgfetch.ts";
+import { IMAGE_CAP, ImageCollector, PIECE_B64, PIECE_RAW, collectImage, onImagePort, pageImageFetch } from "../src/model/imgfetch.ts";
 import type { FileValue } from "../src/model/message.ts";
 import type { HistoryRow } from "../src/store/db.ts";
 import { FileStore } from "../src/store/files.ts";
@@ -113,7 +114,7 @@ async function runInjected(bytes: number, withLength: boolean): Promise<unknown[
   };
   try {
     const fn = new Function("return (" + pageImageFetch.toString() + ")")() as typeof pageImageFetch;
-    fn("https://ex.com/a.png", "pa-img:x", MAX_FILE, PIECE_RAW);
+    fn("https://ex.com/a.png", "pa-img:x", IMAGE_CAP, PIECE_RAW);
     await end;
   } finally {
     g.fetch = saved.fetch;
@@ -123,28 +124,29 @@ async function runInjected(bytes: number, withLength: boolean): Promise<unknown[
 }
 
 test("page image: bytes come in base64 pieces of at most 8 MB and join to the same bytes", async () => {
-  const msgs = await runInjected(13_500_000, true);
+  const msgs = await runInjected(9_500_000, true);
   const pieces = msgs.filter((m) => typeof (m as { b64?: unknown }).b64 === "string") as { b64: string }[];
-  assert.deepEqual(pieces.map((p) => p.b64.length), [PIECE_B64, PIECE_B64, 2_000_000]);
+  assert.deepEqual(pieces.map((p) => p.b64.length), [PIECE_B64, 4_666_668]);
   assert.deepEqual(msgs.at(-1), { done: true, type: "image/png" });
   const c = new ImageCollector();
   const res = msgs.map((m) => c.add(m));
-  assert.deepEqual(res, ["more", "more", "more", "done"]);
-  assert.equal(c.blob().size, 13_500_000);
+  assert.deepEqual(res, ["more", "more", "done"]);
+  assert.equal(c.blob().size, 9_500_000);
 });
 
-test("page image: over MAX_FILE it stops (from Content-Length, or while reading) and the image URL goes instead", async () => {
-  assert.deepEqual(await runInjected(MAX_FILE + 1, true), [{ over: true }]);
-  const read = await runInjected(MAX_FILE + 1, false);
+test("page image: over 10,000,000 bytes it stops (from Content-Length, or while reading) and the image URL goes instead", async () => {
+  assert.equal(IMAGE_CAP, 10_000_000);
+  assert.deepEqual(await runInjected(IMAGE_CAP + 1, true), [{ over: true }]);
+  const read = await runInjected(IMAGE_CAP + 1, false);
   assert.deepEqual(read.at(-1), { over: true });
-  assert.ok(read.length <= Math.ceil(MAX_FILE / PIECE_RAW) + 1);
-  // exactly MAX_FILE is taken
-  const ok = await runInjected(MAX_FILE, false);
+  assert.ok(read.length <= Math.ceil(IMAGE_CAP / PIECE_RAW) + 1);
+  // exactly 10,000,000 bytes are taken
+  const ok = await runInjected(IMAGE_CAP, false);
   assert.deepEqual(ok.at(-1), { done: true, type: "image/png" });
-  // the background refuses a piece over 8 MB and a total over MAX_FILE
+  // the background refuses a piece over 8 MB and a total over 10,000,000 bytes
   assert.equal(new ImageCollector().add({ b64: "A".repeat(PIECE_B64 + 4) }), "failed");
   const c = new ImageCollector();
-  c.size = MAX_FILE - 2;
+  c.size = IMAGE_CAP - 2;
   assert.equal(c.add({ b64: btoa("abc") }), "over");
   assert.equal(new ImageCollector().add({ done: true, type: "" }), "failed", "no bytes");
 });
@@ -277,7 +279,7 @@ test("decrypt: the mark is written before the decrypt starts and cleared after; 
 test("decrypt: a process that closes (out of memory) leaves the memory error; a mark found later is the same error and is never tried again; Decrypt tries", async () => {
   const s = await fileSetup();
   const id = await downloadedRow(s);
-  s.hostB.answer = async () => Promise.reject(new Error("the offscreen document closed"));
+  s.hostB.answer = async () => Promise.reject(new HostGone());
   assert.deepEqual(await s.fb.decryptShown(), ["cat.png"]);
   assert.deepEqual((await s.b.db.get<HistoryRow>("history", id))!.fs, { got: true, mark: false, mem: true });
   s.hostB.reqs = [];
@@ -300,7 +302,7 @@ test("decrypt: a process that closes (out of memory) leaves the memory error; a 
 
 test("worker: decrypt opens the stored blob, keeps the plaintext, and drops the blob; a damaged blob is said", async () => {
   const store = await FileStore.open(new IDBFactory(), IDBKeyRange);
-  const w = new FileWorker({ store, self: async () => null, fetch: async () => new Response(null), progress: () => undefined, file: { client: "chrome/0", now: () => 0, sleep: async () => undefined, getOffset: async () => 0, setOffset: async () => undefined } });
+  const w = new FileWorker({ store, self: async () => null, fetch: async () => new Response(null), progress: () => undefined, save: async () => ({ path: null }), file: { client: "chrome/0", now: () => 0, sleep: async () => undefined, getOffset: async () => 0, setOffset: async () => undefined } });
   const key = new Uint8Array(32).fill(3);
   const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
   await store.append("f1", await sealFile(key, png));
@@ -342,4 +344,91 @@ test("manifest permission diff: Chrome adds only offscreen; no new host permissi
   assert.equal("optional_host_permissions" in chrome, false);
   assert.deepEqual(firefox.permissions, ["notifications", "menus", "storage", "unlimitedStorage", "activeTab", "alarms", "webRequest", "webRequestBlocking", "https://api.pusharmor.com/*", "https://pusharmor.com/fx/fwd"]);
   assert.deepEqual(firefox.optional_permissions, ["downloads"]);
+});
+
+test("decrypt: a host that fails (not one that closed) says it could not open the file, with Decrypt; never a memory error", async () => {
+  const s = await fileSetup();
+  const id = await downloadedRow(s);
+  s.hostB.answer = async () => Promise.reject(new Error("no document"));
+  assert.deepEqual(await s.fb.decryptShown(), []);
+  const fs = (await s.b.db.get<HistoryRow>("history", id))!.fs!;
+  assert.deepEqual([fs.mem, fs.code, fs.text], [false, "failed", FILE_OPEN_FAILED]);
+  assert.deepEqual(F.fileRowStatus(fs, false, 0, false, NOW + H, NOW), { k: "undecrypted", text: FILE_OPEN_FAILED });
+  s.hostB.reqs = [];
+  assert.deepEqual(await s.fb.decryptShown(), []);
+  assert.equal(s.hostB.reqs.length, 0, "a final error is not tried again by itself");
+  s.hostB.answer = async () => ({ result: "ok", image: false });
+  await s.fb.decryptShown(id);
+  assert.equal((await s.b.db.get<HistoryRow>("history", id))!.fs!.code, undefined, "Decrypt clears the error");
+});
+
+test("decrypt: not enough storage offers Decrypt, not Download, also after the file expired", () => {
+  const fs: F.FileState = { got: true, code: "storage", text: 'Not enough storage to download "a.pdf"' };
+  assert.deepEqual(F.fileRowStatus(fs, false, 0, false, NOW + H, NOW), { k: "undecrypted", text: 'Not enough storage to download "a.pdf"' });
+  assert.deepEqual(F.fileRowStatus(fs, false, 0, false, NOW - H, NOW).k, "undecrypted");
+  assert.deepEqual(F.fileRowStatus({ got: true }, false, 0, false, NOW - H, NOW), { k: "decrypting" }, "downloaded before it expired: it still decrypts");
+  assert.deepEqual(F.decryptPlan([{ id: 1, fs }], new Set()), { decrypt: [], memory: [] });
+  assert.deepEqual(F.decryptPlan([{ id: 1, fs }], new Set(), 1), { decrypt: [1], memory: [] });
+});
+
+test("worker: a second download or decrypt of the same key joins the one running (a restarted service worker)", async () => {
+  const store = await FileStore.open(new IDBFactory(), IDBKeyRange);
+  let fetches = 0;
+  let release: () => void = () => undefined;
+  const gate = new Promise<void>((r) => (release = r));
+  const w = new FileWorker({
+    store,
+    self: async () => null,
+    fetch: async () => {
+      fetches++;
+      await gate;
+      return new Response(null, { status: 410 });
+    },
+    progress: () => undefined,
+    save: async () => ({ path: null }),
+    file: { client: "chrome/0", now: () => 0, sleep: async () => undefined, getOffset: async () => 0, setOffset: async () => undefined },
+  });
+  const ref = { url: "https://b2file.pusharmor.com/v1/x", expires: 10, name: "a", size: 5, sha256: "x" };
+  const a = w.run({ op: "download", key: "f1", ref, tries: 0, id: 1 });
+  const b = w.run({ op: "download", key: "f1", ref, tries: 0, id: 1 });
+  assert.equal(w.busy(), true);
+  await new Promise((r) => setTimeout(r, 10));
+  release();
+  assert.deepEqual(await a, await b);
+  assert.equal(fetches, 1);
+  assert.equal(w.busy(), false);
+});
+
+test("send: a failure the popup does not show (it closed) becomes a notification and the picked copy goes; one it shows keeps the copy", async () => {
+  const s = await fileSetup();
+  s.hostA.answer = async (req) => (req.op === "upload" ? { ok: false, err: { code: "paused", text: "File sending is paused. Try again later", status: 503, error: "files paused" } } : { ok: true });
+  const p1 = await s.storeA.putPicked(new Blob(["x"]));
+  await s.fa.send(p1, "a.txt", 1, "all");
+  const p2 = await s.storeA.putPicked(new Blob(["y"]));
+  await s.fa.send(p2, "b.txt", 1, "all");
+  s.fa.shown(p2);
+  await new Promise((r) => setTimeout(r, 5200));
+  assert.equal(s.a.p.notes.get("send-result")?.body, "Unable to send.\nFile sending is paused. Try again later");
+  assert.equal(await s.storeA.picked(p1), null);
+  assert.ok(await s.storeA.picked(p2));
+  assert.equal(sendingCaption("file", ["Phone"]), 'Sending file to "Phone"...');
+  assert.equal(sendFileError({ code: "failed", text: null, status: 0, error: "host" }, "a.txt").split("\n")[0], "Unable to send.");
+  // browser start: picked copies left by a closed popup go
+  await s.fa.startup();
+  assert.equal(await s.storeA.picked(p2), null);
+});
+
+test("storage limit counts downloaded blobs too; the file just stored stays; a removed file offers Download again", async () => {
+  const s = await fileSetup();
+  await s.b.e.setSettings({ fileStorage: 100_000_000 });
+  const a = await downloadedRow(s);
+  await s.storeB.append(fileKey(a), new Blob([new Uint8Array(60_000_000)]));
+  s.clock.t += 1000;
+  const b = await downloadedRow(s);
+  await s.storeB.putPlain(fileKey(b), new Blob([new Uint8Array(60_000_000)]));
+  await s.fb.evict(fileKey(b));
+  assert.deepEqual([...(await s.storeB.keys())], [fileKey(b)]);
+  const fs = (await s.b.db.get<HistoryRow>("history", a))!.fs!;
+  assert.deepEqual(fs, { plain: true });
+  assert.equal(F.fileRowStatus(fs, false, 0, false, NOW + H, NOW).k, "failed");
 });

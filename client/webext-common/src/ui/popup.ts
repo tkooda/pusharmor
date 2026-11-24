@@ -496,6 +496,8 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
     if (f) take(f);
   });
   field.addEventListener("paste", (ev: ClipboardEvent) => {
+    // text on the clipboard pastes as text; an image only when the clipboard has no text
+    if (ev.clipboardData?.getData("text/plain")) return;
     const f = Array.from(ev.clipboardData?.files ?? []).find((x) => x.type.startsWith("image/"));
     if (!f || !env.files) return;
     ev.preventDefault();
@@ -572,6 +574,7 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
       sending = true;
       try {
         const r = await sendFile(chosen, to, names);
+        const pickedKeyOf = pickedKey;
         if (r) {
           const one = (r.all ?? r.total) === 1 && r.sent === 1 && count() === 1 ? sendable.find((p) => p.id === checks.find((c) => on(c.chip))?.id) : undefined;
           if (r.sent > 0) {
@@ -579,6 +582,8 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
             pickedKey = null;
             drawCard();
           }
+          // a failure shown here is not also a notification from the background
+          if ((r.error || r.failures.length) && pickedKeyOf) void rpc(env, "fileSendShown", { picked: pickedKeyOf }).catch(() => undefined);
           if (r.error) toast(r.error, "err");
           else if (r.failures.length) toast([T.sentToNofM(r.sent, r.total), ...r.failures.map((f) => f.text)].join("\n"), "err");
           else if (env.inPopup?.() === true) return window.close();
@@ -961,13 +966,23 @@ function viewImage(blob: Blob, name: string): void {
     h("div", { class: "vbar" }, h("span", { class: "vname" }, name), h("button", { type: "button", class: "icon-btn", "aria-label": "Close", title: "Close", onclick: () => dlg.close() }, icon("close", 20))),
     pane,
   ) as HTMLDialogElement;
+  img.tabIndex = 0;
   img.addEventListener("click", () => img.classList.toggle("fit"));
+  // keyboard: Enter or Space toggles, + shows the real size, - fits
+  dlg.addEventListener("keydown", (ev: KeyboardEvent) => {
+    if ((ev.key === "Enter" || ev.key === " ") && document.activeElement === img) img.classList.toggle("fit");
+    else if (ev.key === "+" || ev.key === "=") img.classList.remove("fit");
+    else if (ev.key === "-") img.classList.add("fit");
+    else return;
+    ev.preventDefault();
+  });
   dlg.addEventListener("close", () => {
     URL.revokeObjectURL(url);
     dlg.remove();
   });
   document.body.append(dlg);
   dlg.showModal();
+  img.focus();
 }
 
 /** The decrypted file of a row, or null with the row's "Removed from this device" toast. */
@@ -993,10 +1008,10 @@ function fileLines(env: UiEnv, r: HistRow, nowMs: number, row: HTMLElement): HTM
       out.push(button("Download", "download", download, st.expires));
       break;
     case "downloading":
-      out.push(line("download", "Downloading " + st.pct + "%", "dim"), h("progress", { max: "100", value: String(st.pct), class: "fprog", "data-file": String(r.id) }));
+      out.push(line("download", "Downloading " + st.pct + "%", "dim"), h("progress", { max: "100", value: String(st.pct), class: "fprog", "data-file": String(r.id), "aria-label": "Downloading " + r.content }));
       break;
     case "decrypting":
-      out.push(h("progress", { class: "fprog" }));
+      out.push(h("progress", { class: "fprog", "aria-label": "Decrypting " + r.content }));
       break;
     case "failed":
       out.push(line(st.grey ? "info" : "error", st.text, st.grey ? "dim" : "bad"));
@@ -1004,6 +1019,9 @@ function fileLines(env: UiEnv, r: HistRow, nowMs: number, row: HTMLElement): HTM
       break;
     case "memory":
       out.push(line("error", F.NO_MEMORY, "bad"), button("Decrypt", "lock", () => void decryptRows(env, r.id ?? null), null));
+      break;
+    case "undecrypted":
+      out.push(line("error", st.text, "bad"), button("Decrypt", "lock", () => void decryptRows(env, r.id ?? null), null));
       break;
     case "expired":
       row.classList.add("faded");
@@ -1031,7 +1049,7 @@ function fileButtons(env: UiEnv, r: HistRow): HTMLElement[] {
           try {
             await env.files!.copyImage(b);
           } catch {
-            return toast("Unable to copy", "err");
+            return toast('Unable to copy "' + name + '"', "err");
           }
           toast(T.copied, "ok");
         },
@@ -1039,16 +1057,14 @@ function fileButtons(env: UiEnv, r: HistRow): HTMLElement[] {
     save: () =>
       h("button", {
         class: "ac",
-        onclick: async () => {
-          const b = await plainOf(env, r);
-          if (!b) return;
-          env.files!.save(b, name).then(
+        // save() is the first call in the click: Firefox asks for the downloads permission before any await
+        onclick: () =>
+          void env.files!.save(r.id ?? 0, name).then(
             (path) => {
               if (path !== null) toast(F.savedTo(path), "ok", true);
             },
-            (e: unknown) => toast(saveFailText(e), "err"),
-          );
-        },
+            (e: unknown) => toast((e as Error)?.message === "MISSING" ? F.REMOVED : saveFailText(e, name), "err"),
+          ),
       }, icon("save", 15), "Save"),
   };
   return F.fileActions(r.fs, env.files?.canCopyImage === true).map((a) => btn[a]());
@@ -1209,7 +1225,9 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload
   let saved = values();
   const save = () => {
     const next = values();
-    void rpc(env, "settings", next).then(
+    // only the setting that changed is written
+    const changed = Object.fromEntries(Object.entries(next).filter(([k, v]) => saved[k as keyof typeof saved] !== v));
+    void rpc(env, "settings", changed).then(
       () => void (saved = next),
       (e) => {
         showAll.checked = saved.showAll;
@@ -1282,8 +1300,8 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload
     sh("Files"),
     h("p", { class: "t2 shelp" }, F.HELPER),
     group(
-      h("div", { class: "srow" }, h("span", {}, F.AUTO_TITLE), fileAuto),
-      h("div", { class: "srow" }, h("div", { class: "txt" }, h("div", {}, F.STORAGE_TITLE), h("div", { class: "t2" }, F.STORAGE_HELPER)), fileStorage),
+      h("div", { class: "srow fpick" }, h("span", {}, F.AUTO_TITLE), fileAuto),
+      h("div", { class: "srow fpick" }, h("div", { class: "txt" }, h("div", {}, F.STORAGE_TITLE), h("div", { class: "t2" }, F.STORAGE_HELPER)), fileStorage),
     ),
     ...(loggedIn ? [sh("Account"), group(acctRow, h("div", { class: "srow acct-acts" }, btns)), outBar.el] : []),
     h("div", { class: "grow" }),

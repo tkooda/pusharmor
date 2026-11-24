@@ -1,7 +1,8 @@
 // Shared wiring for the two shells. The shell passes in its "browser"
 // namespace object; nothing here reads a browser global.
 import { SEND_CAP, utf8Len } from "./model/padding.ts";
-import { saveBlobViaLink, saveBlobWithPermission, saveViaLink, saveWithPermission } from "./model/savefile.ts";
+import { saveViaLink, saveWithPermission } from "./model/savefile.ts";
+import type { SaveOut } from "./core/fileworker.ts";
 import { Api } from "./api/client.ts";
 import { MENU_IMG, MENU_PAGE, MENU_PARENTS, MENU_SEL, MENU_SINGLE, MENU_URL, clickTarget, menuSend, type MenuMode } from "./core/actions.ts";
 import { Engine, type SendResult } from "./core/engine.ts";
@@ -14,9 +15,8 @@ import type { Browser, MenuInfo, MessageSender, Tab } from "./shim-types.ts";
 import { Db, openDb } from "./store/db.ts";
 import { FileStore } from "./store/files.ts";
 import { type FileEvent, type FileHost, Files } from "./core/files.ts";
-import { MAX_FILE } from "./crypto/filecrypt.ts";
 import { webImageName } from "./model/filerow.ts";
-import { PIECE_RAW, collectImage, pageImageFetch } from "./model/imgfetch.ts";
+import { IMAGE_CAP, PIECE_RAW, collectImage, pageImageFetch } from "./model/imgfetch.ts";
 import type { UiEnv } from "./ui/dom.ts";
 import { THEME_KEY } from "./ui/theme.ts";
 
@@ -441,7 +441,7 @@ export function onMenuClick(b: Browser, boot: () => Promise<Booted>, readSelecti
 
 /** Injects pageImageFetch into the frame of the clicked image (activeTab): Chrome scripting, Firefox tabs.executeScript. */
 async function injectImageFetch(b: Browser, tabId: number, frameId: number | undefined, src: string, port: string): Promise<void> {
-  const args: [string, string, number, number] = [src, port, MAX_FILE, PIECE_RAW];
+  const args: [string, string, number, number] = [src, port, IMAGE_CAP, PIECE_RAW];
   if (b.scripting) {
     await b.scripting.executeScript({ target: frameId === undefined ? { tabId } : { tabId, frameIds: [frameId] }, func: pageImageFetch, args });
     return;
@@ -451,7 +451,7 @@ async function injectImageFetch(b: Browser, tabId: number, frameId: number | und
 }
 
 /**
- * "PushArmor image to": the image's bytes as a file (up to MAX_FILE); with no bytes (the page's server
+ * "PushArmor image to": the image's bytes as a file (up to IMAGE_CAP, 10,000,000 bytes); with no bytes (the page's server
  * refuses them, or too large) the image URL goes as a URL. The result shows as the badge, a failure as a notification.
  */
 async function imageSend(b: Browser, boot: () => Promise<Booted>, info: MenuInfo, tab: Tab | undefined, child: string): Promise<void> {
@@ -584,7 +584,24 @@ export function uiEnv(b: Browser, linkSave = false): UiEnv {
       pick: async (file) => (await fileStore()).putPicked(file),
       drop: async (key) => (await fileStore()).deletePicked(key),
       plain: async (key) => (await fileStore()).plain(key),
-      save: (blob, name) => (linkSave ? saveBlobViaLink(blob, name) : saveBlobWithPermission(b.permissions, () => b.downloads, blob, name)),
+      save(id, name) {
+        // Firefox: the permission prompt needs the click, so it is asked before any await
+        const asked = linkSave || !b.permissions ? Promise.resolve(true) : b.permissions.request({ permissions: ["downloads"] });
+        return (async () => {
+          if (!(await asked)) throw new Error("DOWNLOADS_DENIED");
+          const r = (await b.runtime.sendMessage({ op: "fileSave", args: { id } })) as { ok: boolean; data?: SaveOut; error?: string } | undefined;
+          if (!r?.ok || !r.data) throw new Error(r?.error ?? "save failed");
+          const out = r.data;
+          if ("missing" in out) throw new Error("MISSING");
+          if ("path" in out) return out.path; // Firefox: saved by the background page
+          // Chrome: a download link to the blob URL the offscreen document keeps
+          const a = document.createElement("a");
+          a.href = out.url;
+          a.download = name;
+          a.click();
+          return name;
+        })();
+      },
       copyImage,
       canCopyImage: typeof ClipboardItem === "function" && typeof navigator.clipboard?.write === "function",
       // Firefox desktop closes the toolbar popup when the file dialog opens

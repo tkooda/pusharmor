@@ -27,7 +27,8 @@ test("rename Save ignores a second submit while one runs", () => {
 test("settings save() shows the reply's error toast when the call fails and sets the controls back", () => {
   assert.doesNotMatch(popup, /Could not save the settings/);
   const save = popup.slice(popup.indexOf("const save = () =>"), popup.indexOf("showAll.addEventListener"));
-  assert.match(save, /rpc\(env, "settings", next\)\.then\(/);
+  assert.match(save, /rpc\(env, "settings", changed\)\.then\(/);
+  assert.match(save, /const changed = Object\.fromEntries\(Object\.entries\(next\)\.filter\(\(\[k, v\]\) => saved\[k as keyof typeof saved\] !== v\)\);/, "only the changed setting is written");
   for (const c of ["showAll", "autoOpen", "allowContent", "syncDeletions"]) assert.ok(save.includes(c + ".checked = saved." + c + ";"));
   assert.ok(save.includes("days.value = String(saved.historyDays);"));
   assert.match(save, /toast\(\(e as Error\)\.message, "err"\)/);

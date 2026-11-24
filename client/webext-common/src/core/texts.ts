@@ -266,8 +266,8 @@ export const R = {
 } as const;
 
 /** Save a message to a file: no access, a full disk, else a plain retry. */
-export function saveFailText(err: unknown): string {
+export function saveFailText(err: unknown, file?: string): string {
   const m = String((err as { message?: unknown } | null)?.message ?? "");
   const why = /DOWNLOADS_DENIED/.test(m) ? R.downloadsDenied : /FILE_ACCESS_DENIED/.test(m) ? R.saveDenied : /FILE_NO_SPACE/.test(m) ? R.storageFull : R.tryAgain;
-  return actionLine("saveMessage") + "\n" + why;
+  return (file === undefined ? actionLine("saveMessage") : 'Unable to save "' + file + '".') + "\n" + why;
 }

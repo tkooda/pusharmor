@@ -16,13 +16,16 @@ export type JobError = { code: FinalCode; text: string | null; status: number; e
 export type UploadOut = { ok: true; url: string; expires: number; key: string; sha256: string } | { ok: false; err: JobError };
 export type DownloadOut = { ok: true; tries: number } | { ok: false; tries: number; err: JobError };
 export type DecryptOut = { result: "ok"; image: boolean } | { result: "damaged" | "memory" | "missing" | "storage" };
+/** A save: Chrome gets a blob URL that this page keeps (the popup's download link uses it); Firefox gets the saved path (null: cancelled). */
+export type SaveOut = { url: string } | { path: string | null } | { missing: true };
 
 /** The requests a host (offscreen document or background page) runs. */
 export type JobReq =
   | { op: "upload"; picked: string }
   | { op: "download"; key: string; ref: FileRef; tries: number; id: number }
   | { op: "decrypt"; key: string; fileKey: string }
-  | { op: "forget"; picked: string };
+  | { op: "forget"; picked: string }
+  | { op: "save"; key: string; name: string };
 
 export interface WorkerDeps {
   store: FileStore;
@@ -31,6 +34,8 @@ export interface WorkerDeps {
   fetch(input: string, init: RequestInit): Promise<Response>;
   /** Download progress of row id: bytes of the blob stored so far, of total. */
   progress(id: number, have: number, total: number): void;
+  /** Saves the bytes as application/octet-stream under name (see SaveOut); the blob URL lives in this page, not in the popup. */
+  save(blob: Blob, name: string): Promise<SaveOut>;
 }
 
 function jobError(e: unknown): JobError {
@@ -63,18 +68,41 @@ export class FileWorker {
     this.d = d;
   }
 
-  run(req: JobReq): Promise<UploadOut | DownloadOut | DecryptOut | null> {
+  /** Downloads and decrypts running now, by store key: a second request for a key (a restarted service worker) joins the first. */
+  private readonly running = new Map<string, Promise<DownloadOut | DecryptOut>>();
+
+  run(req: JobReq): Promise<UploadOut | DownloadOut | DecryptOut | SaveOut | { ok: true }> {
     switch (req.op) {
       case "upload":
         return this.upload(req.picked);
       case "download":
-        return this.download(req.key, req.ref, req.tries, req.id);
+        return this.once(req.key, () => this.download(req.key, req.ref, req.tries, req.id));
       case "decrypt":
-        return this.decrypt(req.key, req.fileKey);
+        return this.once(req.key, () => this.decrypt(req.key, req.fileKey));
       case "forget":
         this.prior.delete(req.picked);
-        return Promise.resolve(null);
+        return Promise.resolve({ ok: true });
+      case "save":
+        return this.saveFile(req.key, req.name);
     }
+  }
+
+  /** true while a download or decrypt of a key runs here. */
+  busy(): boolean {
+    return this.running.size > 0;
+  }
+
+  private once<T extends DownloadOut | DecryptOut>(key: string, job: () => Promise<T>): Promise<T> {
+    const cur = this.running.get(key);
+    if (cur) return cur as Promise<T>;
+    const p = job().finally(() => this.running.delete(key));
+    this.running.set(key, p);
+    return p;
+  }
+
+  async saveFile(key: string, name: string): Promise<SaveOut> {
+    const blob = await this.d.store.plain(key);
+    return blob ? this.d.save(blob, name) : { missing: true };
   }
 
   async upload(picked: string): Promise<UploadOut> {
@@ -165,7 +193,7 @@ export class FileWorker {
  * The worker of a host page: its own connections to the database (keys, clock offset) and the file store.
  * client: the PA-Client value. A failed open is tried again by the next call.
  */
-export function openWorker(client: string, progress: WorkerDeps["progress"]): () => Promise<FileWorker> {
+export function openWorker(client: string, progress: WorkerDeps["progress"], save: WorkerDeps["save"]): () => Promise<FileWorker> {
   let p: Promise<FileWorker> | null = null;
   return () => {
     if (!p) {
@@ -177,6 +205,7 @@ export function openWorker(client: string, progress: WorkerDeps["progress"]): ()
           self: async () => (await db.self()) ?? null,
           fetch: (i, init) => fetch(i, init),
           progress,
+          save,
           file: {
             client,
             now: () => Date.now(),
@@ -190,4 +219,9 @@ export function openWorker(client: string, progress: WorkerDeps["progress"]): ()
     }
     return p;
   };
+}
+
+/** The octet-stream copy of a file for a download link (never shown or run, only saved). */
+export function octetUrl(blob: Blob): string {
+  return URL.createObjectURL(new Blob([blob], { type: "application/octet-stream" }));
 }

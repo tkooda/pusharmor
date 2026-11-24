@@ -96,6 +96,7 @@ export interface Browser {
   downloads?: {
     download(o: { url: string; filename?: string; saveAs?: boolean }): Promise<number>;
     search(q: { id: number }): Promise<{ filename?: string }[]>;
+    onChanged?: Event<(d: { id: number; state?: { current?: string } }) => void>;
   };
   action?: { setBadgeText(d: { text: string }): Promise<void>; openPopup?(): Promise<void> };
   browserAction?: { setBadgeText(d: { text: string }): Promise<void>; openPopup?(): Promise<void> };

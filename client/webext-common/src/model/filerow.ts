@@ -229,6 +229,8 @@ export type FileStatus =
   | { k: "decrypting" }
   | { k: "failed"; text: string; download: boolean; expires: string | null; grey?: true }
   | { k: "memory" }
+  /** Downloaded, but the decrypt failed (not enough storage, or it could not run): the text and a Decrypt button. */
+  | { k: "undecrypted"; text: string }
   | { k: "expired" }
   | { k: "ready" };
 
@@ -243,6 +245,8 @@ export function fileRowStatus(s: FileState, running: boolean, pct: number, plain
   if (running) return { k: "downloading", pct: Math.max(0, Math.min(99, Math.floor(pct))) };
   if (s.plain) return { k: "failed", text: REMOVED, download: !gone, expires: gone ? null : exp, grey: true };
   if (s.mem) return { k: "memory" };
+  // the blob is here: past expires too, the next step is Decrypt, never Download
+  if (s.got) return s.code ? { k: "undecrypted", text: s.text || DOWNLOAD_FAILED } : { k: "decrypting" };
   switch (s.code) {
     case undefined:
       break;
@@ -255,7 +259,6 @@ export function fileRowStatus(s: FileState, running: boolean, pct: number, plain
     default:
       return gone ? { k: "failed", text: s.text || DOWNLOAD_FAILED, download: false, expires: null } : { k: "failed", text: s.text || DOWNLOAD_FAILED, download: true, expires: exp };
   }
-  if (s.got) return { k: "decrypting" };
   if (gone) return { k: "expired" };
   return { k: "pending", expires: exp };
 }
@@ -283,7 +286,7 @@ export function decryptPlan(rows: { id: number; fs: FileState }[], inFlight: Set
     if (inFlight.has(r.id) || !r.fs.got || r.fs.plain) continue;
     if (r.id === force) decrypt.push(r.id);
     else if (r.fs.mark) memory.push(r.id);
-    else if (!r.fs.mem) decrypt.push(r.id);
+    else if (!r.fs.mem && !r.fs.code) decrypt.push(r.id); // a final error waits for the Decrypt button
   }
   return { decrypt, memory };
 }

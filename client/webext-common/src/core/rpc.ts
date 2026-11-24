@@ -214,6 +214,11 @@ export class Rpc {
         return this.files().decryptShown(typeof a.id === "number" ? a.id : null);
       case "fileStorage":
         return this.files().storageInfo();
+      case "fileSave":
+        return this.files().save(Number(a.id));
+      case "fileSendShown":
+        this.files().shown(s("picked"));
+        return null;
       case "pair":
         return e.pairStart(s("id"));
       case "sendAgain":

@@ -42,8 +42,12 @@ export interface FileEnv {
   drop(key: string): Promise<void>;
   /** The decrypted file of a row (store key "f" + row id), or null. */
   plain(key: string): Promise<Blob | null>;
-  /** Saves bytes as application/octet-stream under name. -> the saved path or name, or null when the user cancels. */
-  save(blob: Blob, name: string): Promise<string | null>;
+  /**
+   * Saves the decrypted file of History row id as application/octet-stream under name. Call it first in the
+   * click (Firefox asks for the downloads permission before any await). -> the saved path or name, null when
+   * the user cancels; rejects with "MISSING" when the file is no longer on this device.
+   */
+  save(id: number, name: string): Promise<string | null>;
   /** Puts an image on the clipboard (as PNG). */
   copyImage(blob: Blob): Promise<void>;
   canCopyImage: boolean;

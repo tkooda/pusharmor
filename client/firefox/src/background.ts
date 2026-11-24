@@ -4,7 +4,8 @@ import { b64urlTryDecode } from "../../webext-common/src/crypto/b64url.ts";
 import type { PushFields } from "../../webext-common/src/crypto/labels.ts";
 import { MENU_SEL, selectionTitle } from "../../webext-common/src/core/actions.ts";
 import { lazyBoot, onMenuClick, onNotificationClick, onRuntimeMessage, tellViews } from "../../webext-common/src/shellkit.ts";
-import { openWorker } from "../../webext-common/src/core/fileworker.ts";
+import { type SaveOut, octetUrl, openWorker } from "../../webext-common/src/core/fileworker.ts";
+import { HostFailed } from "../../webext-common/src/core/files.ts";
 import { onImagePort } from "../../webext-common/src/model/imgfetch.ts";
 import type { Req } from "../../webext-common/src/core/rpc.ts";
 import type { MessageSender } from "../../webext-common/src/shim-types.ts";
@@ -41,8 +42,16 @@ const seen = fwdSeen(
 // file transfers run right here (the persistent background page), never in the popup
 const boot = lazyBoot(() => firefoxPlatform({ isAndroid, autopush: () => autopush, db }), vapid, {
   host(progress) {
-    const worker = openWorker("firefox/" + browser.runtime.getManifest().version, progress);
-    return { run: async (req) => (await worker()).run(req) };
+    const worker = openWorker("firefox/" + browser.runtime.getManifest().version, progress, saveDownload);
+    return {
+      async run(req) {
+        try {
+          return await (await worker()).run(req);
+        } catch {
+          throw new HostFailed();
+        }
+      },
+    };
   },
   tell: tellViews(browser),
 });
@@ -110,6 +119,31 @@ addEventListener("online", () => {
   autopush?.reconnectNow();
   void boot().then(({ engine }) => engine.files?.catchUp()).catch(() => undefined); // waiting files the picker allows
 });
+
+/**
+ * Save: downloads.download with the Save-as dialog (the popup asked for the optional "downloads" permission
+ * in its click). The blob URL lives here and goes when the download ends, so a popup that closes does not end it.
+ */
+async function saveDownload(blob: Blob, name: string): Promise<SaveOut> {
+  const d = browser.downloads;
+  if (!d) throw new Error("downloads unavailable");
+  const url = octetUrl(blob);
+  let id: number;
+  try {
+    id = await d.download({ url, filename: name, saveAs: true });
+  } catch (e) {
+    URL.revokeObjectURL(url);
+    if (/cancel/i.test((e as Error).message ?? "")) return { path: null };
+    throw e;
+  }
+  const ended = (x: { id: number; state?: { current?: string } }) => {
+    if (x.id !== id || !x.state?.current || x.state.current === "in_progress") return;
+    URL.revokeObjectURL(url);
+    d.onChanged?.removeListener(ended);
+  };
+  d.onChanged?.addListener(ended);
+  return { path: (await d.search({ id }))[0]?.filename || name };
+}
 
 /** A site push subscription (from /fx/setup, or the site SW after a subscription change): stored, then PATCHed in fallback mode. */
 async function storeFallback(a: unknown): Promise<boolean> {

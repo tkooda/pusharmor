@@ -1,9 +1,10 @@
 // "PushArmor image to": the bytes of a page image. pageImageFetch runs in the page
 // (activeTab, injected on the menu click) and sends the bytes over a port in
-// base64 pieces of at most 8 MB; the background joins them, up to MAX_FILE.
+// base64 pieces of at most 8 MB; the background joins them, up to IMAGE_CAP.
 // Anything else (no bytes, refused by the page's server, over the cap) sends the
 // image URL instead.
-import { MAX_FILE } from "../crypto/filecrypt.ts";
+/** A page image is sent as a file up to this many bytes; above it, its URL goes instead. */
+export const IMAGE_CAP = 10_000_000;
 
 /** Raw bytes per piece: 6,000,000 bytes are 8,000,000 base64 characters. */
 export const PIECE_RAW = 6_000_000;
@@ -69,7 +70,7 @@ export function pageImageFetch(src: string, portName: string, cap: number, piece
   })();
 }
 
-/** Joins the pieces; refuses a piece over PIECE_B64 characters and a total over MAX_FILE. */
+/** Joins the pieces; refuses a piece over PIECE_B64 characters and a total over IMAGE_CAP. */
 export class ImageCollector {
   private parts: Uint8Array<ArrayBuffer>[] = [];
   size = 0;
@@ -85,7 +86,7 @@ export class ImageCollector {
         return "failed";
       }
       this.size += bin.length;
-      if (this.size > MAX_FILE) return "over";
+      if (this.size > IMAGE_CAP) return "over";
       const b = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) b[i] = bin.charCodeAt(i);
       this.parts.push(b);

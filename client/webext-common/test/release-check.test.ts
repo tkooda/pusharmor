@@ -178,7 +178,7 @@ test("a runtime message op not in the allow-list fails", () => {
 });
 
 test("the op allow-list matches the runtime message handlers in the source", () => {
-  const src = ["webext-common/src/core/rpc.ts", "webext-common/src/shellkit.ts", "chrome/src/sw.ts", "firefox/src/background.ts", "webext-common/src/core/fileworker.ts"]
+  const src = ["webext-common/src/core/rpc.ts", "webext-common/src/shellkit.ts", "chrome/src/sw.ts", "firefox/src/background.ts", "webext-common/src/core/fileworker.ts", "chrome/src/offscreen.ts"]
     .map((f) => readFileSync(new URL("../../" + f, import.meta.url), "utf8"))
     .join("\n");
   const allow = JSON.parse(readFileSync(new URL("../release-allow.json", import.meta.url), "utf8"));

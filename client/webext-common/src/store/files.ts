@@ -121,6 +121,21 @@ export class FileStore {
     return out;
   }
 
+  /** Bytes stored for each key: chunks and the decrypted file together. */
+  async sizes(): Promise<Map<string, number>> {
+    const out = await this.plainSizes();
+    const c = (await req(this.db.transaction("chunks").objectStore("chunks").getAll())) as Chunk[];
+    for (const x of c) out.set(x.file, (out.get(x.file) ?? 0) + x.blob.size);
+    return out;
+  }
+
+  /** Every picked file (browser start: no send runs). */
+  async clearPicked(): Promise<void> {
+    const tx = this.db.transaction("picked", "readwrite");
+    tx.objectStore("picked").clear();
+    await done(tx);
+  }
+
   /** Keys with stored chunks or a decrypted file. */
   async keys(): Promise<Set<string>> {
     const tx = this.db.transaction(["chunks", "plain"]);
