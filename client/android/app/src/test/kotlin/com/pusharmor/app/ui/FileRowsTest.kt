@@ -125,7 +125,7 @@ class FileRowsTest {
             row("report.pdf", 4, FileState(plain = "report.pdf"), byteArrayOf(37, 80, 68, 70))
         }
         val vm = AppViewModel(app)
-        val (c, v) = show({ HistoryScreen(vm) }) { t -> "View" in t && "Open" in t && "Decrypt" in t }
+        val (c, v) = show({ HistoryScreen(vm) }) { t -> "View" in t && "Open" in t && "Decrypt" in t && "Download" in t }
         val t = texts(v)
         assertTrue(t.toString() + vm.files.rows.value, "Download" in t)
         assertTrue(t.toString(), "expires in 2 h" in t)
@@ -136,6 +136,7 @@ class FileRowsTest {
         // an image: View, Copy, Share, Save; any other file: Open, Share, Save; no expiry once downloaded
         assertEquals(listOf(1, 1, 1, 2, 2), listOf("View", "Copy", "Open", "Share", "Save").map { w -> t.count { it == w } })
         assertEquals(1, t.count { it.startsWith("expires in") })
+        vm.files.setShown(false)
         close(c)
     }
 

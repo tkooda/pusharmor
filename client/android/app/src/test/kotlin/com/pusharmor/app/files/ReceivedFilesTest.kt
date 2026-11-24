@@ -104,8 +104,10 @@ class ReceivedFilesTest {
         val id = row("a.pdf", 10, now + 3600)
         val k = ReceivedFiles.key(id)
         g.fileStore.put(k, FileState(downloaded = true)) // no blob: the read fails
-        val m = com.pusharmor.app.ui.FileModel(g, kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO)) {}
+        val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
+        val m = com.pusharmor.app.ui.FileModel(g, scope) {}
         kotlinx.coroutines.runBlocking { m.decryptNow(id).join() }
+        scope.coroutineContext[kotlinx.coroutines.Job]?.let { kotlinx.coroutines.runBlocking { it.children.forEach { c -> c.join() } } }
         val s = g.fileStore.state(k)
         assertEquals(FinalCode.FAILED, s.code)
         assertFalse(s.downloaded)
