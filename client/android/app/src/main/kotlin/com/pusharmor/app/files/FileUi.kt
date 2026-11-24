@@ -20,7 +20,7 @@ object FileUi {
     const val EXPIRED = "Expired"
 
     /** A pasted image while the message box holds text: one type per message. */
-    const val PASTE_IMAGE_CLEAR = "Clear the message to paste an image"
+    const val PASTE_IMAGE_CLEAR = "Clear the message to add a file"
 
     fun noMemoryToast(name: String) = "Not enough memory to decrypt \"$name\""
     fun tooLarge(name: String) = "\"$name\" is too large to send"

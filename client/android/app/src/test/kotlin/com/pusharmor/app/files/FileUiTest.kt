@@ -103,7 +103,7 @@ class FileUiTest {
         assertEquals(FileUi.Paste.IMAGE, FileUi.paste(clipHasImage = true, textEmpty = true))
         assertEquals(FileUi.Paste.REFUSE, FileUi.paste(clipHasImage = true, textEmpty = false))
         assertEquals(FileUi.Paste.TEXT, FileUi.paste(clipHasImage = false, textEmpty = false))
-        assertEquals("Clear the message to paste an image", FileUi.PASTE_IMAGE_CLEAR)
+        assertEquals("Clear the message to add a file", FileUi.PASTE_IMAGE_CLEAR)
     }
 
     @Test fun onlyDecryptedFilesAreServed() {
