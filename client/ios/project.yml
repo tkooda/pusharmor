@@ -138,6 +138,10 @@ targets:
             NSExtensionActivationRule:
               NSExtensionActivationSupportsWebURLWithMaxCount: 1
               NSExtensionActivationSupportsText: true
+              # one photo, video, or any other file (the size limit is checked after the share opens)
+              NSExtensionActivationSupportsImageWithMaxCount: 1
+              NSExtensionActivationSupportsMovieWithMaxCount: 1
+              NSExtensionActivationSupportsFileWithMaxCount: 1
     entitlements:
       path: Share/PushArmorShare.entitlements
       properties:

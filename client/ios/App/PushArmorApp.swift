@@ -20,6 +20,7 @@ struct PushArmorApp: App {
             AppearancePreference(stored: v).apply()
         }
         .onChange(of: scenePhase) { _, p in
+            AppFront.shared.on = p == .active
             if p == .active {
                 AppearancePreference(stored: appearance).apply()
                 Task { await delegate.model.onForeground() }

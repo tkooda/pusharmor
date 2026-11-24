@@ -51,7 +51,7 @@ struct SelectableText: UIViewRepresentable {
 
 /// Neutral action button: black text on white, thin gray border, icon above the label.
 /// In dark mode the surface turns dark and the text light.
-private struct ActionButtonStyle: ButtonStyle {
+struct ActionButtonStyle: ButtonStyle {
     private static let surface = UIColor { $0.userInterfaceStyle == .dark ? .secondarySystemBackground : .white }
     private static let pressed = UIColor { $0.userInterfaceStyle == .dark ? .tertiarySystemBackground : .systemGray5 }
 
@@ -67,7 +67,7 @@ private struct ActionButtonStyle: ButtonStyle {
     }
 }
 
-private struct ActionLabel: View {
+struct ActionLabel: View {
     let title: String
     let icon: String
     var body: some View {

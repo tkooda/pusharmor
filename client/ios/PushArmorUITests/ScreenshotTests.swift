@@ -259,6 +259,13 @@ final class ScreenshotTests: XCTestCase {
             shot("07-history-empty-\(theme)")
             app.terminate()
 
+            app = launch(["-PAScreenshotsFiles", "-appearance", theme])
+            app.tabBars.buttons["History"].tap()
+            XCTAssertTrue(labelled(app, "Trail map.pdf").waitForExistence(timeout: 30))
+            sleep(1)
+            shot("12-history-files-\(theme)")
+            app.terminate()
+
             app = launch(["-PAScreenshotsUpdate", "-appearance", theme])
             XCTAssertTrue(app.buttons["Update"].waitForExistence(timeout: 30))
             sleep(1)

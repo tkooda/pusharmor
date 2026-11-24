@@ -125,6 +125,8 @@ struct SettingsView: View {
                         .font(.caption).foregroundColor(.secondaryText)
                 }
 
+                FileSettingsSection()
+
                 if model.phase == .main {
                     Section("Account") {
                         // One centered row, Delete account then Log out. Log out acts at once.

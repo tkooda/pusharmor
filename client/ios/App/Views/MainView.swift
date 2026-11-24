@@ -157,10 +157,14 @@ struct HistoryTab: View {
             }
             .onChange(of: model.history.map(\.rowid)) { _, ids in selection.keep(only: Set(ids)) }
             .onDisappear { selection.exit() }
+            // received files decrypt only while History shows
+            .onAppear { model.setHistoryVisible(true) }
+            .onDisappear { model.setHistoryVisible(false) }
             // History on the screen, at open and at each return to the app: message notifications go
             .onAppear { if scenePhase == .active { Task { await model.clearMessageNotifications() } } }
             .onChange(of: scenePhase) { _, p in
                 if p == .active { Task { await model.clearMessageNotifications() } }
+                if p == .active { model.decryptDue() }
             }
             .alert(selection.confirmTitle, isPresented: $confirmDelete) {
                 Button("Cancel", role: .cancel) {}

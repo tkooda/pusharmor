@@ -256,6 +256,17 @@ struct ChipFlow: Layout {
     }
 }
 
+/// A file chosen on the Send screen (picked, or an image pasted into the message box).
+struct ChosenFile: Equatable {
+    let url: URL
+    let name: String
+    let size: Int64
+    /// A security-scoped URL from the file picker.
+    let scoped: Bool
+    /// A pasted image written to a temporary file, removed with the choice.
+    let temp: Bool
+}
+
 /// The Send tab: message card; the device chips and Send stay pinned
 /// above the tab bar (and above the keyboard).
 struct ComposeView: View {
@@ -282,6 +293,9 @@ struct ComposeView: View {
     /// The send popup's caption and device names, set at the tap.
     @State private var sendCaption = ""
     @State private var sendNames: [String] = []
+    /// A chosen file replaces the message box; one type per message.
+    @State private var chosen: ChosenFile?
+    @State private var picking = false
 
     init(draft: String) {
         _text = State(initialValue: draft)
@@ -316,7 +330,8 @@ struct ComposeView: View {
     private var content: String { SendScreenRules.content(text, type: typeChoice.type) }
 
     private var canSend: Bool {
-        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !SizeCap.isOver(content) && hasRecipient
+        if chosen != nil { return hasRecipient }
+        return !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !SizeCap.isOver(content) && hasRecipient
     }
 
     private func enabled(_ p: Peer) -> Bool { p.canReceive }
@@ -351,6 +366,9 @@ struct ComposeView: View {
                 SendPopup(caption: sendCaption, names: sendNames, step: model.sendStep, retry: model.sendRetry)
             }
         }
+        .fileImporter(isPresented: $picking, allowedContentTypes: [.item]) { result in
+            if case .success(let u) = result { choose(u, scoped: true, temp: false) }
+        }
         .onAppear { restoreSelection() }
         .onChange(of: candidates.map { $0.id.text }) { _, _ in restoreSelection() }
         .onChange(of: text) { _, t in
@@ -372,53 +390,147 @@ struct ComposeView: View {
         VStack(alignment: .leading, spacing: 6) {
             let h = SendScreenRules.messageHeight(
                 lineHeight: UIFont.preferredFont(forTextStyle: .body).lineHeight, visible: barTop - listTop)
-            TextEditor(text: $text)
-                .focused($editing)
-                .frame(minHeight: h.min, maxHeight: h.max)
-                .scrollContentBackground(.hidden)
-                .overlay(alignment: .topLeading) {
-                    if text.isEmpty {
-                        Text("Message")
-                            .foregroundColor(.secondaryText)
-                            .padding(.top, 8)
-                            .padding(.leading, 5)
-                            .allowsHitTesting(false)
-                            .accessibilityHidden(true)
+            if let c = chosen {
+                fileCard(c)
+            } else {
+                TextEditor(text: $text)
+                    .focused($editing)
+                    .frame(minHeight: h.min, maxHeight: h.max)
+                    .scrollContentBackground(.hidden)
+                    .overlay(alignment: .topLeading) {
+                        if text.isEmpty {
+                            Text("Message")
+                                .foregroundColor(.secondaryText)
+                                .padding(.top, 8)
+                                .padding(.leading, 5)
+                                .allowsHitTesting(false)
+                                .accessibilityHidden(true)
+                        }
                     }
-                }
-                .accessibilityLabel("Message")
-                .padding(4)
-                .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .strokeBorder(editing ? Color.brandGreen : Color(uiColor: .separator), lineWidth: editing ? 1.5 : 1)
-                )
-            // large text: the caption, counter, and checkbox stack
-            let ax = typeSize.isAccessibilitySize
-            let row = ax ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8)) : AnyLayout(HStackLayout(spacing: 8))
-            row {
-                let c = SendScreenRules.caption(typeChoice.detected, asText: typeChoice.on)
-                Label(c.title, systemImage: c.symbol)
+                    .accessibilityLabel("Message")
+                    .padding(4)
+                    .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .strokeBorder(editing ? Color.brandGreen : Color(uiColor: .separator), lineWidth: editing ? 1.5 : 1)
+                    )
+                    // while the box is empty: paste an image or choose a file, at its bottom right
+                    .overlay(alignment: .bottomTrailing) {
+                        if text.isEmpty {
+                            HStack(spacing: 8) {
+                                PasteButton(payloadType: PastedImage.self) { items in
+                                    if let d = items.first?.data { Task { @MainActor in pasted(d) } }
+                                }
+                                .labelStyle(.iconOnly)
+                                Button { picking = true } label: { Label(FileUi.chooseFile, systemImage: "paperclip") }
+                                    .buttonStyle(.bordered)
+                            }
+                            .font(.footnote)
+                            .padding(8)
+                        }
+                    }
+            }
+            // the caption shows once there is something to send
+            if chosen != nil {
+                Label(FileUi.willSendFile, systemImage: "doc")
                     .font(.footnote)
                     .foregroundColor(.secondaryText)
-                if !ax { Spacer(minLength: 8) }
-                if SendScreenRules.showsCounter(content) {
-                    Text(counter)
-                        .font(.footnote)
-                        .foregroundColor(.errorText)
-                        .frame(maxWidth: ax ? .infinity : nil, alignment: .trailing)
-                }
-                // only while a URL or phone number is detected, at the far right
-                if typeChoice.offered {
-                    Toggle("Send as text", isOn: Binding(get: { typeChoice.on }, set: { typeChoice.set($0) }))
-                        .toggleStyle(.switch)
+            } else if !text.isEmpty {
+                // large text: the caption, counter, and checkbox stack
+                let ax = typeSize.isAccessibilitySize
+                let row = ax ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8)) : AnyLayout(HStackLayout(spacing: 8))
+                row {
+                    let c = SendScreenRules.caption(typeChoice.detected, asText: typeChoice.on)
+                    Label(c.title, systemImage: c.symbol)
                         .font(.footnote)
                         .foregroundColor(.secondaryText)
-                        .fixedSize(horizontal: !ax, vertical: true)
+                    if !ax { Spacer(minLength: 8) }
+                    if SendScreenRules.showsCounter(content) {
+                        Text(counter)
+                            .font(.footnote)
+                            .foregroundColor(.errorText)
+                            .frame(maxWidth: ax ? .infinity : nil, alignment: .trailing)
+                    }
+                    // only while a URL or phone number is detected, at the far right
+                    if typeChoice.offered {
+                        Toggle("Send as text", isOn: Binding(get: { typeChoice.on }, set: { typeChoice.set($0) }))
+                            .toggleStyle(.switch)
+                            .font(.footnote)
+                            .foregroundColor(.secondaryText)
+                            .fixedSize(horizontal: !ax, vertical: true)
+                    }
                 }
             }
         }
         .padding(.vertical, 4)
+    }
+
+    /// The chosen file in place of the message box: its icon, name, and size, and an X to remove it.
+    private func fileCard(_ c: ChosenFile) -> some View {
+        HStack(spacing: 12) {
+            IconTile(FileUi.symbol(FileUi.kind(c.name)))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(c.name).lineLimit(1).truncationMode(.middle)
+                Text(FileUi.sizeText(c.size)).font(.footnote).foregroundColor(.secondaryText)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Button { removeChosen() } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(Color.secondary)
+                    .imageScale(.large)
+                    .frame(minWidth: 44, minHeight: 44)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(FileUi.removeFile)
+        }
+        .padding(8)
+        .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color(uiColor: .separator), lineWidth: 1))
+    }
+
+    /// A picked or pasted file: its name gets an extension from its type when it has none, then
+    /// the name rule; a file over the limit or one that cannot be read is not chosen.
+    private func choose(_ url: URL, scoped: Bool, temp: Bool) {
+        let open = scoped && url.startAccessingSecurityScopedResource()
+        defer { if open { url.stopAccessingSecurityScopedResource() } }
+        let v = try? url.resourceValues(forKeys: [.fileSizeKey, .contentTypeKey, .isRegularFileKey])
+        var raw = url.lastPathComponent
+        if FileUi.ext(raw).isEmpty, let e = v?.contentType?.preferredFilenameExtension { raw += "." + e }
+        let name = FileFlow.name(raw, timeSec: Int64(Date().timeIntervalSince1970))
+        guard v?.isRegularFile == true, let size = v?.fileSize else {
+            model.toast = FileUi.unreadable(name)
+            return
+        }
+        guard Int64(size) <= FileRules.maxFile else {
+            model.toast = FileUi.tooLarge(name)
+            if temp { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+            return
+        }
+        chosen = ChosenFile(url: url, name: name, size: Int64(size), scoped: scoped, temp: temp)
+    }
+
+    /// An image pasted into the empty message box becomes the chosen file.
+    private func pasted(_ data: Data) {
+        guard FileUi.paste(clipHasImage: true, textEmpty: text.isEmpty) == .image else {
+            model.toast = FileUi.pasteImageClear
+            return
+        }
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("paste-" + UUID().uuidString, isDirectory: true)
+        let url = dir.appendingPathComponent(FileUi.pastedImageName(data, timeSec: Int64(Date().timeIntervalSince1970)))
+        do {
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            try data.write(to: url)
+        } catch {
+            model.toast = FileUi.unreadable(url.lastPathComponent)
+            return
+        }
+        choose(url, scoped: false, temp: true)
+    }
+
+    private func removeChosen() {
+        if let c = chosen, c.temp { try? FileManager.default.removeItem(at: c.url.deletingLastPathComponent()) }
+        chosen = nil
     }
 
     /// Device chips and the Send button, pinned at the bottom.
@@ -443,6 +555,21 @@ struct ComposeView: View {
                 .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Color.cardEdge, lineWidth: 1))
             }
             Button {
+                if let c = chosen {
+                    let all = toAll && showAll
+                    let ids = all ? [] : candidates.filter { selected.contains($0.id.text) && enabled($0) }.map { $0.id.text }
+                    let sel = selected
+                    let chosenPeers = all ? model.allSet : candidates.filter { selected.contains($0.id.text) && enabled($0) }
+                    sendNames = PeerLabel.sorted(chosenPeers).map { model.label($0) }
+                    sendCaption = FileUi.sending(to: sendNames)
+                    Task {
+                        // the upload started: the file clears; the result comes as the toast
+                        if await RecipientMemory.send(sel, { await model.sendFile(c.url, name: c.name, scoped: c.scoped, toAll: all, peerIds: ids) }) {
+                            removeChosen()
+                        }
+                    }
+                    return
+                }
                 let u = typeChoice.type == .url
                 let t = content
                 let a = typeChoice.on

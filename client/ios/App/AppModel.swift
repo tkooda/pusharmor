@@ -102,13 +102,22 @@ final class AppModel: ObservableObject {
 
     let env = AppEnvironment.shared
     private(set) var core: Core?
-    private var store: Store?
+    private(set) var store: Store?
     var pushInfo: PushInfo?
     private var limitTicket: (ticket: String, at: Date)?
     private var requestToken: String?
     private var pendingKeys: DeviceKeys?
     /// The file transfer launch step ran (once per process).
     private var filesLaunched = false
+    /// File records by History rowid, sends not in History yet, and bytes of running transfers by file id.
+    @Published var files: [Int64: FileRecord] = [:]
+    @Published var pendingSends: [FileRecord] = []
+    @Published var fileBytes: [Int64: Int64] = [:] { didSet { fileSendProgress() } }
+    /// The History tab shows: decrypts run only then.
+    var historyVisible = false
+    var decryptRunning = false
+    /// The file send the send popup shows.
+    var sendingFile: Int64?
 
     var auth: AuthClient { AuthClient(api: core?.api ?? APIClient()) }
 
@@ -132,6 +141,7 @@ final class AppModel: ObservableObject {
             return
         }
         #endif
+        wireFiles()
         await open()
         UNUserNotificationCenter.current().setNotificationCategories(BannerContent.categories())
         UIApplication.shared.registerForRemoteNotifications()
@@ -317,6 +327,9 @@ final class AppModel: ObservableObject {
         pairings = Dictionary(uniqueKeysWithValues: ((try? store.pairings()) ?? []).map { ($0.peerId.text, $0) })
         _ = try? core?.settlePendingDeletes()
         history = HistoryFilter.listed((try? store.history()) ?? [])
+        loadFiles()
+        fileSendProgress()
+        decryptDue()
         relayFault = (try? store.setting(Core.relayFaultKey)) == "1"
         pushUnsupported = (try? store.setting(Core.pushUnsupportedKey)) == "1"
     }

@@ -48,6 +48,8 @@ struct HistoryView: View {
                 }
                 .listRowSeparator(.hidden)
             }
+            // sent files whose message has not gone yet, newest first
+            ForEach(model.pendingSends, id: \.id) { PendingSendRow(file: $0) }
             if rows.isEmpty {
                 VStack(spacing: 8) {
                     MessagesIllustration()
@@ -147,6 +149,9 @@ struct HistoryRowView: View {
     private var isEvent: Bool { row.type == "event" }
     /// A message type from a newer version: it shows S.unknownType and does not open.
     private var isUnknownType: Bool { row.type == "unknown" }
+    /// A file row: its state and buttons show under it, and it does not open.
+    private var isFile: Bool { row.type == "file" }
+    private var file: FileRecord? { isFile ? model.files[row.rowid] : nil }
 
     private var senderName: String {
         if outgoing { return "Sent" }
@@ -158,6 +163,7 @@ struct HistoryRowView: View {
 
     private var iconName: String {
         if outgoing { return "paperplane" }
+        if isFile { return FileUi.symbol(FileUi.kind(row.content)) }
         if unknown { return "app.badge" }
         return platformSymbol(peer?.platform)
     }
@@ -169,7 +175,7 @@ struct HistoryRowView: View {
         row.delPending.compactMap { id in model.peers.first { $0.id.text == id } }.map { PeerLabel.label($0) }
     }
 
-    private var isOpen: Bool { expanded && !selecting && !isEvent && !isUnknownType }
+    private var isOpen: Bool { expanded && !selecting && !isEvent && !isUnknownType && !isFile }
 
     private var contentText: String {
         if isUnknownType { return S.unknownType }
@@ -202,6 +208,7 @@ struct HistoryRowView: View {
         VStack(alignment: .leading, spacing: 12) {
             summary
             if isOpen { MessageDetailView(row: row, notDeletedOn: notDeletedOn) }
+            if let f = file, !selecting { FileRowDetail(file: f, outgoing: outgoing) }
         }
     }
 
@@ -270,14 +277,15 @@ struct HistoryRowView: View {
         .onLongPressGesture { if selecting { onToggle() } else { onLongPress() } }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(a11yLabel)
-        .accessibilityValue(isEvent || isUnknownType || selecting ? "" : (isOpen ? "Expanded" : "Collapsed"))
+        .accessibilityValue(isEvent || isUnknownType || isFile || selecting ? "" : (isOpen ? "Expanded" : "Collapsed"))
         .accessibilityAddTraits(selecting && selected ? [.isButton, .isSelected] : (selecting || !isEvent ? AccessibilityTraits.isButton : []))
         .accessibilityAction { selecting ? onToggle() : tap() }
         .accessibilityAction(named: "Select") { if selecting { onToggle() } else { onLongPress() } }
     }
 
     private var a11yLabel: String {
-        [unread ? "Unread" : nil, senderName, timeLabel, contentText, resultsSummary,
+        [unread ? "Unread" : nil, senderName, timeLabel, contentText,
+         isFile ? FileUi.detail(row.content, size: file?.size ?? 0) : nil, resultsSummary,
          notDeletedOn.isEmpty ? nil : S.notDeletedOn(notDeletedOn)]
             .compactMap { $0 }
             .joined(separator: ", ")
@@ -299,6 +307,13 @@ struct HistoryRowView: View {
         switch row.type {
         case "url": Text(contentText).lineLimit(typeSize.isAccessibilitySize ? 3 : 1).truncationMode(.middle)
         case "tel": Text(contentText).lineLimit(typeSize.isAccessibilitySize ? 3 : 1)
+        case "file":
+            VStack(alignment: .leading, spacing: 2) {
+                Text(contentText).lineLimit(typeSize.isAccessibilitySize ? 3 : 1).truncationMode(.middle)
+                if let f = file {
+                    Text(FileUi.detail(f.name, size: f.size)).font(.caption).foregroundColor(.secondaryText)
+                }
+            }
         case "unknown":
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 Image(systemName: "xmark.circle.fill").imageScale(.small)
@@ -324,7 +339,7 @@ struct HistoryRowView: View {
     private func tap() {
         if isEvent { return }
         model.markRead(row)
-        if isUnknownType { return }
+        if isUnknownType || isFile { return }
         model.detailRow = HistoryExpand.tap(open: model.detailRow?.rowid, tapped: row.rowid) == nil ? nil : row
     }
 }

@@ -11,7 +11,8 @@ import PushArmorCore
 /// has no other device at all (the first-pair screen). Screen review only: -PAScreenshotsNoHistory
 /// has no messages; -PAScreenshotsSent shows send results that stay on screen
 /// (-PAScreenshotsSentOK: a full success);
-/// -PAScreenshotsUpdate opens the update-required screen.
+/// -PAScreenshotsUpdate opens the update-required screen; -PAScreenshotsFiles adds file rows in
+/// their states (no file on this device, so no ready row).
 enum ScreenshotSample {
     private static let args = ProcessInfo.processInfo.arguments
     static var isOn: Bool { args.contains("-PAScreenshots") }
@@ -152,7 +153,35 @@ enum ScreenshotSample {
         let results = "{\"\(id("L"))\":\"sent\",\"\(id("W"))\":\"sent\",\"\(id("T"))\":\"logged out\"}"
         try store.addMessage(dir: .outgoing, peer: laptop, type: "url", content: draft, n: nil, pairingId: nil,
                              read: true, results: results, now: clock - 600)
+        if args.contains("-PAScreenshotsFiles") { try addFiles(store, laptop: laptop, desktop: desktop, now: now, clock: clock) }
         return store
+    }
+
+    /// File rows for screen review: waiting for a tap, failed, the memory error, expired, sent,
+    /// and a send on its way.
+    private static func addFiles(_ store: Store, laptop: PeerId, desktop: PeerId, now: Int64, clock: Int64) throws {
+        func add(_ dir: HistoryDir, _ peer: PeerId, _ name: String, _ size: Int64, _ state: String, at: Int64,
+                 code: String? = nil, error: String? = nil, expires: Int64) throws {
+            let row = try store.addMessage(dir: dir, peer: peer, type: "file", content: name, n: nil, pairingId: nil,
+                                           read: true, results: dir == .outgoing ? "{\"\(id("L"))\":\"sent\"}" : nil, now: at)
+            var f = FileRecord(dir: dir, key: "k", name: name, size: size, state: state, created: at)
+            f.historyRowid = row
+            f.expires = expires
+            f.code = code
+            f.error = error
+            try store.addFile(f)
+        }
+        try add(.incoming, desktop, "Expense report.pdf", 2_140_000, "failed", at: clock - 5400, code: "expired", error: "Expired",
+                expires: now - 60)
+        try add(.incoming, laptop, "IMG_2041.heic", 3_400_000, "ready", at: clock - 4800, code: "memory", error: S.notEnoughMemory,
+                expires: now + 20 * 3600)
+        try add(.incoming, desktop, "slides.key", 48_200_000, "failed", at: clock - 4200, code: "failed",
+                error: FileRules.downloadFailed, expires: now + 6 * 3600)
+        try add(.outgoing, laptop, "notes.txt", 12_400, "sent", at: clock - 3000, expires: now + 23 * 3600)
+        try add(.incoming, laptop, "Trail map.pdf", 64_500_000, "pending", at: clock - 60, expires: now + 3 * 3600 + 600)
+        var s = FileRecord(dir: .outgoing, key: "k", name: "photo.jpg", size: 2_600_000, state: "uploading", created: now)
+        s.recipients = [id("L")]
+        try store.addFile(s)
     }
 
     /// Asks for notification permission, then posts the sample link one second later.

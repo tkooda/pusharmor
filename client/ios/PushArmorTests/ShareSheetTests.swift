@@ -44,7 +44,7 @@ final class ShareSheetTests: XCTestCase {
     /// The top-left button reads Cancel until the result shows, then Done.
     func testDoneAfterTheResult() throws {
         let src = try source()
-        XCTAssertTrue(src.contains("Button(model.finished ? \"Done\" : \"Cancel\")"))
+        XCTAssertTrue(src.contains("Button(model.finished ? \"Done\" : (model.uploading ? \"Close\" : \"Cancel\"))"))
         XCTAssertTrue(src.contains("case .done, .failed: return true"))
     }
 

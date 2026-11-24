@@ -1,0 +1,222 @@
+import SwiftUI
+import UIKit
+import ImageIO
+import QuickLook
+import UniformTypeIdentifiers
+import PushArmorCore
+
+/// A file on this device for the Save action: its bytes, unchanged.
+struct FileExport: FileDocument {
+    static var readableContentTypes: [UTType] { [.data] }
+    let url: URL?
+
+    init(url: URL?) { self.url = url }
+
+    init(configuration: ReadConfiguration) throws { url = nil }
+
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        guard let u = url else { throw CocoaError(.fileReadNoSuchFile) }
+        return try FileWrapper(url: u, options: .immediate)
+    }
+}
+
+/// An image from the pasteboard (the Paste button of the message box).
+struct PastedImage: Transferable {
+    let data: Data
+
+    static var transferRepresentation: some TransferRepresentation {
+        DataRepresentation(importedContentType: .image) { PastedImage(data: $0) }
+    }
+}
+
+/// The part of a file History row under its header: the state of the transfer and, once the
+/// file is on this device, its buttons. A sent file shows its expiry only (no copy is kept).
+struct FileRowDetail: View {
+    let file: FileRecord
+    let outgoing: Bool
+    @EnvironmentObject var model: AppModel
+    @State private var preview: URL?
+    @State private var saving = false
+    /// The decrypted image decodes (checked once per file).
+    @State private var decodes: Bool?
+
+    private var now: Int64 { Int64(Date().timeIntervalSince1970) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if outgoing {
+                if let e = file.expires {
+                    Text(FileUi.expiresText(e, nowSec: now)).font(.caption).foregroundColor(.secondaryText)
+                }
+            } else {
+                incoming
+            }
+        }
+        .quickLookPreview($preview)
+        .fileExporter(isPresented: $saving, document: FileExport(url: saving ? model.plainURL(file) : nil), contentType: .data,
+                      defaultFilename: file.name) { result in
+            if case .failure(let e) = result, let t = ErrorCopy.saveFailText(e) { model.toast = t }
+        }
+    }
+
+    @ViewBuilder
+    private var incoming: some View {
+        switch model.fileStatus(file) {
+        case .pending(let exp):
+            downloadRow(exp)
+        case .downloading(let p):
+            VStack(alignment: .leading, spacing: 4) {
+                Label("Downloading \(p)%", systemImage: "arrow.down.circle")
+                    .font(.caption)
+                    .foregroundColor(.secondaryText)
+                ProgressView(value: Double(p), total: 100)
+                    .progressViewStyle(.linear)
+            }
+        case .decrypting:
+            ProgressView().accessibilityLabel("Opening")
+        case .failed(let text, let download, let exp):
+            let removed = text == FileUi.removed
+            Label(text, systemImage: removed ? "info.circle" : "exclamationmark.circle.fill")
+                .font(.caption)
+                .foregroundColor(removed ? .secondaryText : .errorText)
+            if download { downloadRow(exp) }
+        case .noMemory:
+            Label(S.notEnoughMemory, systemImage: "exclamationmark.circle.fill")
+                .font(.caption)
+                .foregroundColor(.errorText)
+            Button { model.decryptNow(file) } label: { Label("Decrypt", systemImage: "lock.open") }
+                .buttonStyle(.bordered)
+        case .expired:
+            Label(FileUi.expired, systemImage: "clock")
+                .font(.caption)
+                .foregroundColor(.secondaryText)
+        case .ready:
+            ready
+        }
+    }
+
+    /// The Download button with the expiry right of it.
+    private func downloadRow(_ exp: String?) -> some View {
+        HStack(spacing: 12) {
+            Button { model.downloadFile(file) } label: { Label("Download", systemImage: "arrow.down.circle") }
+                .buttonStyle(.bordered)
+            if let e = exp {
+                Text(e).font(.caption).foregroundColor(.secondaryText)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var ready: some View {
+        let url = model.plainURL(file)
+        let ok = decodes ?? true
+        Group {
+            if FileUi.previewNotAvailable(name: file.name, decodes: ok) {
+                Text(FileUi.previewNA).font(.caption).foregroundColor(.secondaryText)
+            }
+            HStack(spacing: 10) {
+                ForEach(FileUi.actions(name: file.name, decodes: ok), id: \.self) { a in
+                    button(a, url)
+                }
+            }
+        }
+        .task(id: file.id) {
+            guard FileUi.kind(file.name) == .image else { return }
+            decodes = await Task.detached { Self.decodes(url) }.value
+        }
+    }
+
+    /// The image header reads as an image (no full decode of a large file here).
+    nonisolated static func decodes(_ url: URL) -> Bool {
+        guard let src = CGImageSourceCreateWithURL(url as CFURL, nil), CGImageSourceGetCount(src) > 0 else { return false }
+        return CGImageSourceCopyPropertiesAtIndex(src, 0, nil) != nil
+    }
+
+    @ViewBuilder
+    private func button(_ a: FileUi.Action, _ url: URL) -> some View {
+        switch a {
+        case .view:
+            Button { preview = url } label: { ActionLabel(title: "View", icon: "photo") }
+                .buttonStyle(ActionButtonStyle())
+        case .open:
+            Button { preview = url } label: { ActionLabel(title: "Open", icon: "arrow.up.right.square") }
+                .buttonStyle(ActionButtonStyle())
+        case .copy:
+            Button { copyImage(url) } label: { ActionLabel(title: "Copy", icon: "doc.on.doc") }
+                .buttonStyle(ActionButtonStyle())
+        case .share:
+            ShareLink(item: url) { ActionLabel(title: "Share", icon: "square.and.arrow.up") }
+                .buttonStyle(ActionButtonStyle())
+        case .save:
+            Button { saving = true } label: { ActionLabel(title: "Save", icon: "square.and.arrow.down") }
+                .buttonStyle(ActionButtonStyle())
+        }
+    }
+
+    private func copyImage(_ url: URL) {
+        guard let img = UIImage(contentsOfFile: url.path) else {
+            model.toast = ToastText.copyFailed
+            return
+        }
+        UIPasteboard.general.image = img
+        model.toast = ToastText.copied
+        model.toastIsSuccess = true
+    }
+}
+
+/// A sent file not in History yet: its upload (or the send of its message) runs, or it failed.
+struct PendingSendRow: View {
+    let file: FileRecord
+    @EnvironmentObject var model: AppModel
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            IconTile("paperplane")
+            VStack(alignment: .leading, spacing: 4) {
+                Text(file.name).lineLimit(1).truncationMode(.middle)
+                Text(FileUi.detail(file.name, size: file.size)).font(.caption).foregroundColor(.secondaryText)
+                if file.state == "failed" {
+                    Label(file.error ?? FileTransfers.sendFailedText(file.name), systemImage: "exclamationmark.circle.fill")
+                        .font(.caption)
+                        .foregroundColor(.errorText)
+                    Button("Remove") { model.removePendingSend(file) }
+                        .buttonStyle(.bordered)
+                } else {
+                    let total = file.size + Int64(FileCrypto.overhead)
+                    let p = file.state == "uploading" ? Int(min((model.fileBytes[file.id] ?? 0) * 100 / max(total, 1), 99)) : 99
+                    Label("Sending \(p)%", systemImage: "arrow.up.circle")
+                        .font(.caption)
+                        .foregroundColor(.secondaryText)
+                    ProgressView(value: Double(p), total: 100)
+                        .progressViewStyle(.linear)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
+/// Settings: the helper over the two auto-download pickers, then the storage limit.
+struct FileSettingsSection: View {
+    @EnvironmentObject var model: AppModel
+
+    var body: some View {
+        Section {
+            Text(FileUi.helper).font(.caption).foregroundColor(.secondaryText)
+            picker(FileUi.onWifi, FileSettingKey.wifi)
+            picker(FileUi.onMobile, FileSettingKey.mobile)
+            Picker(FileUi.storageTitle, selection: Binding(get: { model.fileStorage }, set: { model.setFileStorage($0) })) {
+                ForEach(FileUi.storageOptions(total: model.deviceTotalBytes), id: \.self) { Text(FileUi.storageLabel($0)).tag($0) }
+            }
+            Text(FileUi.storageHelper).font(.caption).foregroundColor(.secondaryText)
+        } header: {
+            Text(FileUi.filesHeader)
+        }
+    }
+
+    private func picker(_ title: String, _ key: String) -> some View {
+        Picker(title, selection: Binding(get: { model.filePicker(key) }, set: { model.setFilePicker(key, $0) })) {
+            ForEach(FileRules.pickerSizes, id: \.self) { Text(FileUi.pickerLabel($0)).tag($0) }
+        }
+    }
+}
