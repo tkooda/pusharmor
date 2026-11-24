@@ -2,7 +2,8 @@
 // closes itself when idle; a service worker that starts also closes one that says
 // it is idle (the worker sleeps after 30 s, so it keeps no timer for this), but
 // never while a job of this worker is queued or running. A job whose document
-// closed under it (an idle close racing the job) opens a new one and runs once more.
+// closed under it (an idle close racing the job) opens a new one and runs once more,
+// except a decrypt, which is never re-run by itself.
 import { type FileHost, HostFailed, HostGone } from "../../webext-common/src/core/files.ts";
 import type { Browser } from "../../webext-common/src/shim-types.ts";
 
@@ -41,7 +42,7 @@ export function offscreenHost(b: Browser): FileHost {
           try {
             r = await b.runtime.sendMessage({ target: "offscreen", req });
           } catch {
-            if (attempt === 0) continue; // closed under the job: a new document, once
+            if (attempt === 0 && req.op !== "decrypt") continue; // closed under the job: a new document, once
             throw new HostGone();
           }
           if (r === null || r === undefined) throw new HostFailed();
