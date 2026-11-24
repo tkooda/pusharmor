@@ -134,6 +134,7 @@ class GoldenProtocolTest {
             is Effect.SelfRemoved, is Effect.Logout, Effect.Deny -> assertEquals(name, "1", value.jsonPrimitive.content)
             is Effect.Drop -> error("drop")
             is Effect.ShowUnknown -> error("unknown type")
+            is Effect.ShowFile -> assertEquals(name, value.jsonObject.str("name"), e.file.name)
             is Effect.Del -> assertEquals(name, value.toString(), e.ids.joinToString(",", "[", "]") { "\"$it\"" })
         }
     }

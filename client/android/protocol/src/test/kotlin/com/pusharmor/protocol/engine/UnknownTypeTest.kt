@@ -64,17 +64,17 @@ class UnknownTypeTest {
         assertTrue(store.history.isEmpty())
     }
 
-    /** A file shows as an unknown row (no notice) until this app shows files; a later del removes it. */
-    @Test fun fileIsAnUnknownRowWithNoNotice() {
+    /** A file is a file row with the file JSON and one file notice; a later del removes it. */
+    @Test fun fileIsAFileRowWithANotice() {
         val f = "{\"url\":\"https://b2file.pusharmor.com/v1/x\",\"expires\":1795405632,\"key\":\"MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY\",\"name\":\"a.pdf\",\"size\":5,\"sha256\":\"n4bQgYhMfWWaL-qgxVrQFaO_TxsrC4Is0V1sFbDwCgg\"}"
         val r = receive.onMessage(wireOf("{\"v\":1,\"n\":5,\"id\":\"abc_-9\",\"show\":true,\"file\":$f}"), 1000)
         assertTrue(r is Inbound.Accepted)
         assertTrue((r as Inbound.Accepted).body is MessageBody.File)
         val row = store.history.single()
-        assertEquals(HistoryRow.UNKNOWN, row.type)
-        assertEquals("file", row.content)
+        assertEquals(HistoryRow.FILE, row.type)
+        assertEquals("a.pdf", com.pusharmor.protocol.InnerMessage.fileValueOf(com.pusharmor.protocol.StrictJson.parseOrNull(row.content!!))!!.name)
         assertEquals("abc_-9", row.msgId)
-        assertTrue(effects.log.isEmpty())
+        assertEquals(listOf("file:a.pdf"), effects.log)
         receive.onMessage(wireOf("{\"n\":6,\"del\":[\"abc_-9\"]}"), 1001)
         assertTrue(store.history.isEmpty())
     }

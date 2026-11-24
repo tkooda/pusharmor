@@ -69,6 +69,8 @@ data class HistoryRow(
     companion object {
         /** Row type of a received message whose type this version does not know. */
         const val UNKNOWN = "unknown"
+        /** A file message; content: the file JSON. */
+        const val FILE = "file"
     }
 }
 
@@ -141,6 +143,8 @@ interface Effects {
 
     fun showContent(historyId: Long, peerId: String, content: com.pusharmor.protocol.ShownContent) {}
     fun rePresent(historyId: Long) {}
+    /** A received file: notify (unless already past expires) and queue its download per the auto-download rules. */
+    fun showFile(historyId: Long, peerId: String, file: com.pusharmor.protocol.FileValue) {}
     fun approvedNotice(peerId: String, name: String?) {}
     fun renamedNotice(oldName: String?, newName: String) {}
     fun peerListChanged() {}

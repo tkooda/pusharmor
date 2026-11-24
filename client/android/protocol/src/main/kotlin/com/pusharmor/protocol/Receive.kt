@@ -22,6 +22,9 @@ sealed class Effect {
     /** Content of a type this version does not know: a History row with no notification. */
     data class ShowUnknown(val typeKey: String) : Effect()
 
+    /** A received file: a History row and a notification; the app downloads it per its auto-download rules. */
+    data class ShowFile(val file: FileValue) : Effect()
+
     /** Dropped by the acceptance table after the verify (History may name the peer). */
     data class Drop(val why: String) : Effect()
 
@@ -139,8 +142,7 @@ object Receive {
             MessageBody.Deny -> if (!approved) Effect.Drop("not approved") else Effect.Deny
             is MessageBody.Del -> if (!approved) Effect.Drop("not approved") else Effect.Del(b.ids)
             is MessageBody.Unknown -> if (!approved) Effect.Drop("not approved") else Effect.ShowUnknown(b.typeKey)
-            // a file shows as an unknown row until this app shows files
-            is MessageBody.File -> if (!approved) Effect.Drop("not approved") else Effect.ShowUnknown(b.key)
+            is MessageBody.File -> if (!approved) Effect.Drop("not approved") else Effect.ShowFile(b.value)
         }
     }
 

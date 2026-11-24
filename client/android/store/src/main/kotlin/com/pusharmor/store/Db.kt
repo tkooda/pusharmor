@@ -198,6 +198,8 @@ interface PaDao {
     @Query("DELETE FROM history WHERE id IN (:ids)") fun deleteHistory(ids: List<Long>)
     @Query("SELECT id FROM history WHERE msg_id IN (:msgIds)") fun historyIdsByMsgIds(msgIds: List<String>): List<Long>
     @Query("SELECT * FROM history WHERE id IN (:ids)") fun historyRows(ids: List<Long>): List<HistoryEntity>
+    /** File rows, newest first. */
+    @Query("SELECT * FROM history WHERE type = 'file' ORDER BY received_at DESC, id DESC") fun fileRows(): List<HistoryEntity>
     @Query("UPDATE history SET del_req = :req, del_ok = :ok WHERE id = :id") fun setDeletePending(id: Long, req: String?, ok: String?)
     @Query("SELECT * FROM history WHERE del_req IS NOT NULL") fun pendingDeletes(): List<HistoryEntity>
     /** Keeps the [keep] newest rows by received time (ties: newest id). */

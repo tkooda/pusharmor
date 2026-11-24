@@ -65,6 +65,7 @@ class RecEffects : Effects {
     override fun newerVersionSeen() { log.add("newer") }
     override fun showContent(historyId: Long, peerId: String, content: com.pusharmor.protocol.ShownContent) { log.add("show:${content.value}") }
     override fun rePresent(historyId: Long) { log.add("represent:$historyId") }
+    override fun showFile(historyId: Long, peerId: String, file: com.pusharmor.protocol.FileValue) { log.add("file:${file.name}") }
     override fun approvedNotice(peerId: String, name: String?) { log.add("approved:$name") }
     override fun logoutNotice(peerId: String, loggedOut: Boolean) { log.add("logout:$loggedOut") }
     override fun deniedNotice(peerId: String) { log.add("denied") }

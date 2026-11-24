@@ -79,6 +79,22 @@ class SendFlow(private val store: LocalStore, me: Identity, private val api: Api
         }
     }
 
+    /** Sends a file message for a file already uploaded; the History row holds the file JSON. */
+    fun sendFile(recipientIds: List<String>, file: com.pusharmor.protocol.FileValue, now: Long, onStep: (Int) -> Unit = {}): Outcome {
+        val total = allSet(store.peers()).size
+        val peers = recipientIds.mapNotNull { store.peer(it) }.filter { it.pinned }
+        val body = MessageBody.File(file, MessageBody.newId())
+        val r = ClockSkew.run({ peers.associate { it.id to outbox.simple(it, body).message }.also { onStep(Step.ENCRYPTED) } }) { api.send(it) }
+        return when (r) {
+            is ApiResult.Ok -> {
+                val id = store.insertHistory(HistoryRow(direction = Direction.SENT, peerId = null, type = HistoryRow.FILE, content = file.toJson(), at = now, read = true, results = r.value, msgId = body.msgId))
+                handleResults(r.value)
+                Outcome(r.value, total, historyId = id)
+            }
+            else -> Outcome(emptyMap(), total, r)
+        }
+    }
+
     /**
      * "unapproved", "unknown", "gone", "logged out", "not listening" -> coalesced GET /peers;
      * "logged out" also sets peers.logged_out, "not listening" clears peers.listening.
@@ -399,6 +415,10 @@ class ReceiveEngine(
                 is Effect.Show -> {
                     val hid = store.insertHistory(HistoryRow(direction = Direction.RECEIVED, peerId = a.peerId, type = e.content.type.key, content = e.content.value, n = a.n, pairingId = a.pairingId, at = now, msgId = a.body.msgId))
                     after = { effects.showContent(hid, a.peerId, e.content) }
+                }
+                is Effect.ShowFile -> {
+                    val hid = store.insertHistory(HistoryRow(direction = Direction.RECEIVED, peerId = a.peerId, type = HistoryRow.FILE, content = e.file.toJson(), n = a.n, pairingId = a.pairingId, at = now, msgId = a.body.msgId))
+                    after = { effects.showFile(hid, a.peerId, e.file) }
                 }
                 is Effect.ShowUnknown -> {
                     // no notification: the row only says to update
