@@ -44,7 +44,8 @@ class UpService : PushService() {
     override fun onUnregistered(instance: String) = stored {
         UnifiedPushSupport.clearEndpoint(g)
         // After a switch to Google the distributor confirms the unregister: do not register again.
-        if (UnifiedPushSupport.active(g)) UnifiedPushSupport.register(g)
+        // Removed inside the UnifiedPush app: the only installed one is not saved again.
+        if (UnifiedPushSupport.active(g)) UnifiedPushSupport.register(g, saveOnly = false)
     }
 
     companion object {

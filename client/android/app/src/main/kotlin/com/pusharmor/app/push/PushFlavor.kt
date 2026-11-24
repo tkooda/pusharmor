@@ -51,11 +51,12 @@ object UnifiedPushSupport {
     /** Registration with the saved UnifiedPush app; a test replaces it. */
     internal var registerSaved: (Context) -> Unit = { UnifiedPush.register(it, INSTANCE, null, BuildConfig.VAPID_PUBLIC_KEY.ifEmpty { null }) }
 
-    fun register(g: Graph) {
+    /** [saveOnly] false (a distributor unregister): never save the only installed UnifiedPush app, so no silent re-subscribe. */
+    fun register(g: Graph, saveOnly: Boolean = true) {
         val c = g.app
         UnifiedPush.tryUseCurrentOrDefaultDistributor(c) { ok ->
             // The library saves a single UnifiedPush app only for an Activity context: save it here, as a pick in Settings does.
-            val only = if (ok) null else distributors(c).singleOrNull()
+            val only = if (ok || !saveOnly) null else distributors(c).singleOrNull()
             if (only != null) UnifiedPush.saveDistributor(c, only)
             if (ok || only != null) registerSaved(c)
             else if (active(g)) g.settings.set(Settings.K.BANNER, "no_distributor")

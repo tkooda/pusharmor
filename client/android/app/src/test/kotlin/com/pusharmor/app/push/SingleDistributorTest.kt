@@ -11,6 +11,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
@@ -42,6 +43,15 @@ class SingleDistributorTest {
         assertEquals("org.unifiedpush.distributor.sunup", store.getString("unifiedpush.distributor", null))
         assertEquals(1, registered)
         assertNull(g.settings.get(Settings.K.BANNER))
+    }
+
+    /** Removed inside the UnifiedPush app: the unregister does not save the only one again or register. */
+    @Test fun unregisterDoesNotResaveTheOnlyOne() {
+        g.settings.set(Settings.K.PUSH_TYPE, "unifiedpush")
+        UnifiedPushSupport.installed = { listOf("org.unifiedpush.distributor.sunup") }
+        Robolectric.buildService(UpService::class.java).create().get().onUnregistered(UnifiedPushSupport.INSTANCE)
+        assertNull(store.getString("unifiedpush.distributor", null))
+        assertEquals(0, registered)
     }
 
     @Test fun severalInstalledIsUnchanged() {
