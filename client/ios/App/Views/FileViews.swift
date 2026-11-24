@@ -33,40 +33,6 @@ struct FileSaver: UIViewControllerRepresentable {
     }
 }
 
-/// A small preview of a received image in place of its icon, made off the main thread; the
-/// icon until then, and when the file does not decode.
-struct FileThumb: View {
-    let url: URL
-    let symbol: String
-    @State private var image: UIImage?
-    @ScaledMetric private var size: CGFloat = 30
-
-    var body: some View {
-        Group {
-            if let i = image {
-                Image(uiImage: i)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: size, height: size)
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    .accessibilityHidden(true)
-            } else {
-                IconTile(symbol)
-            }
-        }
-        .task(id: url) { image = await Task.detached { Self.thumb(url) }.value }
-    }
-
-    /// At most 160 pixels on the longer side; nil when the file is not an image.
-    nonisolated static func thumb(_ url: URL) -> UIImage? {
-        guard let src = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
-        let opts: [CFString: Any] = [kCGImageSourceCreateThumbnailFromImageAlways: true,
-                                     kCGImageSourceCreateThumbnailWithTransform: true,
-                                     kCGImageSourceThumbnailMaxPixelSize: 160]
-        guard let cg = CGImageSourceCreateThumbnailAtIndex(src, 0, opts as CFDictionary) else { return nil }
-        return UIImage(cgImage: cg)
-    }
-}
 
 /// An image from the pasteboard (the Paste button of the message box).
 struct PastedImage: Transferable {
@@ -118,12 +84,7 @@ struct FileRowDetail: View {
                     .progressViewStyle(.linear)
             }
         case .decrypting:
-            // the decrypt's progress, per whole percent
-            let total = max(file.size, 1)
-            let p = Int(min((model.fileBytes[file.id] ?? 0) * 100 / total, 99))
-            ProgressView(value: Double(p), total: 100)
-                .progressViewStyle(.linear)
-                .accessibilityLabel("Opening")
+            ProgressView().accessibilityLabel("Opening")
         case .failed(let text, let download, let exp):
             let removed = text == FileUi.removed
             Label(text, systemImage: removed ? "info.circle" : "exclamationmark.circle.fill")
@@ -228,33 +189,11 @@ struct PendingSendRow: View {
     let file: FileRecord
     @EnvironmentObject var model: AppModel
 
-    private var time: some View {
-        let d = Date(timeIntervalSince1970: TimeInterval(file.created))
-        return Group {
-            if Calendar.current.isDateInToday(d) {
-                Text(d, style: .time)
-            } else if Calendar.current.isDateInYesterday(d) {
-                Text("Yesterday")
-            } else {
-                Text(d.formatted(.dateTime.month().day()))
-            }
-        }
-    }
-
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             IconTile("paperplane")
             VStack(alignment: .leading, spacing: 4) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text("Sent")
-                    Spacer(minLength: 8)
-                    time
-                        .font(.subheadline.monospacedDigit())
-                        .foregroundColor(.secondaryText)
-                        .lineLimit(1)
-                        .fixedSize()
-                }
-                Text(file.name).lineLimit(1).truncationMode(.middle).foregroundColor(.secondaryText)
+                Text(file.name).lineLimit(1).truncationMode(.middle)
                 Text(FileUi.detail(file.name, size: file.size)).font(.caption).foregroundColor(.secondaryText)
                 if file.state == "failed" {
                     Label(file.error ?? FileTransfers.sendFailedText(file.name), systemImage: "exclamationmark.circle.fill")

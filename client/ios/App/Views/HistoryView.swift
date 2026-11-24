@@ -230,8 +230,6 @@ struct HistoryRowView: View {
                     .foregroundColor(.secondaryText)
                     .frame(width: eventIcon, height: eventIcon)
                     .accessibilityHidden(true)
-            } else if let f = file, !outgoing, f.state == "done", FileUi.kind(f.name) == .image {
-                FileThumb(url: model.plainURL(f), symbol: iconName)
             } else {
                 IconTile(iconName)
             }
