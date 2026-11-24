@@ -124,7 +124,7 @@ public struct HistoryRow: Sendable {
     public var rowid: Int64
     public var dir: HistoryDir
     public var peerId: String?
-    public var type: String          // url | text | tel | event | unknown (content: the raw type key)
+    public var type: String          // url | text | tel | file (content: the file name) | event | unknown (content: the raw type key)
     public var content: String
     public var n: Int64?
     public var pairingId: Data?

@@ -411,7 +411,7 @@ extension Core {
         let ids = f.recipients.compactMap { PeerId(text: $0) }
         let rep: SendReport
         do {
-            rep = try await sendContent(.file(ref), rowType: "unknown", rowContent: "file", msgId: msgId, to: ids,
+            rep = try await sendContent(.file(ref), rowType: "file", rowContent: f.name, msgId: msgId, to: ids,
                                         allCount: f.allCount)
         } catch {
             // nothing was relayed: the next try uses the same upload

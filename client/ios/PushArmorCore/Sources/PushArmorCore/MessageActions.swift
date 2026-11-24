@@ -8,11 +8,11 @@ public enum MessageAction: String, Equatable, Sendable {
 
 public enum MessageActions {
     /// Links and phone numbers: Copy, Open, Share. Plain text: Read, Copy, Share, Save.
-    /// A message type from a newer version: none.
+    /// A message type from a newer version: none. A file row has its own buttons (FileUi).
     public static func actions(forType type: String) -> [MessageAction] {
         switch type {
         case "url", "tel": return [.copy, .open, .share]
-        case "unknown": return []
+        case "unknown", "file": return []
         default: return [.read, .copy, .share, .save]
         }
     }

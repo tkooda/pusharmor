@@ -191,8 +191,8 @@ extension Core {
             case .represent:
                 guard mode == .nse, let from = r.verifiedFrom, let j = r.json, let pid = r.pairingId,
                       let row = try? store.historyRow(peer: from, pairingId: pid, n: j.n) else { return .plain(nil) }
-                // a row of a type from a newer version re-presents the generic fallback
-                let b = row.type == "unknown" ? Banner.fallback : banner(forRow: row)
+                // a row of a type from a newer version, or a file row, re-presents the generic fallback
+                let b = row.type == "unknown" || row.type == "file" ? Banner.fallback : banner(forRow: row)
                 return ReceiveResult(banner: b, rowid: row.rowid, committed: true, newMessage: false,
                                      approveVerified: false)
             case .noop:
@@ -262,10 +262,10 @@ extension Core {
             if let row = try store.historyRow(rowid) { a.banner = banner(forRow: row) }
             return a
         case .file(let f):
-            // until the file row ships, a file shows as the unknown-type row (content "file");
-            // its transfer state is the files record
+            // the file row (content: the file name); its transfer state is the files record
             try store.savePeer(p)
-            let rowid = try store.addMessage(dir: .incoming, peer: from, type: "unknown", content: "file", n: j.n,
+            let rowid = try store.addMessage(dir: .incoming, peer: from, type: "file",
+                                             content: FileFlow.name(f.name, timeSec: now), n: j.n,
                                              pairingId: pid, read: false, results: nil, now: now, msgId: j.id)
             a.rowid = rowid
             // a file already past expires is stored expired (never downloaded); its notification is

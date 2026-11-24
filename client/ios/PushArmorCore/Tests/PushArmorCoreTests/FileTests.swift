@@ -353,7 +353,7 @@ final class FileTests: XCTestCase {
         XCTAssertEqual(f.state, "uploaded")
         XCTAssertEqual(f.tries, 2)
 
-        // the file message goes to the device; the blob goes; the sent row is the unknown-type row for now
+        // the file message goes to the device; the blob goes; the sent row is the file row, named
         let rep = try await n.core.fileSendMessage(f.id, dir: nDir)
         XCTAssertTrue(rep.allSent)
         // a second caller (app open, a session event) sends nothing more
@@ -365,18 +365,19 @@ final class FileTests: XCTestCase {
         f = try XCTUnwrap(try n.core.store.file(f.id))
         XCTAssertEqual(f.state, "sent")
         let sentRow = try XCTUnwrap(try n.core.store.historyRow(f.historyRowid!))
-        XCTAssertEqual(sentRow.type, "unknown")
+        XCTAssertEqual(sentRow.type, "file")
+        XCTAssertEqual(sentRow.content, f.name)
         XCTAssertEqual(sentRow.msgId, f.msgId)
 
-        // receive: a History row that shows as the unknown-type row, and a pending files record
+        // receive: a file History row with the cleaned name, and a pending files record
         let pushed = w.take(x.id)
         XCTAssertEqual(pushed.count, 1)
         let r = await x.core.receive(pushed[0], mode: .nse)
         let fid = try XCTUnwrap(r.fileId)
         XCTAssertTrue(r.newMessage)
         let row = try XCTUnwrap(try x.core.store.historyRow(r.rowid!))
-        XCTAssertEqual(row.type, "unknown")
-        XCTAssertEqual(row.content, "file")
+        XCTAssertEqual(row.type, "file")
+        XCTAssertEqual(row.content, "re port_.bin")
         var g = try XCTUnwrap(try x.core.store.file(fid))
         XCTAssertEqual(g.state, "pending")
         XCTAssertEqual(g.name, "re port_.bin")
