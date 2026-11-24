@@ -966,23 +966,13 @@ function viewImage(blob: Blob, name: string): void {
     h("div", { class: "vbar" }, h("span", { class: "vname" }, name), h("button", { type: "button", class: "icon-btn", "aria-label": "Close", title: "Close", onclick: () => dlg.close() }, icon("close", 20))),
     pane,
   ) as HTMLDialogElement;
-  img.tabIndex = 0;
   img.addEventListener("click", () => img.classList.toggle("fit"));
-  // keyboard: Enter or Space toggles, + shows the real size, - fits
-  dlg.addEventListener("keydown", (ev: KeyboardEvent) => {
-    if ((ev.key === "Enter" || ev.key === " ") && document.activeElement === img) img.classList.toggle("fit");
-    else if (ev.key === "+" || ev.key === "=") img.classList.remove("fit");
-    else if (ev.key === "-") img.classList.add("fit");
-    else return;
-    ev.preventDefault();
-  });
   dlg.addEventListener("close", () => {
     URL.revokeObjectURL(url);
     dlg.remove();
   });
   document.body.append(dlg);
   dlg.showModal();
-  img.focus();
 }
 
 /** The decrypted file of a row, or null with the row's "Removed from this device" toast. */
