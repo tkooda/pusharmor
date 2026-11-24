@@ -199,6 +199,19 @@ describe("migration 0009 on existing rows", () => {
   });
 });
 
+describe("migration 0010 on existing rows", () => {
+  it("clears every stored version, other columns kept", async () => {
+    const [a, b] = await family(2);
+    await env.DB.prepare("UPDATE peers SET version = '0.0.54' WHERE id = ?1").bind(a.id).run();
+    const before = (await env.DB.prepare("SELECT * FROM peers ORDER BY id").all()).results;
+    const q = (prefix: string) => env.TEST_MIGRATIONS.find((m) => m.name.startsWith(prefix))!.queries;
+    for (const s of q("0010")) await env.DB.prepare(s).run();
+    const after = (await env.DB.prepare("SELECT * FROM peers ORDER BY id").all()).results;
+    expect(after).toEqual(before.map((r) => ({ ...r, version: null })));
+    expect(await row(b.id)).toMatchObject({ version: null });
+  });
+});
+
 describe("migration 0007 on existing rows", () => {
   it("moves push verified_at to push_verified_at and strips the key; unconfirmed rows keep NULL; shape-only CHECKs", async () => {
     const [a, b] = await family(2);

@@ -3,7 +3,6 @@ import type { Ctx } from "../context";
 import { monthStart, nowS } from "../context";
 import { bad, checkMessageMap, keysExactly, requireAccount } from "../codec/validate";
 import { parseJsonObject } from "../pipeline/body";
-import { clientVersion } from "../pipeline/client";
 import * as SQL from "../db/sql";
 import { all } from "../db/d1";
 import { ctxRelayRow, type CtxRow } from "../db/rows";
@@ -27,8 +26,6 @@ export async function send(c: Ctx): Promise<Response> {
   const extra: D1PreparedStatement[] = [];
   const seen = caller!.seen;
   if (typeof seen === "number" && seen < monthStart(now)) extra.push(c.env.DB.prepare(SQL.W_SEEN).bind(s.acct, monthStart(now)));
-  const version = clientVersion(c.req.headers.get("PA-Client"));
-  if (version !== null && version !== caller!.my_version) extra.push(c.env.DB.prepare(SQL.W_VERSION).bind(s.me, s.acct, version));
   const r = await relayMap(c, s.acct, m, (id) => ctxRelayRow(byId.get(id)), "send", extra);
   return json(200, withPushMissing({ r }, caller!.push === null));
 }

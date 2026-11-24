@@ -20,7 +20,6 @@ import { ctEqualStr } from "../crypto/hash";
 import { makeTicket, TICKET_LIFE_PEER_LIMIT_S, TICKET_LIFE_S, TICKET_RENEW_MAX_S } from "../crypto/tokens";
 import { ApiError } from "../errors";
 import { checkSig, checkTime } from "../pipeline/signed";
-import { clientVersion } from "../pipeline/client";
 import { enforce, enforceAccount } from "../pipeline/limits";
 import * as SQL from "../db/sql";
 import { all, batch } from "../db/d1";
@@ -93,8 +92,6 @@ export async function register(c: Ctx): Promise<Response> {
   if (reg.old_sign !== null && (reg.old_sign !== signPub || reg.old_enc !== encPub)) throw new ApiError(409, "id collision");
 
   const now = nowS();
-  // The caller's version is stored with the registration, so a new device needs no GET /peers to report it.
-  const version = clientVersion(c.req.headers.get("PA-Client"));
   const listStmt = c.env.DB.prepare(SQL.Q_LIST).bind(id, acct);
   let rows: ListRow[];
   let pushWritten = false;
@@ -111,21 +108,12 @@ export async function register(c: Ctx): Promise<Response> {
       rows = rs[1].results as ListRow[];
       pushWritten = true;
     }
-    // The stored version comes from the list (no extra read); a changed one is written best effort, as on GET /peers.
-    const old = rows.find((r) => r.id === id);
-    if (version !== null && old && version !== old.version) {
-      try {
-        await c.env.DB.batch([c.env.DB.prepare(SQL.W_VERSION).bind(id, acct, version)]);
-      } catch {
-        c.log.gone_write = "failed";
-      }
-    }
   } else {
     const stmts: D1PreparedStatement[] = [];
     for (const e of evict) stmts.push(c.env.DB.prepare(SQL.W_DEL).bind(e, acct), c.env.DB.prepare(SQL.W_PRUNE).bind(e, acct, "{}", now));
     stmts.push(
       c.env.DB.prepare(SQL.W_ACCT).bind(acct, dayStart(now), monthStart(now)),
-      c.env.DB.prepare(SQL.W_REG).bind(id, acct, signPub, encPub, push ? push.pushType : null, push ? push.stored : null, now, platform, version),
+      c.env.DB.prepare(SQL.W_REG).bind(id, acct, signPub, encPub, push ? push.pushType : null, push ? push.stored : null, now, platform),
       listStmt,
     );
     const rs = await batch(c.env.DB, stmts);
@@ -155,8 +143,7 @@ export async function list(c: Ctx): Promise<Response> {
   const rows = await all<ListRow>(c.env.DB.prepare(SQL.Q_LIST).bind(s.me, s.acct));
   const self = rows.find((r) => r.id === s.me);
   await callerCheck(c, s, self);
-  const body = await listBody(rows, s.me, true);
-  const writes: D1PreparedStatement[] = [];
+  const body = await listBody(rows, s.me);
   // Stored remove messages (peers.rm): delivered once, then cleared if unchanged since the read.
   if (self!.my_rm && self!.my_rm !== "{}") {
     const listed = new Set(rows.map((r) => r.id));
@@ -166,18 +153,7 @@ export async function list(c: Ctx): Promise<Response> {
       if (!listed.has(b) && e[0] >= cutoff) removed[b] = e[1];
     }
     if (Object.keys(removed).length) body.removed = removed;
-    writes.push(c.env.DB.prepare(SQL.W_RM_CLEAR).bind(s.me, s.acct, self!.my_rm));
-  }
-  if (writes.length) await batch(c.env.DB, writes);
-  // The version write is best effort, as on POST /send: a failure does not fail the list, and the
-  // next GET /peers or POST /send writes it, because the stored value still differs.
-  const version = clientVersion(c.req.headers.get("PA-Client"));
-  if (version !== null && version !== self!.version) {
-    try {
-      await c.env.DB.batch([c.env.DB.prepare(SQL.W_VERSION).bind(s.me, s.acct, version)]);
-    } catch {
-      c.log.gone_write = "failed";
-    }
+    await batch(c.env.DB, [c.env.DB.prepare(SQL.W_RM_CLEAR).bind(s.me, s.acct, self!.my_rm)]);
   }
   return json(200, withPushMissing(body, self!.my_push === null));
 }

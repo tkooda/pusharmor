@@ -33,12 +33,6 @@ export function parseClient(h: string | null): { platform: string; version: numb
   return m ? { platform: m[1], version: [Number(m[2]), Number(m[3]), Number(m[4])] } : null;
 }
 
-// The "x.y.z" stored as peers.version, or null when the header is missing or malformed.
-export function clientVersion(h: string | null): string | null {
-  const c = parseClient(h);
-  return c ? c.version.join(".") : null;
-}
-
 function lower(a: number[], b: number[]): boolean {
   for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return a[i] < b[i];
   return false;

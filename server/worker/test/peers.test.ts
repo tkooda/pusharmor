@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { env } from "cloudflare:test";
 import { b64urlEncode } from "../src/codec/b64url";
 import { type Peer, acctOf, call, cliCodeFor, initP256, keys, message, newPeer, pushFor, randomEmail, register, row, setAllow, ticketFor, vendorRequests } from "./helpers";
@@ -703,160 +703,20 @@ describe("rm expiry in the monthly cron", () => {
   });
 });
 
-describe("peer app versions", () => {
-  const ua = (v: string) => ({ headers: { "PA-Client": v } });
-  const versionWrites = (spy: { mock: { calls: unknown[][] } }) => spy.mock.calls.filter((a) => String(a[0]).includes("SET version")).length;
-
-  it("GET /peers stores the caller's version only when it changed", async () => {
+describe("no app versions", () => {
+  it("POST /peers, GET /peers, and POST /send never store or list a version", async () => {
     const email = randomEmail();
-    const a = await newPeer(email);
-    expect((await row(a.id))!.version).toBeNull();
-    const spy = vi.spyOn(env.DB, "prepare");
-    try {
-      expect((await call("GET", "/v1/peers", undefined, { peer: a, ...ua("android/0.0.54") })).status).toBe(200);
-      expect((await row(a.id))!.version).toBe("0.0.54");
-      expect(versionWrites(spy)).toBe(1);
-      expect((await call("GET", "/v1/peers", undefined, { peer: a, ...ua("android/0.0.54") })).status).toBe(200);
-      expect((await call("GET", "/v1/peers", undefined, { peer: a })).status).toBe(200);
-      expect((await call("GET", "/v1/peers", undefined, { peer: a, ...ua("android/x") })).status).toBe(200);
-      expect(versionWrites(spy)).toBe(1);
-      expect((await call("GET", "/v1/peers", undefined, { peer: a, ...ua("android/0.0.055") })).status).toBe(200);
-      expect((await row(a.id))!.version).toBe("0.0.55");
-      expect(versionWrites(spy)).toBe(2);
-    } finally {
-      spy.mockRestore();
-    }
-  });
-
-  it("POST /send stores the caller's version only when it changed", async () => {
-    const email = randomEmail();
+    const ua = (v: string) => ({ headers: { "PA-Client": v } });
     const a = await newPeer(email);
     const b = await newPeer(email, "chrome");
-    const spy = vi.spyOn(env.DB, "prepare");
-    try {
-      const send = (v?: string) => call("POST", "/v1/send", { v: 1, m: { [b.id]: message() } }, { peer: a, ...(v ? ua(v) : {}) });
-      expect((await send("android/0.0.54")).status).toBe(200);
-      expect((await row(a.id))!.version).toBe("0.0.54");
-      expect((await send("android/0.0.54")).status).toBe(200);
-      expect((await send()).status).toBe(200);
-      expect(versionWrites(spy)).toBe(1);
-      expect((await send("android/0.0.56")).status).toBe(200);
-      expect((await row(a.id))!.version).toBe("0.0.56");
-      expect(versionWrites(spy)).toBe(2);
-    } finally {
-      spy.mockRestore();
-    }
-  });
-
-  // A W_VERSION statement that fails when it runs (no such table); other statements are real.
-  const failVersionWrites = () => {
-    const prepare = env.DB.prepare.bind(env.DB);
-    return vi.spyOn(env.DB, "prepare").mockImplementation((q: string) =>
-      prepare(q.includes("SET version") ? "UPDATE no_such_table SET version = ?3 WHERE id = ?1 AND account = ?2" : q),
-    );
-  };
-
-  it("GET /peers clears stored remove messages and stores the version in the same request", async () => {
-    const email = randomEmail();
-    const [a, b, c] = [await newPeer(email), await newPeer(email), await newPeer(email)];
-    await setAllow(a, [b.id, c.id]);
-    const msg = message(300);
-    expect((await call("DELETE", "/v1/peers/" + b.id, { m: { [c.id]: msg } }, { peer: a })).status).toBe(200);
-    const g = await call("GET", "/v1/peers", undefined, { peer: c, ...ua("ios/0.0.54") });
-    expect(g.status).toBe(200);
-    expect(g.body.removed).toEqual({ [b.id]: msg });
-    expect(await row(c.id)).toMatchObject({ rm: "{}", version: "0.0.54" });
-  });
-
-  it("a failed version write does not fail GET /peers or POST /send", async () => {
-    const email = randomEmail();
-    const [a, b, c] = [await newPeer(email), await newPeer(email, "chrome"), await newPeer(email)];
-    await setAllow(a, [b.id, c.id]);
-    const msg = message(300);
-    expect((await call("DELETE", "/v1/peers/" + b.id, { m: { [c.id]: msg } }, { peer: a })).status).toBe(200);
-    const spy = failVersionWrites();
-    try {
-      const g = await call("GET", "/v1/peers", undefined, { peer: c, ...ua("android/0.0.54") });
-      expect(g.status).toBe(200);
-      expect(g.body.removed).toEqual({ [b.id]: msg });
-      const s = await call("POST", "/v1/send", { v: 1, m: { [c.id]: message() } }, { peer: a, ...ua("android/0.0.54") });
-      expect(s.status).toBe(200);
-    } finally {
-      spy.mockRestore();
-    }
-    // the remove messages were still cleared; no version was stored, so the next request writes it
-    expect(await row(c.id)).toMatchObject({ rm: "{}", version: null });
-    expect((await row(a.id))!.version).toBeNull();
-    expect((await call("GET", "/v1/peers", undefined, { peer: c, ...ua("android/0.0.54") })).status).toBe(200);
-    expect((await row(c.id))!.version).toBe("0.0.54");
-  });
-
-  it("POST /peers stores the caller's version in the registration, and on a re-register only when it changed", async () => {
-    const email = randomEmail();
-    const k = await keys();
-    const reg = async (v?: string) => {
-      const body = { ticket: await ticketFor(email, k.signPub, "register"), sign_pub: k.signPub, enc_pub: k.encPub, platform: "android", push: pushFor("android") };
-      return call("POST", "/v1/peers", body, { sign: k.sign, ...(v ? ua(v) : {}) });
-    };
-    const spy = vi.spyOn(env.DB, "prepare");
-    try {
-      const r = await reg("android/0.0.54");
-      expect(r.status).toBe(200);
-      const id = r.body.id as string;
-      expect((await row(id))!.version).toBe("0.0.54");
-      expect(versionWrites(spy)).toBe(0); // stored by the insert itself
-      expect((await reg("android/0.0.54")).status).toBe(200);
-      expect((await reg()).status).toBe(200);
-      expect(versionWrites(spy)).toBe(0);
-      expect((await row(id))!.version).toBe("0.0.54");
-      expect((await reg("android/0.0.55")).status).toBe(200);
-      expect(versionWrites(spy)).toBe(1);
-      expect((await row(id))!.version).toBe("0.0.55");
-    } finally {
-      spy.mockRestore();
-    }
-    // no PA-Client: the new row has no version
-    expect((await row((await newPeer(email)).id))!.version).toBeNull();
-  });
-
-  it("versions are listed when any one other device approves the caller, also when another denies it or is logged out", async () => {
-    const email = randomEmail();
-    const [a, b, c] = [await newPeer(email), await newPeer(email, "chrome"), await newPeer(email, "ios")];
-    await call("GET", "/v1/peers", undefined, { peer: b, ...ua("chrome/0.0.53") });
-    // c denies a, b approves a: a still sees versions
-    await setAllow(b, [a.id]);
-    await env.DB.prepare("UPDATE peers SET deny = ?1 WHERE id = ?2").bind(JSON.stringify({ [a.id]: 1 }), c.id).run();
-    const listed = async () =>
-      ((await call("GET", "/v1/peers", undefined, { peer: a })).body.peers as Record<string, unknown>[]).find((x) => x.id === b.id)!.version;
-    expect(await listed()).toBe("0.0.53");
-    // the only approver is logged out: versions are still listed (the approve stays stored)
-    await env.DB.prepare("UPDATE peers SET logged_out = 1 WHERE id = ?1").bind(b.id).run();
-    expect(await listed()).toBe("0.0.53");
-  });
-
-  it("GET /peers lists versions only to a caller approved by another peer; POST /peers never", async () => {
-    const email = randomEmail();
-    const a = await newPeer(email);
-    const b = await newPeer(email, "chrome");
-    const c = await newPeer(email, "ios");
-    await call("GET", "/v1/peers", undefined, { peer: a, ...ua("android/0.0.54") });
-    await call("GET", "/v1/peers", undefined, { peer: b, ...ua("chrome/0.0.53") });
-    const versions = (r: { body: Record<string, unknown> }) =>
-      Object.fromEntries((r.body.peers as Record<string, unknown>[]).map((x) => [x.id, x.version]));
-    // Nobody approves b: no version field at all.
-    let r = await call("GET", "/v1/peers", undefined, { peer: b });
-    expect((r.body.peers as Record<string, unknown>[]).every((x) => !("version" in x))).toBe(true);
-    // b approving a does not count for b; a is approved by b and sees versions; c has none stored.
-    await setAllow(b, [a.id]);
-    r = await call("GET", "/v1/peers", undefined, { peer: b });
-    expect((r.body.peers as Record<string, unknown>[]).every((x) => !("version" in x))).toBe(true);
-    r = await call("GET", "/v1/peers", undefined, { peer: a });
-    expect(versions(r)).toEqual({ [a.id]: "0.0.54", [b.id]: "0.0.53", [c.id]: undefined });
-    expect((r.body.peers as Record<string, unknown>[]).find((x) => x.id === c.id)).not.toHaveProperty("version");
-    // a re-registers: the POST /peers reply carries no version.
     const body = { ticket: await ticketFor(email, a.signPub, "register"), sign_pub: a.signPub, enc_pub: a.encPub, platform: "android", push: pushFor("android") };
     const reg = await call("POST", "/v1/peers", body, { sign: a.sign, ...ua("android/0.0.54") });
     expect(reg.status).toBe(200);
-    expect((reg.body.peers as Record<string, unknown>[]).every((x) => !("version" in x))).toBe(true);
+    await setAllow(b, [a.id]);
+    expect((await call("POST", "/v1/send", { v: 1, m: { [b.id]: message() } }, { peer: a, ...ua("android/0.0.54") })).status).toBe(200);
+    const g = await call("GET", "/v1/peers", undefined, { peer: a, ...ua("android/0.0.54") });
+    expect(g.status).toBe(200);
+    for (const r of [reg, g]) expect((r.body.peers as Record<string, unknown>[]).every((x) => !("version" in x))).toBe(true);
+    expect((await row(a.id))!.version).toBeNull();
   });
 });
