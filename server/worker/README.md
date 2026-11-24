@@ -58,14 +58,14 @@ dashboard (for example `0.1`); a deploy keeps it (`keep_vars`). 5xx lines stay c
 
 Stored files live under `v1/<expiry minute>/<acct-hash>/<id>` in the B2 bucket. The cron
 `*/5 * * * *` deletes every version of every object in each minute folder whose latest
-possible expires plus 5 min has been reached, oldest first, up to 1,000 storage calls per run; what
+possible expires plus 5 min has passed, oldest first, up to 1,000 storage calls per run; what
 is left stays due for the next run. Only failures to delete are logged (`file-delete-failed`,
 with the storage status and code). Deleting an account also deletes its files, unless the
 account has not uploaded since yesterday (UTC); it works page by page over the minute folders,
 up to 1,000 storage calls, and the cron removes anything left once it expires.
 
 `GET /v1/health` answers `{"status":"ok","files":"on"|"paused","last_sweep":<unix s>|null}`;
-`last_sweep` is the start time of the last cleanup run that left nothing due and had no failure.
+`last_sweep` is the end of the last cleanup run that left nothing due and had no failure.
 
 Admin: to delete one file by key, open the bucket in the Backblaze web console with hidden
 versions shown and delete every version of that key. To stop one account from sending files,

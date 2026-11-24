@@ -41,8 +41,6 @@ export function minuteStart(m: string): number | null {
 
 // A key minute later than this many seconds ahead cannot belong to a live file: 404, no storage call.
 export const AHEAD_MAX = 86400 + 60;
-// A key minute this far behind now cannot hold a live file (24 h + the deletion grace): 404.
-export const BEHIND_MAX = 86400 + 300;
 
 // First 16 lowercase hex of HMAC-SHA256(FILE_ACCT_SECRET, raw account id bytes).
 export async function acctHash(secret: string, acct: string): Promise<string> {
@@ -210,8 +208,8 @@ export function storageError(e: unknown): string {
   return e instanceof B2Error ? e.status + " " + e.code : "fetch";
 }
 
-// DELETE /v1/file/<id>. An id minute more than 24 h + 1 min ahead or 24 h + 5 min behind (or not
-// a real minute) -> 404 with no storage call; then the POST steps 2-7 (PA-FILE1 DELETE string; counts on RL_FILE). A
+// DELETE /v1/file/<id>. An id minute more than 24 h + 1 min ahead (or not a real minute) -> 404
+// with no storage call; then the POST steps 2-7 (PA-FILE1 DELETE string; counts on RL_FILE). A
 // file can be deleted while it exists, also after its expiry minute. A cap remembered from an
 // upload does not block a delete. The key comes from the caller's account and the id, so only
 // the account's own objects can be deleted. No quota refund. Storage: no such key -> 404, cap ->
@@ -221,7 +219,7 @@ export async function deleteFile(c: Ctx): Promise<Response> {
   const minute = id.slice(0, 12);
   const start = minuteStart(minute);
   const now0 = Math.floor(Date.now() / 1000);
-  if (start === null || start > now0 + AHEAD_MAX || start < now0 - BEHIND_MAX) throw new ApiError(404, "not found");
+  if (start === null || start > now0 + AHEAD_MAX) throw new ApiError(404, "not found");
   const s = await signedStart(c);
   const rows = await all<CallerRow & { approved: number }>(c.env.DB.prepare(SQL.Q_FILE).bind(s.me, s.acct));
   const caller = rows[0];

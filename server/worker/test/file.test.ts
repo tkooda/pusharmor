@@ -641,13 +641,6 @@ describe("DELETE /v1/file/<id>", () => {
     store.calls.length = 0;
     expect((await upload({ peer: a })).status).toBe(201);
   });
-
-  it("a key minute more than 24 h + 5 min behind -> 404 with no storage call or signature", async () => {
-    const a = await approvedSender();
-    const old = minuteOf(Math.floor(Date.now() / 1000) - 86400 - 300 - 120);
-    expect((await del(a, old + "-" + rnd(), { unsigned: true })).status).toBe(404);
-    expect(store.calls).toEqual([]);
-  });
 });
 
 describe("caps per kind", () => {

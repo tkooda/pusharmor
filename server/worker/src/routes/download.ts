@@ -11,7 +11,7 @@ import { errorResponse } from "../http";
 import type { Log } from "../log";
 import { enforce, ipKey } from "../pipeline/limits";
 import { storeDeps } from "../file/store";
-import { AHEAD_MAX, BEHIND_MAX, capHit, capLeft, minuteStart, paused, storageError } from "./file";
+import { AHEAD_MAX, capHit, capLeft, minuteStart, paused, storageError } from "./file";
 
 export const FILE_HOSTNAME = "b2file.pusharmor.com";
 
@@ -26,6 +26,9 @@ function oneRange(v: string | null): string | null {
   if (m[1] !== undefined && m[2] !== "" && Number(m[2]) < Number(m[1])) return null;
   return v;
 }
+
+// A key minute this far behind now cannot hold a live file (24 h + the deletion grace): 404.
+export const BEHIND_MAX = 86400 + 300;
 
 const FIXED: Record<string, string> = {
   "Content-Type": "application/octet-stream",

@@ -65,7 +65,7 @@ export async function expirePending(env: Env, nowS: number, log: Log, chunk = PE
 // object under it is deleted. Every run handles every due folder,
 // oldest first, up to SWEEP_MAX_CALLS storage calls; folders left over stay due and the next
 // run takes them. Runs keep no state, so two runs at once only repeat deletes. Only failures to
-// delete are logged as errors; the start time of the last run that left nothing due and had no failure
+// delete are logged as errors; the time of the last run that left nothing due and had no failure
 // is kept for /v1/health.
 export const FILE_GRACE_S = 300;
 export const SWEEP_MAX_CALLS = 1000;
