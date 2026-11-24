@@ -6,6 +6,15 @@ import PackageDescription
 // On Apple platforms it uses CryptoKit, Compression and SQLite3 from the SDK.
 // On Linux (tests only) it uses swift-crypto, the system zlib and the system
 // SQLite library; nothing of that is linked into the iOS targets.
+// File crypto (FileCrypto.swift) uses OpenSSL libcrypto: on Apple platforms the
+// static COpenSSL.xcframework that ../tools/build-openssl.sh builds into Vendor/
+// (not committed); on Linux the system libcrypto.
+#if os(Linux)
+let openSSL: Target = .systemLibrary(name: "COpenSSL", path: "Sources/COpenSSL", pkgConfig: "libcrypto")
+#else
+let openSSL: Target = .binaryTarget(name: "COpenSSL", path: "Vendor/COpenSSL.xcframework")
+#endif
+
 let package = Package(
     name: "PushArmorCore",
     platforms: [.iOS(.v17), .macOS(.v14)],
@@ -18,6 +27,7 @@ let package = Package(
     targets: [
         .systemLibrary(name: "CZlib", path: "Sources/CZlib"),
         .systemLibrary(name: "CSQLite", path: "Sources/CSQLite"),
+        openSSL,
         .target(
             name: "PushArmorCore",
             dependencies: [
@@ -25,6 +35,7 @@ let package = Package(
                          condition: .when(platforms: [.linux])),
                 .target(name: "CZlib", condition: .when(platforms: [.linux])),
                 .target(name: "CSQLite", condition: .when(platforms: [.linux])),
+                "COpenSSL",
             ]
         ),
         .testTarget(

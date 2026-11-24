@@ -24,15 +24,22 @@ UserNotifications, AuthenticationServices, WebKit, SQLite3.
   encode / pad / parse, replay window, phone detection, the pure `pair_decide`.
 - Store: one SQLite file in the App Group (WAL, BEGIN IMMEDIATE, busy timeout
   2 s), shared by the app, the NSE and the share extension.
+- File crypto: streaming AES-256-GCM, file in and file out in fixed chunks,
+  blob = nonce (12) || ciphertext || tag (16). OpenSSL libcrypto (static, no
+  libssl), built from the pinned openssl.org tarball by `tools/build-openssl.sh`
+  into `PushArmorCore/Vendor/COpenSSL.xcframework` (not committed). Decrypt
+  writes a private temp file and moves it into place only after the tag passes.
 
 ### Tests
 
-On macOS (Xcode 15.3 or later):
+On macOS (Xcode 15.3 or later), build the OpenSSL xcframework once (about 10
+minutes), then test:
 
+    bash client/ios/tools/build-openssl.sh client/ios/PushArmorCore/Vendor
     cd client/ios/PushArmorCore && swift test
 
-On Linux the package builds against swift-crypto, the system zlib and the
-system SQLite (test only; none of these is linked into the iOS targets). The
+On Linux the package builds against swift-crypto, the system libcrypto
+(libssl-dev), the system zlib and the system SQLite (test only; none of these is linked into the iOS targets). The
 SQLite headers are not part of the Ubuntu runtime package, so point the script
 at a directory holding `include/sqlite3.h` and `lib/libsqlite3.so`:
 

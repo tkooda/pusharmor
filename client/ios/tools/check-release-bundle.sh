@@ -16,7 +16,7 @@
 #     ProcessInfo.processInfo.arguments / .environment; other ProcessInfo use passes)
 #   - each main executable: no store screenshot mode (App/Debug/ScreenshotSample.swift):
 #     no PAScreenshots, pa-shots.sqlite or ScreenshotSample string
-#   - each main executable: crypto from the OS only (Apple CryptoKit): otool -L lists no
+#   - each main executable: no swift-crypto or BoringSSL (OS CryptoKit, plus OpenSSL libcrypto for files): otool -L lists no
 #     BoringSSL library and its strings hold no swift-crypto or BoringSSL symbol
 #     (CCryptoBoringSSL, CryptoBoringWrapper, _CryptoExtras, the Swift module prefix "$s6Crypto")
 #   - CFBundleURLTypes schemes: the app has exactly the Google callback scheme, derived
