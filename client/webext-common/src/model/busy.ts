@@ -31,8 +31,8 @@ export const STEP = {
 };
 
 /** The Send popup caption: the content type as the Send screen names it, then the devices (several are listed apart, one per line). */
-export function sendingCaption(type: string, names: string[]): string {
-  const what = "Sending " + (type === "url" ? "URL" : type === "tel" ? "phone number" : type === "file" ? "file" : "text") + " to";
+export function sendingCaption(type: string, names: string[], file?: string): string {
+  const what = "Sending " + (file !== undefined ? '"' + file + '"' : type === "url" ? "URL" : type === "tel" ? "phone number" : type === "file" ? "file" : "text") + " to";
   return names.length > 1 ? what + ":" : what + " " + quoteList(names) + "...";
 }
 

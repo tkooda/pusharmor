@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { IDBFactory, IDBKeyRange } from "fake-indexeddb";
-import { FILE_OPEN_FAILED, type FileHost, Files, HostGone, fileKey, sendFileError } from "../src/core/files.ts";
+import { type FileHost, Files, HostGone, fileKey, fileOpenFailed, sendFileError } from "../src/core/files.ts";
 import type { JobReq } from "../src/core/fileworker.ts";
 import { FileWorker } from "../src/core/fileworker.ts";
 import { sealFile } from "../src/crypto/filecrypt.ts";
@@ -298,6 +298,8 @@ test("decrypt: out of memory leaves the memory error; a mark found later is the 
   assert.equal(s.hostB.reqs.length, 1);
   assert.equal(F.NO_MEMORY, "Not enough memory to decrypt");
   assert.equal(F.noMemoryToast("cat.png"), 'Not enough memory to decrypt "cat.png"');
+  assert.equal(F.saved("cat.png"), 'Saved "cat.png"');
+  assert.equal(F.PASTE_IMAGE_CLEAR, "Clear the message to add a file");
 });
 
 test("worker: decrypt opens the stored blob, keeps the plaintext, and drops the blob; a damaged blob is said", async () => {
@@ -351,13 +353,13 @@ test("decrypt: a host that fails or closes says it could not open the file, with
   const gone = await downloadedRow(s);
   s.hostB.answer = async () => Promise.reject(new HostGone());
   assert.deepEqual(await s.fb.decryptShown(), []);
-  assert.equal((await s.b.db.get<HistoryRow>("history", gone))!.fs!.text, "Unable to open this file.\nTry again.");
+  assert.equal((await s.b.db.get<HistoryRow>("history", gone))!.fs!.text, 'Unable to decrypt "cat.png"\nTry again');
   const id = await downloadedRow(s);
   s.hostB.answer = async () => Promise.reject(new Error("no document"));
   assert.deepEqual(await s.fb.decryptShown(), []);
   const fs = (await s.b.db.get<HistoryRow>("history", id))!.fs!;
-  assert.deepEqual([fs.mem, fs.code, fs.text], [false, "failed", FILE_OPEN_FAILED]);
-  assert.deepEqual(F.fileRowStatus(fs, false, 0, false, NOW + H, NOW), { k: "undecrypted", text: FILE_OPEN_FAILED });
+  assert.deepEqual([fs.mem, fs.code, fs.text], [false, "failed", fileOpenFailed("cat.png")]);
+  assert.deepEqual(F.fileRowStatus(fs, false, 0, false, NOW + H, NOW), { k: "undecrypted", text: fileOpenFailed("cat.png") });
   s.hostB.reqs = [];
   assert.deepEqual(await s.fb.decryptShown(), []);
   assert.equal(s.hostB.reqs.length, 0, "a final error is not tried again by itself");
@@ -418,7 +420,8 @@ test("send: a failure the popup does not show (it closed) becomes a notification
   assert.equal(s.a.p.notes.get("send-result")?.body, "Unable to send.\nFile sending is paused. Try again later");
   assert.equal(await s.storeA.picked(p1), null);
   assert.ok(await s.storeA.picked(p2));
-  assert.equal(sendingCaption("file", ["Phone"]), 'Sending file to "Phone"...');
+  assert.equal(sendingCaption("file", ["Phone"], "a.txt"), 'Sending "a.txt" to "Phone"...');
+  assert.equal(sendingCaption("file", ["Phone", "Tab"], "a.txt"), 'Sending "a.txt" to:');
   assert.equal(sendFileError({ code: "failed", text: null, status: 0, error: "host" }, "a.txt").split("\n")[0], "Unable to send.");
   // browser start: picked copies left by a closed popup go
   await s.fa.startup();

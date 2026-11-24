@@ -551,7 +551,7 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
   field.addEventListener("input", () => void update());
   asText.addEventListener("change", () => void update());
   const sendFile = async (f: File, to: string[] | "all", names: string[]): Promise<SendResult | null> => {
-    const prog = sendProgress(env, sendingCaption("file", names), STEP.encryptingFor(names), names);
+    const prog = sendProgress(env, sendingCaption("file", names, f.name), STEP.encryptingFor(names), names);
     try {
       if (!pickedKey) {
         try {
@@ -1051,7 +1051,7 @@ function fileButtons(env: UiEnv, r: HistRow): HTMLElement[] {
         onclick: () =>
           void env.files!.save(r.id ?? 0, name).then(
             (path) => {
-              if (path !== null) toast(F.savedTo(path), "ok", true);
+              if (path !== null) toast(F.saved(name), "ok", true);
             },
             (e: unknown) => toast((e as Error)?.message === "MISSING" ? F.REMOVED : saveFailText(e, name), "err"),
           ),

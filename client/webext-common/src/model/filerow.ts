@@ -19,13 +19,13 @@ export const WILL_SEND_FILE = "Will be sent as file";
 export const EXPIRED = "Expired";
 export const DOWNLOAD_FAILED = "Download failed";
 export const PLACEHOLDER = "Type or paste a URL or text, or drop a file here";
-/** A pasted or dropped image while the message box holds text: one type per message. */
-export const PASTE_IMAGE_CLEAR = "Clear the message to paste an image";
+/** A pasted, dropped, or chosen file while the message box holds text: one type per message. */
+export const PASTE_IMAGE_CLEAR = "Clear the message to add a file";
 
 export const noMemoryToast = (name: string): string => 'Not enough memory to decrypt "' + name + '"';
 export const tooLarge = (name: string): string => '"' + name + '" is too large to send';
 export const unreadable = (name: string): string => 'Unable to read "' + name + '"';
-export const savedTo = (path: string): string => 'File saved to "' + path + '"';
+export const saved = (name: string): string => 'Saved "' + name + '"';
 
 // ---- auto-download picker ----
 

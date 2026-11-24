@@ -8,7 +8,7 @@ import { BUSY, STEP } from "../model/busy.ts";
 import { FILE_DAMAGED, catchUpDue, storageFullText } from "../model/filerules.ts";
 
 /** A decrypt that could not run (not a damaged file and not short of memory). */
-export const FILE_OPEN_FAILED = "Unable to open this file.\nTry again.";
+export const fileOpenFailed = (name: string): string => 'Unable to decrypt "' + name + '"\nTry again';
 import { DOWNLOAD_FAILED, type FileState, decryptPlan, kind, storageLimit, storageOptions, toRemove, tooLarge, unreadable } from "../model/filerow.ts";
 import { sanitizeName } from "../model/filename.ts";
 import type { FileValue } from "../model/message.ts";
@@ -274,7 +274,7 @@ export class Files implements FilesHook {
           case "storage":
             return { ...n, code: "storage", text: storageFullText("download", r.file.name) };
           case "host":
-            return { ...n, code: "failed", text: FILE_OPEN_FAILED };
+            return { ...n, code: "failed", text: fileOpenFailed(r.file.name) };
           default:
             return { ...n, mem: true };
         }

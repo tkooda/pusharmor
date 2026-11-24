@@ -101,6 +101,12 @@ test("save message: denied, full, else a plain retry", () => {
   assert.equal(saveFailText(new Error("downloads unavailable")), "Unable to save the message.\nTry again.");
 });
 
+test("save file: the name with no period, then the reason when known", () => {
+  assert.equal(saveFailText(new Error("FILE_NO_SPACE"), "a.txt"), 'Unable to save "a.txt"\nStorage is full. Free some space and try again');
+  assert.equal(saveFailText(new Error("DOWNLOADS_DENIED"), "a.txt"), 'Unable to save "a.txt"\nAllow downloads for PushArmor to save files');
+  assert.equal(saveFailText(new Error("x"), "a.txt"), 'Unable to save "a.txt"\nTry again');
+});
+
 test("one device that did not get a send: two lines each, the name quoted, never first", () => {
   const rows: Record<string, string> = {
     gone: 'Unable to deliver message to "Lap".\nOpen PushArmor on it to resolve.',
