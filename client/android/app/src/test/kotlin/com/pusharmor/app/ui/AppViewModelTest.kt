@@ -131,11 +131,13 @@ class AppViewModelTest {
         assertEquals(emptyList<Long>(), selectAllToggle(listOf(1L, 2L, 3L), shown))
     }
 
-    /** Log out shows a progress bar with its step under the buttons, not a spinner beside them. */
+    /** Log out is one step with nothing to measure: a small spinner with its caption under the buttons, not beside them. */
     @Test fun logoutShowsStepBar() {
         val main = java.io.File("src/main/kotlin/com/pusharmor/app/ui/MainScreens.kt").readText()
+        val vm = java.io.File("src/main/kotlin/com/pusharmor/app/ui/AppViewModel.kt").readText()
         assertTrue(main.contains("if (\"logout\" in running) StepBar(vm"))
         assertFalse(main.contains("contentDescription = \"Logging out\""))
+        assertTrue(vm.contains("steps(1); nextCaption(UiText.LOGGING_OUT)"))
     }
 
     /** There is no delete-all anywhere: Settings has no row for it and the view model no call. */
