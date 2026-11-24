@@ -37,7 +37,7 @@ test("the vars in server/worker/wrangler.jsonc equal cloudflare_fixed_vars", () 
 });
 
 test("Cloudflare names carry a vendor prefix or PA_", () => {
-  for (const k of ALL_CF()) assert.match(k, /^(PA_|GOOGLE_|APPLE_|WEBPUSH_|AWS_|CLOUDFLARE_)/, k);
+  for (const k of ALL_CF()) assert.match(k, /^(PA_|GOOGLE_|APPLE_|WEBPUSH_|AWS_|CLOUDFLARE_|B2_)/, k);
 });
 
 test("no old (unprefixed) Cloudflare name remains in the server or release files", () => {

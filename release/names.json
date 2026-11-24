@@ -28,7 +28,10 @@
     "PA_OAUTH_REDIRECT_ANDROID": "Android OAuth redirect URL",
     "PA_OAUTH_REDIRECT_WEB": "web OAuth redirect URL",
     "PA_OAUTH_REDIRECT_CLI": "command line login OAuth redirect URL (the /auth/cli page)",
-    "PA_WEB_ORIGINS": "JSON list of web origins allowed by CORS"
+    "PA_WEB_ORIGINS": "JSON list of web origins allowed by CORS",
+    "B2_BUCKET": "file storage bucket name (private)",
+    "B2_S3_ENDPOINT": "file storage S3 endpoint URL",
+    "B2_REGION": "file storage region"
   },
   "cloudflare_secrets": {
     "PA_ID_SECRET": "HMAC key for account ids",
