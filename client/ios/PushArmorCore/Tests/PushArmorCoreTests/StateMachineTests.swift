@@ -743,32 +743,6 @@ final class StateMachineTests: XCTestCase {
         XCTAssertEqual(me.oldId, n.id.text)
     }
 
-    /// a wipe (removed, deleted account, keys lost) clears the reported version, so a device
-    /// that registers again reports its version for its new id.
-    func testWipeClearsReportedVersion() throws {
-        let n = try dev("Ndev")
-        XCTAssertEqual(try n.core.store.setting(Core.reportedVersionKey), n.core.api.client)
-        try n.core.store.wipe()
-        XCTAssertNil(try n.core.store.setting(Core.reportedVersionKey))
-        let k = try dev("Kdev")
-        try k.core.store.keysLost()
-        XCTAssertNil(try k.core.store.setting(Core.reportedVersionKey))
-    }
-
-    /// The relay server stores the version with the registration: it counts as reported, so a
-    /// later app open makes no GET /v1/peers for it.
-    func testRegistrationCountsAsVersionReport() async throws {
-        let n = try dev("Ndev")
-        try n.core.store.wipe()
-        w.script("POST", "/v1/peers", 200, "{\"id\":\"\(n.id.text)\",\"peers\":[],\"my_allow\":[]}")
-        let r = await n.core.register(ticket: "t", push: nil)
-        guard case .registered = r else { return XCTFail("expected registered, got \(r)") }
-        XCTAssertEqual(try n.core.store.setting(Core.reportedVersionKey), n.core.api.client)
-        clock.now += 61
-        await n.core.appOpen(push: nil)
-        XCTAssertEqual(w.count("GET", "/v1/peers"), 0)
-    }
-
     func testRegisterRetriesOnceOnClockSkew() async throws {
         let n = try dev("Ndev")
         w.script("POST", "/v1/peers", 401, "{\"error\":\"clock skew\"}")
@@ -2435,145 +2409,7 @@ final class StateMachineTests: XCTestCase {
         XCTAssertTrue(try n.core.store.peer(x.id)!.listening)
     }
 
-    /// GET /v1/peers "version": a string is kept with the peer; absent or not a string is
-    /// unknown and the entry still merges.
-    func testPeerVersionParsed() async throws {
-        func fetched(_ d: Device) async throws {
-            let ok = await d.core.fetchPeers(force: true)
-            XCTAssertTrue(ok)
-        }
-        let n = try dev("Ndev"), x = try dev("Xdev")
-        try await pairFully(n, x)
-        w.rows[x.id.text]!.version = .str("0.0.54")
-        try await fetched(n)
-        XCTAssertEqual(try n.core.store.peer(x.id)!.version, "0.0.54")
-        // absent: unknown
-        w.rows[x.id.text]!.version = nil
-        try await fetched(n)
-        XCTAssertNil(try n.core.store.peer(x.id)!.version)
-        // malformed: unknown, the list still merges
-        for bad: JOut in [.int(54), .bool(true), .obj([]), .arr([.str("0.0.54")]), .null] {
-            w.rows[x.id.text]!.version = .str("0.0.53")
-            try await fetched(n)
-            XCTAssertEqual(try n.core.store.peer(x.id)!.version, "0.0.53")
-            w.rows[x.id.text]!.version = bad
-            try await fetched(n)
-            let p = try XCTUnwrap(try n.core.store.peer(x.id))
-            XCTAssertNil(p.version)
-            XCTAssertTrue(p.listed)
-            XCTAssertFalse(p.missing)
-            XCTAssertTrue(p.inAll)
-        }
-    }
-
-    /// Version report on app open: one GET /v1/peers when this app version differs from the
-    /// one last reported, none when equal; the version is stored only after the GET succeeds.
-    func testVersionReportOnAppOpen() async throws {
-        let n = try dev("Ndev")
-        let key = Core.reportedVersionKey
-        // equal: no GET
-        await n.core.appOpen(push: nil)
-        XCTAssertEqual(w.count("GET", "/v1/peers"), 0)
-        // changed: one GET, then the version is stored
-        try n.core.store.setSetting(key, "ios/0.0.1")
-        await n.core.appOpen(push: nil)
-        XCTAssertEqual(w.count("GET", "/v1/peers"), 1)
-        XCTAssertEqual(try n.core.store.setting(key), n.core.api.client)
-        await n.core.appOpen(push: nil)
-        XCTAssertEqual(w.count("GET", "/v1/peers"), 1)
-        // never reported (no row): one GET
-        try n.core.store.setSetting(key, nil)
-        clock.now += 100
-        await n.core.appOpen(push: nil)
-        XCTAssertEqual(w.count("GET", "/v1/peers"), 2)
-        XCTAssertEqual(try n.core.store.setting(key), n.core.api.client)
-        // a failed GET stores nothing; the next open after the 60 s window tries again
-        try n.core.store.setSetting(key, "ios/0.0.1")
-        clock.now += 100
-        w.offline = true
-        await n.core.appOpen(push: nil)
-        XCTAssertEqual(try n.core.store.setting(key), "ios/0.0.1")
-        w.offline = false
-        clock.now += 100
-        let g = w.count("GET", "/v1/peers")
-        await n.core.appOpen(push: nil)
-        XCTAssertEqual(w.count("GET", "/v1/peers"), g + 1)
-        XCTAssertEqual(try n.core.store.setting(key), n.core.api.client)
-        // a GET that answers an error stores nothing either
-        try n.core.store.setSetting(key, "ios/0.0.1")
-        clock.now += 100
-        w.script("GET", "/v1/peers", 400, "{\"error\":\"bad request\"}")
-        await n.core.appOpen(push: nil)
-        XCTAssertEqual(try n.core.store.setting(key), "ios/0.0.1")
-        // logged out: no GET
-        try n.core.store.setMe("logged_out", .int(1))
-        let g2 = w.count("GET", "/v1/peers")
-        await n.core.reportVersion()
-        XCTAssertEqual(w.count("GET", "/v1/peers"), g2)
-        // not registered: no GET
-        let fresh = Core(store: try Store(path: NSTemporaryDirectory() + "pa-ver-\(UUID().uuidString).sqlite"), api: n.core.api,
-                         keys: n.keys, clock: { [clock] in clock!.now })
-        await fresh.reportVersion()
-        XCTAssertEqual(w.count("GET", "/v1/peers"), g2)
-        XCTAssertNil(try fresh.store.setting(key))
-    }
-
-    /// Version report on a push (the NSE): one GET /v1/peers with >= 10 s of budget left.
-    func testVersionReportOnPush() async throws {
-        let x = try dev("Xdev")
-        let key = Core.reportedVersionKey
-        let inbox = LockedInbox(dir: URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("pa-ver-\(UUID().uuidString)"))
-        let m = String(repeating: "A", count: 400)
-        // inside the 60 s window of the last GET: neither the fetch_due fetch nor the report GETs
-        try x.core.store.setMe("last_fetch_at", .int(clock.now))
-        // equal: no GET
-        _ = await NSEFlow.handle(m: m, loadKeys: { x.keys }, openCore: { _ in x.core }, inbox: inbox, nowMs: 1, budgetLeft: { 30 })
-        XCTAssertEqual(w.count("GET", "/v1/peers"), 0)
-        // changed, inside the window: no GET, nothing stored
-        try x.core.store.setSetting(key, "ios/0.0.1")
-        _ = await NSEFlow.handle(m: m, loadKeys: { x.keys }, openCore: { _ in x.core }, inbox: inbox, nowMs: 2, budgetLeft: { 30 })
-        XCTAssertEqual(w.count("GET", "/v1/peers"), 0)
-        XCTAssertEqual(try x.core.store.setting(key), "ios/0.0.1")
-        // changed, after the window, little budget: no GET, nothing stored
-        clock.now += 61
-        _ = await NSEFlow.handle(m: m, loadKeys: { x.keys }, openCore: { _ in x.core }, inbox: inbox, nowMs: 3, budgetLeft: { 5 })
-        XCTAssertEqual(w.count("GET", "/v1/peers"), 0)
-        XCTAssertEqual(try x.core.store.setting(key), "ios/0.0.1")
-        // changed: one GET, then the version is stored
-        _ = await NSEFlow.handle(m: m, loadKeys: { x.keys }, openCore: { _ in x.core }, inbox: inbox, nowMs: 4, budgetLeft: { 30 })
-        XCTAssertEqual(w.count("GET", "/v1/peers"), 1)
-        XCTAssertEqual(try x.core.store.setting(key), x.core.api.client)
-        _ = await NSEFlow.handle(m: m, loadKeys: { x.keys }, openCore: { _ in x.core }, inbox: inbox, nowMs: 5, budgetLeft: { 30 })
-        XCTAssertEqual(w.count("GET", "/v1/peers"), 1)
-    }
-
-    /// A failing version report: at most one GET /v1/peers per 60 s window, shared by the NSE
-    /// and the app through last_fetch_at, so the fetch_due fetch and the report never run back
-    /// to back and pushes in a burst do not each GET.
-    func testVersionReportFailingTriesOncePerWindow() async throws {
-        let x = try dev("Xdev")
-        let key = Core.reportedVersionKey
-        let inbox = LockedInbox(dir: URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("pa-ver-\(UUID().uuidString)"))
-        let m = String(repeating: "A", count: 400)
-        try x.core.store.setSetting(key, "ios/0.0.1")
-        for _ in 0 ..< 30 { w.script("GET", "/v1/peers", 503, "{\"error\":\"unavailable\"}") }
-        for i in 0 ..< 5 {
-            _ = await NSEFlow.handle(m: m, loadKeys: { x.keys }, openCore: { _ in x.core }, inbox: inbox, nowMs: Int64(10 + i), budgetLeft: { 30 })
-            clock.now += 5
-        }
-        await x.core.appOpen(push: nil)
-        XCTAssertEqual(w.count("GET", "/v1/peers"), 1)
-        XCTAssertEqual(try x.core.store.setting(key), "ios/0.0.1")
-        // after the window: the next trigger tries once more, and a success stores the version
-        w.lock.lock(); w.scripted.removeAll(); w.lock.unlock()
-        clock.now += 61
-        await x.core.appOpen(push: nil)
-        XCTAssertEqual(w.count("GET", "/v1/peers"), 2)
-        XCTAssertEqual(try x.core.store.setting(key), x.core.api.client)
-    }
-
-    /// a version 4 file with a peer row opens at version 5; the row keeps its fields and has
-    /// no version.
+    /// a version 4 file with a peer row opens at version 5; the row keeps its fields.
     func testDBMigration4To5KeepsPeers() throws {
         let path = NSTemporaryDirectory() + "pa-mig4-\(UUID().uuidString).sqlite"
         let id = PeerId(raw: Data((0 ..< 30).map { UInt8($0) }))!
@@ -2585,13 +2421,9 @@ final class StateMachineTests: XCTestCase {
         }
         let s = try Store(path: path)
         XCTAssertEqual(try s.db.one("PRAGMA user_version")?.int("user_version"), 5)
-        var p = try XCTUnwrap(try s.peer(id))
+        let p = try XCTUnwrap(try s.peer(id))
         XCTAssertEqual(p.name, "kept")
         XCTAssertEqual(p.platform, "android")
-        XCTAssertNil(p.version)
-        p.version = "0.0.54"
-        try s.savePeer(p)
-        XCTAssertEqual(try s.peer(id)?.version, "0.0.54")
     }
 
     func testSendFailureResultsEachShowALine() async throws {

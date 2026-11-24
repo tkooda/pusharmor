@@ -18,7 +18,6 @@ final class FakeWorker: HTTPTransport, @unchecked Sendable {
         var push = true
         var relayFault = false         // my_relay_fault in this row's GET /v1/peers
         var listening: Bool? = nil     // set only for platform "cli"
-        var version: JOut? = nil       // "version" in GET /v1/peers; nil = omitted
     }
 
     let lock = NSLock()
@@ -104,7 +103,6 @@ final class FakeWorker: HTTPTransport, @unchecked Sendable {
                                   ("approves_me", .bool(r.allow[idT] != nil)), ("denies_me", .bool(r.deny[idT] != nil)),
                                   ("reachable", .bool(r.push)), ("name_for_me", r.name[idT].map { .str($0) } ?? .null)]
                 if let l = r.listening { e.append(("listening", .bool(l))) }
-                if let v = r.version { e.append(("version", v)) }
                 list.append(.obj(e))
             }
             var top: [(String, JOut)] = [("my_push_sha256", .null), ("my_allow", .arr(me.allow.keys.sorted().map { .str($0) })),
@@ -218,8 +216,6 @@ final class Device {
         if path == nil {
             try store.setMe("id", .text(id.text))
             try store.setMe("name", .text(name))
-            // this app version counts as reported, so only the version report tests see its GET
-            try store.setSetting(Core.reportedVersionKey, api.client)
             worker.add(id, signPub: k.signer.publicKey, encPub: k.decryptor.publicKey, platform: platform)
         }
     }

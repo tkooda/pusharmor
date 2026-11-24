@@ -41,8 +41,6 @@ public struct Peer: Sendable {
     /// False for a "cli" device that has not run its listen command recently: send only.
     public var listening: Bool
     public var platform: String?
-    /// The peer's last reported app version ("x.y.z") from GET /v1/peers; nil = unknown.
-    public var version: String?
     public var created: Int64?
     public var name: String?
     public var nameN: Int64
@@ -201,7 +199,7 @@ public final class Store: @unchecked Sendable {
         p.getAt = r.int("get_at"); p.deniedMeMsg = r.bool("denied_me_msg")
         p.reachable = r.bool("reachable"); p.loggedOut = r.bool("logged_out"); p.logoutN = r.int("logout_n") ?? 0
         p.listening = r.bool("listening")
-        p.platform = r.text("platform"); p.version = r.text("version"); p.created = r.int("created")
+        p.platform = r.text("platform"); p.created = r.int("created")
         p.name = r.text("name"); p.nameN = r.int("name_n") ?? 0
         p.pendingName = r.text("pending_name"); p.pendingN = r.int("pending_n") ?? 0
         p.hidden = r.bool("hidden"); p.lockShow = r.bool("lock_show"); p.showContent = r.bool("show_content")
@@ -241,7 +239,6 @@ public final class Store: @unchecked Sendable {
         cols.append(("logout_n", .int(p.logoutN)))
         cols.append(("listening", .bool(p.listening)))
         cols.append(("platform", .opt(p.platform)))
-        cols.append(("version", .opt(p.version)))
         cols.append(("created", .opt(p.created)))
         cols.append(("name", .opt(p.name)))
         cols.append(("name_n", .int(p.nameN)))
