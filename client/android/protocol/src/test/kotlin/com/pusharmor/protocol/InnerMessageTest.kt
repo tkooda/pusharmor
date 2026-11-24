@@ -199,10 +199,17 @@ class InnerMessageTest {
     /** A del filled to the most 22-char ids seals to at most 3800 chars; one more id does not fit and is split off. */
     @Test fun delFilledToTheMaxSealsWithinTheCapAndOneMoreSplits() {
         val ids = (1..400).map { MessageBody.newId() }
-        val first = InnerMessage.delChunks(ids).first()
-        assertEquals(3800, send(9_007_199_254_740_991, MessageBody.Del(first)).length)
-        assertTrue(!InnerMessage.delFits(ids.take(first.size + 1)))
-        println("max 22-char ids per del: ${first.size}")
+        // every size check builds the JSON with a new random message id, whose deflated size varies: a fixed id keeps the boundary in place
+        val keep = InnerMessage.newMsgId
+        InnerMessage.newMsgId = { "Xq7-Lm2_Rt9Kw4Zp0Bv8Nc" }
+        try {
+            val first = InnerMessage.delChunks(ids).first()
+            assertEquals(3800, send(9_007_199_254_740_991, MessageBody.Del(first)).length)
+            assertTrue(!InnerMessage.delFits(ids.take(first.size + 1)))
+            println("max 22-char ids per del: ${first.size}")
+        } finally {
+            InnerMessage.newMsgId = keep
+        }
     }
 
     /** A del that fits the largest bucket with fewer than 8 bytes spare is split: the sent id can deflate a few bytes larger. */

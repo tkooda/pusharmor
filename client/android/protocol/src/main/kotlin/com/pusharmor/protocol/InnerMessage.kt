@@ -105,8 +105,11 @@ object InnerMessage {
     /** Max raw bytes that encode to at most [chars] b64url chars. */
     fun bytesForChars(chars: Int): Int = chars * 3 / 4
 
+    /** Where [jsonOf] gets a fresh message id; tests may set a fixed one. */
+    @Volatile var newMsgId: () -> String = { MessageBody.newId() }
+
     /** {"v":1,"n","id","show" (content only), type key}; [id]: the message id, else a fresh one. */
-    fun jsonOf(n: Long, body: MessageBody, id: String = body.msgId ?: MessageBody.newId()): String {
+    fun jsonOf(n: Long, body: MessageBody, id: String = body.msgId ?: newMsgId()): String {
         require(n in 1..MAX_COUNTER)
         val show = if (body.isControl) "" else ",\"show\":true"
         return "{\"v\":1,\"n\":$n,\"id\":${StrictJson.quote(id)}$show,\"${body.key}\":${body.valueJson()}}"
