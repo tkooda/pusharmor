@@ -46,6 +46,10 @@ final class FileTransfers: NSObject, URLSessionDownloadDelegate, URLSessionDataD
     private var replies: [String: Data] = [:]
     private var ended = Set<String>()
     private var held: [Ended] = []
+    /// One apply of held completions at a time in this process.
+    private let applyLock = NSLock()
+    /// NSE download tasks being taken over: their cancel-with-resume-data handler ends them.
+    private var takingOver = Set<String>()
     /// Sends this process is relaying now.
     private var sending = Set<Int64>()
     private var pathMonitor: NWPathMonitor?
@@ -71,6 +75,8 @@ final class FileTransfers: NSObject, URLSessionDownloadDelegate, URLSessionDataD
     func nseSessionId(_ id: Int64) -> String { env.appGroup + ".nse." + String(id) }
     func shareSessionId(_ id: Int64) -> String { env.appGroup + ".share." + String(id) }
     var appDownloadId: String { env.appGroup + ".app.dl" }
+    static let heldPrefix = FileRecord.heldPrefix
+    static let claimedPrefix = FileRecord.claimedPrefix
     var appUploadId: String { env.appGroup + ".app.ul" }
     func isUploadSession(_ id: String) -> Bool { id == appUploadId || id.hasPrefix(env.appGroup + ".share.") }
 
@@ -123,36 +129,44 @@ final class FileTransfers: NSObject, URLSessionDownloadDelegate, URLSessionDataD
         var received: Int64
         var resumable: Bool
         var epoch: String?
+        /// The app cancelled it to take it over: no attempt is used.
+        var takenOver = false
     }
 
-    private var heldURL: URL { dir.appendingPathComponent("held-completions.json") }
-
-    /// Never drops a completion: kept in memory and on disk, applied by applyHeld.
+    /// Never drops a completion: each one goes to its own new file (held-<uuid>.json, written once,
+    /// so no process overwrites another's), else it stays in memory.
     private func hold(_ e: Ended) {
+        let u = ensureDir().appendingPathComponent(Self.heldPrefix + UUID().uuidString + ".json")
+        if let d = try? JSONEncoder().encode(e), (try? d.write(to: u, options: .atomic)) != nil { return }
         lock.lock()
         held.append(e)
-        let all = held
         lock.unlock()
-        ensureDir()
-        if let d = try? JSONEncoder().encode(all) { try? d.write(to: heldURL, options: .atomic) }
     }
 
-    /// Applies the kept completions (launch, catch-up): downloads need the store, uploads the core.
+    /// Applies the kept completions (app launch, catch-up): downloads need the store, uploads the
+    /// core. Each file is claimed by a rename first (claimed-<uuid>.json), so a hold written while
+    /// this runs is applied next time, never lost; a claimed file a crashed run left is applied too.
     private func applyHeld(core: Core) {
+        applyLock.lock()
+        defer { applyLock.unlock() }
         lock.lock()
         var all = held
         held = []
         lock.unlock()
-        if let d = try? Data(contentsOf: heldURL), let disk = try? JSONDecoder().decode([Ended].self, from: d) {
-            for e in disk where !all.contains(where: { $0.task == e.task && $0.id == e.id }) { all.append(e) }
+        let fm = FileManager.default
+        let names = (try? fm.contentsOfDirectory(atPath: dir.path)) ?? []
+        for n in names where n.hasPrefix(Self.heldPrefix) || n.hasPrefix(Self.claimedPrefix) {
+            let claimed = dir.appendingPathComponent(Self.claimedPrefix + UUID().uuidString + ".json")
+            guard (try? fm.moveItem(at: dir.appendingPathComponent(n), to: claimed)) != nil else { continue }
+            if let d = try? Data(contentsOf: claimed), let e = try? JSONDecoder().decode(Ended.self, from: d) { all.append(e) }
+            try? fm.removeItem(at: claimed)
         }
-        try? FileManager.default.removeItem(at: heldURL)
         for e in all {
             if e.upload {
                 uploadEnded(e, core: core)
             } else {
-                try? core.fileTaskEnded(e.id, task: e.task, status: e.status, body: e.body, blobArrived: e.arrived,
-                                        received: e.received, resumable: e.resumable)
+                try? core.store.fileTaskEnded(e.id, task: e.task, status: e.status, body: e.body, blobArrived: e.arrived,
+                                              received: e.received, resumable: e.resumable, notCounted: e.takenOver)
             }
         }
     }
@@ -220,11 +234,13 @@ final class FileTransfers: NSObject, URLSessionDownloadDelegate, URLSessionDataD
     // MARK: downloads
 
     /// NSE, after the notification was handed over: start the download of a file that just
-    /// arrived, only when the app is not in front (the app then takes it) and the picker for the
-    /// current network allows its size (else catch-up starts it later).
+    /// arrived, with no wait for the network: only when the app is not in front (the app then takes
+    /// it) and the Wi-Fi picker allows its size. The task runs on mobile data only when that picker
+    /// allows it too, and never in Low Data Mode; the system runs it when the network allows. Any
+    /// other file is left to catch-up.
     func nseStart(_ id: Int64, core: Core) {
-        guard !appActiveFresh, let net = Self.currentNetwork() else { return }
-        guard let due = try? core.fileCatchUp(network: net.network, lowData: net.lowData, free: freeBytes()),
+        guard !appActiveFresh,
+              let due = try? core.fileCatchUp(network: .wifi, lowData: false, free: freeBytes()),
               due.contains(where: { $0.id == id }) else { return }
         startDownload(id, core: core, manual: false, inApp: false)
     }
@@ -313,7 +329,20 @@ final class FileTransfers: NSObject, URLSessionDownloadDelegate, URLSessionDataD
             let inApp = sp[0] == appDownloadId
             session(sp[0]).getAllTasks { tasks in
                 if let task = tasks.first(where: { $0.taskIdentifier == tid }) {
-                    if !inApp { (task as? URLSessionDownloadTask)?.cancel(byProducingResumeData: { _ in }) }
+                    guard !inApp, let dl = task as? URLSessionDownloadTask else { return }
+                    // the resume data keeps the bytes; the take-over uses no attempt
+                    self.lock.lock()
+                    self.takingOver.insert(t)
+                    self.lock.unlock()
+                    dl.cancel(byProducingResumeData: { data in
+                        var resumable = false
+                        if let d = data {
+                            resumable = (try? d.write(to: self.ensureDir().appendingPathComponent(f.resumeName))) != nil
+                        }
+                        self.downloadEnded(Ended(upload: false, id: f.id, task: t, status: 0, body: nil, arrived: false,
+                                                 received: dl.countOfBytesReceived, resumable: resumable, epoch: nil,
+                                                 takenOver: true), cancelled: true)
+                    })
                     return
                 }
                 try? core.fileTaskEnded(f.id, task: t, status: 0, body: nil, blobArrived: false)
@@ -345,6 +374,8 @@ final class FileTransfers: NSObject, URLSessionDownloadDelegate, URLSessionDataD
     /// app-wide watch starts catch-up on a change to an unmetered network.
     func launch(core: Core) {
         ensureDir()
+        // held completions first, so pruning never meets one
+        applyHeld(core: core)
         try? core.settleDecryptMarks()
         lock.lock()
         let busy = sending
@@ -490,7 +521,7 @@ final class FileTransfers: NSObject, URLSessionDownloadDelegate, URLSessionDataD
         guard let store = try? env.openStore() else { return hold(e) }
         do {
             try store.fileTaskEnded(e.id, task: e.task, status: e.status, body: e.body, blobArrived: e.arrived,
-                                    received: e.received, resumable: e.resumable)
+                                    received: e.received, resumable: e.resumable, notCounted: e.takenOver)
         } catch {
             return hold(e)
         }
@@ -545,7 +576,8 @@ final class FileTransfers: NSObject, URLSessionDownloadDelegate, URLSessionDataD
         let k = Self.taskKey(session, task)
         lock.lock()
         let reply = replies.removeValue(forKey: k)
-        let done = ended.remove(k) != nil
+        // a taken-over task is ended by its cancel handler, with its resume data
+        let done = ended.remove(k) != nil || takingOver.remove(k) != nil
         lock.unlock()
         let http = task.response as? HTTPURLResponse
         if task is URLSessionDownloadTask {

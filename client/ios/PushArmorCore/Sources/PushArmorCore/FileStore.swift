@@ -67,6 +67,10 @@ public struct FileRecord: Equatable, Sendable {
         return FileRef(url: u, expires: e, key: key, name: name, size: size, sha256: s)
     }
 
+    /// Name prefixes of held transfer completions in the files directory (kept by pruning).
+    public static let heldPrefix = "held-"
+    public static let claimedPrefix = "claimed-"
+
     /// Blob, resume data and decrypted file names under the files directory.
     public var blobName: String { "\(dir.rawValue)-\(id).blob" }
     public var resumeName: String { "\(dir.rawValue)-\(id).resume" }
@@ -156,9 +160,9 @@ extension Store {
     /// only while the record still waits for that very task, so a stale or second completion never
     /// overwrites a later state. blobArrived: the body is now at the record's blob name. Else
     /// `received` bytes arrived in this run and `resumable` says resume data keeps them: a run that
-    /// kept bytes is not counted as an attempt.
+    /// kept bytes is not counted as an attempt, nor is one the app stopped to take it over (`notCounted`).
     public func fileTaskEnded(_ id: Int64, task: String, status: Int, body: Data?, blobArrived: Bool, received: Int64 = 0,
-                              resumable: Bool = false) throws {
+                              resumable: Bool = false, notCounted: Bool = false) throws {
         try db.write {
             guard var f = try file(id), f.dir == .incoming, f.state == "loading", f.task == task else { return }
             let j = body.flatMap { $0.count <= 4096 ? try? StrictJSON.parse($0) : nil }
@@ -172,7 +176,11 @@ extension Store {
                 f.state = "blob"
             } else {
                 let kept = resumable ? max(f.openAt, 0) + max(received, 0) : 0
-                f.attemptsState = resumable && received > 0 ? f.attemptsState.stopped(have: kept) : f.attemptsState.end()
+                if notCounted {
+                    f.attemptsState = FileRules.Attempts(used: max(f.attempts - 1, 0), openAt: -1)
+                } else {
+                    f.attemptsState = resumable && received > 0 ? f.attemptsState.stopped(have: kept) : f.attemptsState.end()
+                }
                 f.have = kept
                 f.state = "pending"
             }

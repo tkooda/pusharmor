@@ -59,7 +59,7 @@ public enum NSEFlow {
         }
         var r = await core.receive(ms, mode: .nse)
         r = await core.confirmPushedRemoval(r, run: budgetLeft() >= 10)
-        if r.banner == nil && !r.silent { r.banner = .dropped }   // never empty content for a push, but a silent one
+        if r.banner == nil { r.banner = .dropped }   // never empty content for a push
         r.handled = !r.fault   // a thrown store error stays unmarked: the app drain retries it
         if r.fault { inbox.keep(ms, nowMs: nowMs) }
         if r.handled { onReceived?(r) }

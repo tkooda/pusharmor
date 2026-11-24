@@ -40,16 +40,10 @@ final class NotificationService: UNNotificationServiceExtension {
                 budgetLeft: { 30 - Date().timeIntervalSince(started) },
                 onReceived: { [weak self] r in
                     // a final verdict: expiry delivers this content stamped "done"
-                    if r.silent {
-                        self?.setCommitted(UNMutableNotificationContent())
-                        return
-                    }
                     guard let b = r.banner else { return }
                     self?.setCommitted(BannerContent.content(b, m: m, key: key, handled: r.handled))
                 })
-            // a file already expired on arrival: no notification at all, only the row
-            self.deliver(r.silent ? UNNotificationContent()
-                                  : BannerContent.content(r.banner ?? .dropped, m: m, key: key, handled: r.handled))
+            self.deliver(BannerContent.content(r.banner ?? .dropped, m: m, key: key, handled: r.handled))
             // a file message: the banner went first, then its background download starts
             if let id = r.fileId, let store = try? env.openStore(), let keys = try? env.keychain.load() {
                 FileTransfers.shared.nseStart(id, core: env.makeCore(store: store, keys: keys))

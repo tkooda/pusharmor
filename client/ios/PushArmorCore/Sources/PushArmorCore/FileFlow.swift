@@ -465,7 +465,8 @@ extension Core {
         _ = try store.dropOrphanFiles()
         let keep = Set(try store.allFiles().flatMap { [$0.blobName, $0.resumeName, $0.plainDirName] })
         guard let names = try? FileManager.default.contentsOfDirectory(atPath: dir.path) else { return }
-        for n in names where !keep.contains(n) && !n.hasPrefix(".") {
+        for n in names where !keep.contains(n) && !n.hasPrefix(".") && !n.hasPrefix(FileRecord.heldPrefix)
+            && !n.hasPrefix(FileRecord.claimedPrefix) {
             try? FileManager.default.removeItem(at: dir.appendingPathComponent(n))
         }
     }

@@ -509,9 +509,28 @@ final class FileTests: XCTestCase {
         f = try XCTUnwrap(try x.core.store.file(id))
         XCTAssertTrue(f.manual)
         XCTAssertEqual(f.have, 0)
+        // a take-over keeps the bytes in resume data and uses no attempt
+        let used = f.attempts
+        XCTAssertTrue(try x.core.fileDownloadStarts(id, task: "t 5"))
+        try x.core.store.fileTaskEnded(id, task: "t 5", status: 0, body: nil, blobArrived: false, received: 0, resumable: true,
+                                       notCounted: true)
+        f = try XCTUnwrap(try x.core.store.file(id))
+        XCTAssertEqual(f.attempts, used)
+        XCTAssertEqual(f.state, "pending")
     }
 
-    func testExpiredOnArrivalHasNoBannerAndNoDownload() async throws {
+    func testPruneKeepsHeldCompletions() throws {
+        let w = FakeWorker(), clock = TestClock()
+        let x = try Device(worker: w, clock: clock, name: "Xdev")
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("files-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        for n in ["held-a.json", "claimed-b.json", "in-99.blob"] { try Data([1]).write(to: dir.appendingPathComponent(n)) }
+        try x.core.pruneFiles(dir: dir)
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: dir.path).sorted(), ["claimed-b.json", "held-a.json"])
+    }
+
+    func testExpiredOnArrivalHasGenericBannerAndNoDownload() async throws {
         let w = FakeWorker(), clock = TestClock()
         let n = try Device(worker: w, clock: clock, name: "Ndev"), x = try Device(worker: w, clock: clock, name: "Xdev")
         try await Scenario.pairFully(w, n, x)
@@ -521,15 +540,11 @@ final class FileTests: XCTestCase {
         let pushed = w.take(x.id)
         XCTAssertEqual(pushed.count, 1)
         let r = await x.core.receive(pushed[0], mode: .nse)
-        XCTAssertTrue(r.silent)
-        XCTAssertNil(r.banner)
+        XCTAssertEqual(r.banner?.body, S.fallback)
         let f = try XCTUnwrap(try x.core.store.file(r.fileId!))
         XCTAssertEqual(f.state, "failed")
         XCTAssertEqual(f.error, "Expired")
         XCTAssertEqual(try x.core.fileCatchUp(network: .wifi, lowData: false, free: nil).count, 0)
-        // the NSE flow delivers no content for it
-        let again = await x.core.receive(pushed[0], mode: .nse)
-        XCTAssertTrue(again.silent)
     }
 
     func testLogoutWipesFilesAndSettleSends() throws {
