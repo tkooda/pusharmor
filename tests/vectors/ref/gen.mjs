@@ -1029,7 +1029,7 @@ function fileSigSection() {
     return {
       name, method: 'POST', signer: X.name, sign_pub: b64e(X.signPub), pa_time: paTime, content_length: cl,
       file_sha256: sha, send_id: sendId, signed_text: signed.toString('utf8'), signed_bytes: b64e(signed),
-      sig: b64e(sign(X.signPriv, signed)),
+      sig: b64e(sign(X.signPriv, signed)), verifies: true,
     };
   };
   const del = (name, id, paTime = FILE_TIME) => {
@@ -1037,7 +1037,13 @@ function fileSigSection() {
     return {
       name, method: 'DELETE', signer: X.name, sign_pub: b64e(X.signPub), pa_time: paTime, id, path: '/v1/file/' + id,
       signed_text: signed.toString('utf8'), signed_bytes: b64e(signed), sig: b64e(sign(X.signPriv, signed)),
+      verifies: true,
     };
+  };
+  const tampered = (c) => {
+    const s = b64d(c.sig);
+    s[s.length - 1] ^= 1;
+    return { ...c, sig: b64e(s), verifies: false };
   };
   const id = '202611230347-' + randHexOf('sig');
   return {
@@ -1046,12 +1052,13 @@ function fileSigSection() {
       'Content-Length (decimal) + "\\n" + PA-File-SHA256 + "\\n" + PA-Send-ID. DELETE: "PA-FILE1\\nDELETE\\n/v1/file/" + id + ' +
       '"\\n" + PA-Time (no body line). PA-Sig = b64url of raw r||s, ECDSA P-256 SHA-256 over the string, as PA-REQ1. ' +
       'Signer X from golden-v1.json keys.peers. Assert signed_bytes byte for byte from the fields and that sig verifies ' +
-      'with sign_pub (verify only).',
+      'with sign_pub (verify only) exactly when verifies is true; a false row has a changed PA-Sig and must be refused.',
     cases: [
       post('post_small', 33, b64e(sha256('example blob')), sendIdOf('small')),
       post('post_max_file', MAX_FILE + BLOB_OVERHEAD, b64e(sha256('max blob')), sendIdOf('max')),
       del('delete', id),
       del('delete_other_time', id, '1795320000999'),
+      tampered(post('post_small_tampered_sig', 33, b64e(sha256('example blob')), sendIdOf('small'))),
     ],
   };
 }
@@ -1132,12 +1139,18 @@ function ttlSection() {
     description:
       'WORKER ONLY. Clients never implement or hardcode a lifetime; they show file.expires. size = Content-Length - 28 ' +
       '(plaintext bytes, decimal). ttl_min = min(1440, floor(14,400,000,000 / size)); size 0 -> 1440. Content-Length > ' +
-      'MAX_FILE + 28 -> 413 and ttl_min null. Assert ttl_min and status for each content_length.',
+      'MAX_FILE + 28 -> 413 and ttl_min null. Content-Length < 28 (no room for nonce and tag) -> 400, size and ttl_min ' +
+      'null. Assert ttl_min and status for each content_length.',
     worker_only: true,
-    cases: pts.map(([name, size]) => {
-      const t = ttlMinutes(size);
-      return { name, size, content_length: size + BLOB_OVERHEAD, ttl_min: t, status: t === null ? 413 : 201 };
-    }),
+    cases: [
+      ...pts.map(([name, size]) => {
+        const t = ttlMinutes(size);
+        return { name, size, content_length: size + BLOB_OVERHEAD, ttl_min: t, status: t === null ? 413 : 201 };
+      }),
+      ...[0, BLOB_OVERHEAD - 1].map((cl) => ({
+        name: 'content_length_' + cl, size: null, content_length: cl, ttl_min: ttlMinutes(cl - BLOB_OVERHEAD), status: 400,
+      })),
+    ],
   };
 }
 
@@ -1184,7 +1197,8 @@ const NAME_INPUTS = [
   ['CON .txt'], ['a'.repeat(64) + '.txt'], ['a'.repeat(65) + '.txt'], ['a'.repeat(65)],
   ['a'.repeat(64) + '.' + 'b'.repeat(11)], ['_.pdf'], ['-.pdf'], ['(1).pdf'], ['screenshot.PNG', true],
   ['\u00e9\u00e9\u00e9', true], ['file.name.with.dots.md'], ['dots...txt'], ['  '], ['%20encoded%2F.txt'],
-  ['name.\u00e9xt'], ['report.pdf.'], ['C:'],
+  ['name.\u00e9xt'], ['report.pdf.'], ['C:'], ['CON. .txt'], ['lpt1 .tar.gz'], ['e\u0301.txt'],
+  ['Cafe\u0301 Menu.pdf'], ['invoice\u202Egpj.exe'],
 ];
 
 function namesSection() {
@@ -1195,8 +1209,8 @@ function namesSection() {
       'leading and trailing dots and spaces; 5 extension = text after the last dot if 1-10 chars of [A-Za-z0-9], else ' +
       'none (base = all); 6 fallback base if the base has no [A-Za-z0-9] or is > 64 chars: "file-YYYYMMDD-HHMMSS" (or ' +
       '"image-..." when image is true) from time in UTC, extension kept; 7 cut so the total is <= 100 (guard); 8 if the ' +
-      'text before the first dot equals CON, PRN, AUX, NUL, COM1-COM9 or LPT1-LPT9 (any case), prefix "_". Digits-only ' +
-      'names are kept. image and time are inputs (the caller decides image; time is send or receive time). Assert ' +
+      'text before the first dot, without trailing spaces and dots, equals CON, PRN, AUX, NUL, COM1-COM9 or LPT1-LPT9 (any case), prefix "_". Digits-only ' +
+      'names are kept. Code points are not normalized (an NFD name keeps its combining marks as "_"). image and time are inputs (the caller decides image; time is send or receive time). Assert ' +
       'sanitize(input, time, image) == output.',
     time: NAME_TIME,
     cases: NAME_INPUTS.map(([input, image = false]) => ({ input, image, output: sanitizeName(input, NAME_TIME, image) })),
@@ -1216,11 +1230,13 @@ function collisionSection() {
     ['already_numbered', 'report (1).pdf', ['report (1).pdf']],
     ['long_ext_is_base', 'x.abcdefghijk', ['x.abcdefghijk']],
     ['ten', 'a.pdf', ten],
+    ['case_differs', 'Photo.jpg', ['photo.jpg']],
+    ['case_differs_numbered', 'Photo.jpg', ['PHOTO.JPG', 'photo (1).jpg']],
   ];
   return {
     description:
       'CLI listen --files DIR: when the sanitized name exists in DIR, use "base (N).ext" with the smallest N >= 1 that ' +
-      'is free; base and ext split as names step 5 (no ext -> "base (N)"). existing = names already in DIR. Assert ' +
+      'is free; names match ignoring case (ASCII, as names are sanitized); base and ext split as names step 5 (no ext -> "base (N)"). existing = names already in DIR. Assert ' +
       'collide(name, existing) == output.',
     cases: cs.map(([name, n, existing]) => ({ name, input: n, existing, output: collisionName(n, existing) })),
   };
@@ -1228,7 +1244,7 @@ function collisionSection() {
 
 function autoDownloadSection() {
   const pickers = [['off', 0], ['10_mb', 10000000], ['25_mb', 25000000], ['50_mb', 50000000], ['100_mb', 100000000]];
-  const sizes = [1, 10000000, 10000001, 25000001, 50000000, 50000001, 100000000];
+  const sizes = [1, 10000000, 10000001, 25000000, 25000001, 50000000, 50000001, 100000000, 100000001];
   const cases = [];
   for (const network of ['wifi', 'mobile']) {
     for (const dataSaver of [false, true]) {
@@ -1246,7 +1262,7 @@ function autoDownloadSection() {
       cases.push({ ...input, picker_name: pn, download: autoDownload(input) });
     }
   }
-  for (const size of [1, MAX_FILE]) {
+  for (const size of [1, MAX_FILE, 100000001]) {
     const input = { client: 'cli', network: 'any', data_saver: false, picker: null, size };
     cases.push({ ...input, picker_name: null, download: autoDownload(input) });
   }

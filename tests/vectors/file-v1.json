@@ -35,6 +35,15 @@
         "network": "wifi",
         "picker": 0,
         "picker_name": "off",
+        "size": 25000000
+      },
+      {
+        "client": "phone",
+        "data_saver": false,
+        "download": false,
+        "network": "wifi",
+        "picker": 0,
+        "picker_name": "off",
         "size": 25000001
       },
       {
@@ -63,6 +72,15 @@
         "picker": 0,
         "picker_name": "off",
         "size": 100000000
+      },
+      {
+        "client": "phone",
+        "data_saver": false,
+        "download": false,
+        "network": "wifi",
+        "picker": 0,
+        "picker_name": "off",
+        "size": 100000001
       },
       {
         "client": "phone",
@@ -98,6 +116,15 @@
         "network": "wifi",
         "picker": 10000000,
         "picker_name": "10_mb",
+        "size": 25000000
+      },
+      {
+        "client": "phone",
+        "data_saver": false,
+        "download": false,
+        "network": "wifi",
+        "picker": 10000000,
+        "picker_name": "10_mb",
         "size": 25000001
       },
       {
@@ -126,6 +153,15 @@
         "picker": 10000000,
         "picker_name": "10_mb",
         "size": 100000000
+      },
+      {
+        "client": "phone",
+        "data_saver": false,
+        "download": false,
+        "network": "wifi",
+        "picker": 10000000,
+        "picker_name": "10_mb",
+        "size": 100000001
       },
       {
         "client": "phone",
@@ -157,6 +193,15 @@
       {
         "client": "phone",
         "data_saver": false,
+        "download": true,
+        "network": "wifi",
+        "picker": 25000000,
+        "picker_name": "25_mb",
+        "size": 25000000
+      },
+      {
+        "client": "phone",
+        "data_saver": false,
         "download": false,
         "network": "wifi",
         "picker": 25000000,
@@ -189,6 +234,15 @@
         "picker": 25000000,
         "picker_name": "25_mb",
         "size": 100000000
+      },
+      {
+        "client": "phone",
+        "data_saver": false,
+        "download": false,
+        "network": "wifi",
+        "picker": 25000000,
+        "picker_name": "25_mb",
+        "size": 100000001
       },
       {
         "client": "phone",
@@ -224,6 +278,15 @@
         "network": "wifi",
         "picker": 50000000,
         "picker_name": "50_mb",
+        "size": 25000000
+      },
+      {
+        "client": "phone",
+        "data_saver": false,
+        "download": true,
+        "network": "wifi",
+        "picker": 50000000,
+        "picker_name": "50_mb",
         "size": 25000001
       },
       {
@@ -252,6 +315,15 @@
         "picker": 50000000,
         "picker_name": "50_mb",
         "size": 100000000
+      },
+      {
+        "client": "phone",
+        "data_saver": false,
+        "download": false,
+        "network": "wifi",
+        "picker": 50000000,
+        "picker_name": "50_mb",
+        "size": 100000001
       },
       {
         "client": "phone",
@@ -287,6 +359,15 @@
         "network": "wifi",
         "picker": 100000000,
         "picker_name": "100_mb",
+        "size": 25000000
+      },
+      {
+        "client": "phone",
+        "data_saver": false,
+        "download": true,
+        "network": "wifi",
+        "picker": 100000000,
+        "picker_name": "100_mb",
         "size": 25000001
       },
       {
@@ -315,6 +396,15 @@
         "picker": 100000000,
         "picker_name": "100_mb",
         "size": 100000000
+      },
+      {
+        "client": "phone",
+        "data_saver": false,
+        "download": false,
+        "network": "wifi",
+        "picker": 100000000,
+        "picker_name": "100_mb",
+        "size": 100000001
       },
       {
         "client": "phone",
@@ -350,6 +440,15 @@
         "network": "wifi",
         "picker": 0,
         "picker_name": "off",
+        "size": 25000000
+      },
+      {
+        "client": "phone",
+        "data_saver": true,
+        "download": false,
+        "network": "wifi",
+        "picker": 0,
+        "picker_name": "off",
         "size": 25000001
       },
       {
@@ -378,6 +477,15 @@
         "picker": 0,
         "picker_name": "off",
         "size": 100000000
+      },
+      {
+        "client": "phone",
+        "data_saver": true,
+        "download": false,
+        "network": "wifi",
+        "picker": 0,
+        "picker_name": "off",
+        "size": 100000001
       },
       {
         "client": "phone",
@@ -413,6 +521,15 @@
         "network": "wifi",
         "picker": 10000000,
         "picker_name": "10_mb",
+        "size": 25000000
+      },
+      {
+        "client": "phone",
+        "data_saver": true,
+        "download": false,
+        "network": "wifi",
+        "picker": 10000000,
+        "picker_name": "10_mb",
         "size": 25000001
       },
       {
@@ -441,6 +558,15 @@
         "picker": 10000000,
         "picker_name": "10_mb",
         "size": 100000000
+      },
+      {
+        "client": "phone",
+        "data_saver": true,
+        "download": false,
+        "network": "wifi",
+        "picker": 10000000,
+        "picker_name": "10_mb",
+        "size": 100000001
       },
       {
         "client": "phone",
@@ -472,6 +598,15 @@
       {
         "client": "phone",
         "data_saver": true,
+        "download": true,
+        "network": "wifi",
+        "picker": 25000000,
+        "picker_name": "25_mb",
+        "size": 25000000
+      },
+      {
+        "client": "phone",
+        "data_saver": true,
         "download": false,
         "network": "wifi",
         "picker": 25000000,
@@ -504,6 +639,15 @@
         "picker": 25000000,
         "picker_name": "25_mb",
         "size": 100000000
+      },
+      {
+        "client": "phone",
+        "data_saver": true,
+        "download": false,
+        "network": "wifi",
+        "picker": 25000000,
+        "picker_name": "25_mb",
+        "size": 100000001
       },
       {
         "client": "phone",
@@ -539,6 +683,15 @@
         "network": "wifi",
         "picker": 50000000,
         "picker_name": "50_mb",
+        "size": 25000000
+      },
+      {
+        "client": "phone",
+        "data_saver": true,
+        "download": true,
+        "network": "wifi",
+        "picker": 50000000,
+        "picker_name": "50_mb",
         "size": 25000001
       },
       {
@@ -571,6 +724,15 @@
       {
         "client": "phone",
         "data_saver": true,
+        "download": false,
+        "network": "wifi",
+        "picker": 50000000,
+        "picker_name": "50_mb",
+        "size": 100000001
+      },
+      {
+        "client": "phone",
+        "data_saver": true,
         "download": true,
         "network": "wifi",
         "picker": 100000000,
@@ -602,6 +764,15 @@
         "network": "wifi",
         "picker": 100000000,
         "picker_name": "100_mb",
+        "size": 25000000
+      },
+      {
+        "client": "phone",
+        "data_saver": true,
+        "download": true,
+        "network": "wifi",
+        "picker": 100000000,
+        "picker_name": "100_mb",
         "size": 25000001
       },
       {
@@ -633,6 +804,15 @@
       },
       {
         "client": "phone",
+        "data_saver": true,
+        "download": false,
+        "network": "wifi",
+        "picker": 100000000,
+        "picker_name": "100_mb",
+        "size": 100000001
+      },
+      {
+        "client": "phone",
         "data_saver": false,
         "download": false,
         "network": "mobile",
@@ -657,6 +837,15 @@
         "picker": 0,
         "picker_name": "off",
         "size": 10000001
+      },
+      {
+        "client": "phone",
+        "data_saver": false,
+        "download": false,
+        "network": "mobile",
+        "picker": 0,
+        "picker_name": "off",
+        "size": 25000000
       },
       {
         "client": "phone",
@@ -697,6 +886,15 @@
       {
         "client": "phone",
         "data_saver": false,
+        "download": false,
+        "network": "mobile",
+        "picker": 0,
+        "picker_name": "off",
+        "size": 100000001
+      },
+      {
+        "client": "phone",
+        "data_saver": false,
         "download": true,
         "network": "mobile",
         "picker": 10000000,
@@ -720,6 +918,15 @@
         "picker": 10000000,
         "picker_name": "10_mb",
         "size": 10000001
+      },
+      {
+        "client": "phone",
+        "data_saver": false,
+        "download": false,
+        "network": "mobile",
+        "picker": 10000000,
+        "picker_name": "10_mb",
+        "size": 25000000
       },
       {
         "client": "phone",
@@ -760,6 +967,15 @@
       {
         "client": "phone",
         "data_saver": false,
+        "download": false,
+        "network": "mobile",
+        "picker": 10000000,
+        "picker_name": "10_mb",
+        "size": 100000001
+      },
+      {
+        "client": "phone",
+        "data_saver": false,
         "download": true,
         "network": "mobile",
         "picker": 25000000,
@@ -783,6 +999,15 @@
         "picker": 25000000,
         "picker_name": "25_mb",
         "size": 10000001
+      },
+      {
+        "client": "phone",
+        "data_saver": false,
+        "download": true,
+        "network": "mobile",
+        "picker": 25000000,
+        "picker_name": "25_mb",
+        "size": 25000000
       },
       {
         "client": "phone",
@@ -823,6 +1048,15 @@
       {
         "client": "phone",
         "data_saver": false,
+        "download": false,
+        "network": "mobile",
+        "picker": 25000000,
+        "picker_name": "25_mb",
+        "size": 100000001
+      },
+      {
+        "client": "phone",
+        "data_saver": false,
         "download": true,
         "network": "mobile",
         "picker": 50000000,
@@ -846,6 +1080,15 @@
         "picker": 50000000,
         "picker_name": "50_mb",
         "size": 10000001
+      },
+      {
+        "client": "phone",
+        "data_saver": false,
+        "download": true,
+        "network": "mobile",
+        "picker": 50000000,
+        "picker_name": "50_mb",
+        "size": 25000000
       },
       {
         "client": "phone",
@@ -886,6 +1129,15 @@
       {
         "client": "phone",
         "data_saver": false,
+        "download": false,
+        "network": "mobile",
+        "picker": 50000000,
+        "picker_name": "50_mb",
+        "size": 100000001
+      },
+      {
+        "client": "phone",
+        "data_saver": false,
         "download": true,
         "network": "mobile",
         "picker": 100000000,
@@ -909,6 +1161,15 @@
         "picker": 100000000,
         "picker_name": "100_mb",
         "size": 10000001
+      },
+      {
+        "client": "phone",
+        "data_saver": false,
+        "download": true,
+        "network": "mobile",
+        "picker": 100000000,
+        "picker_name": "100_mb",
+        "size": 25000000
       },
       {
         "client": "phone",
@@ -948,6 +1209,15 @@
       },
       {
         "client": "phone",
+        "data_saver": false,
+        "download": false,
+        "network": "mobile",
+        "picker": 100000000,
+        "picker_name": "100_mb",
+        "size": 100000001
+      },
+      {
+        "client": "phone",
         "data_saver": true,
         "download": false,
         "network": "mobile",
@@ -972,6 +1242,15 @@
         "picker": 0,
         "picker_name": "off",
         "size": 10000001
+      },
+      {
+        "client": "phone",
+        "data_saver": true,
+        "download": false,
+        "network": "mobile",
+        "picker": 0,
+        "picker_name": "off",
+        "size": 25000000
       },
       {
         "client": "phone",
@@ -1014,6 +1293,15 @@
         "data_saver": true,
         "download": false,
         "network": "mobile",
+        "picker": 0,
+        "picker_name": "off",
+        "size": 100000001
+      },
+      {
+        "client": "phone",
+        "data_saver": true,
+        "download": false,
+        "network": "mobile",
         "picker": 10000000,
         "picker_name": "10_mb",
         "size": 1
@@ -1035,6 +1323,15 @@
         "picker": 10000000,
         "picker_name": "10_mb",
         "size": 10000001
+      },
+      {
+        "client": "phone",
+        "data_saver": true,
+        "download": false,
+        "network": "mobile",
+        "picker": 10000000,
+        "picker_name": "10_mb",
+        "size": 25000000
       },
       {
         "client": "phone",
@@ -1077,6 +1374,15 @@
         "data_saver": true,
         "download": false,
         "network": "mobile",
+        "picker": 10000000,
+        "picker_name": "10_mb",
+        "size": 100000001
+      },
+      {
+        "client": "phone",
+        "data_saver": true,
+        "download": false,
+        "network": "mobile",
         "picker": 25000000,
         "picker_name": "25_mb",
         "size": 1
@@ -1098,6 +1404,15 @@
         "picker": 25000000,
         "picker_name": "25_mb",
         "size": 10000001
+      },
+      {
+        "client": "phone",
+        "data_saver": true,
+        "download": false,
+        "network": "mobile",
+        "picker": 25000000,
+        "picker_name": "25_mb",
+        "size": 25000000
       },
       {
         "client": "phone",
@@ -1140,6 +1455,15 @@
         "data_saver": true,
         "download": false,
         "network": "mobile",
+        "picker": 25000000,
+        "picker_name": "25_mb",
+        "size": 100000001
+      },
+      {
+        "client": "phone",
+        "data_saver": true,
+        "download": false,
+        "network": "mobile",
         "picker": 50000000,
         "picker_name": "50_mb",
         "size": 1
@@ -1161,6 +1485,15 @@
         "picker": 50000000,
         "picker_name": "50_mb",
         "size": 10000001
+      },
+      {
+        "client": "phone",
+        "data_saver": true,
+        "download": false,
+        "network": "mobile",
+        "picker": 50000000,
+        "picker_name": "50_mb",
+        "size": 25000000
       },
       {
         "client": "phone",
@@ -1203,6 +1536,15 @@
         "data_saver": true,
         "download": false,
         "network": "mobile",
+        "picker": 50000000,
+        "picker_name": "50_mb",
+        "size": 100000001
+      },
+      {
+        "client": "phone",
+        "data_saver": true,
+        "download": false,
+        "network": "mobile",
         "picker": 100000000,
         "picker_name": "100_mb",
         "size": 1
@@ -1224,6 +1566,15 @@
         "picker": 100000000,
         "picker_name": "100_mb",
         "size": 10000001
+      },
+      {
+        "client": "phone",
+        "data_saver": true,
+        "download": false,
+        "network": "mobile",
+        "picker": 100000000,
+        "picker_name": "100_mb",
+        "size": 25000000
       },
       {
         "client": "phone",
@@ -1260,6 +1611,15 @@
         "picker": 100000000,
         "picker_name": "100_mb",
         "size": 100000000
+      },
+      {
+        "client": "phone",
+        "data_saver": true,
+        "download": false,
+        "network": "mobile",
+        "picker": 100000000,
+        "picker_name": "100_mb",
+        "size": 100000001
       },
       {
         "client": "browser",
@@ -1295,6 +1655,15 @@
         "network": "any",
         "picker": 0,
         "picker_name": "off",
+        "size": 25000000
+      },
+      {
+        "client": "browser",
+        "data_saver": false,
+        "download": false,
+        "network": "any",
+        "picker": 0,
+        "picker_name": "off",
         "size": 25000001
       },
       {
@@ -1327,6 +1696,15 @@
       {
         "client": "browser",
         "data_saver": false,
+        "download": false,
+        "network": "any",
+        "picker": 0,
+        "picker_name": "off",
+        "size": 100000001
+      },
+      {
+        "client": "browser",
+        "data_saver": false,
         "download": true,
         "network": "any",
         "picker": 10000000,
@@ -1350,6 +1728,15 @@
         "picker": 10000000,
         "picker_name": "10_mb",
         "size": 10000001
+      },
+      {
+        "client": "browser",
+        "data_saver": false,
+        "download": false,
+        "network": "any",
+        "picker": 10000000,
+        "picker_name": "10_mb",
+        "size": 25000000
       },
       {
         "client": "browser",
@@ -1390,6 +1777,15 @@
       {
         "client": "browser",
         "data_saver": false,
+        "download": false,
+        "network": "any",
+        "picker": 10000000,
+        "picker_name": "10_mb",
+        "size": 100000001
+      },
+      {
+        "client": "browser",
+        "data_saver": false,
         "download": true,
         "network": "any",
         "picker": 25000000,
@@ -1413,6 +1809,15 @@
         "picker": 25000000,
         "picker_name": "25_mb",
         "size": 10000001
+      },
+      {
+        "client": "browser",
+        "data_saver": false,
+        "download": true,
+        "network": "any",
+        "picker": 25000000,
+        "picker_name": "25_mb",
+        "size": 25000000
       },
       {
         "client": "browser",
@@ -1453,6 +1858,15 @@
       {
         "client": "browser",
         "data_saver": false,
+        "download": false,
+        "network": "any",
+        "picker": 25000000,
+        "picker_name": "25_mb",
+        "size": 100000001
+      },
+      {
+        "client": "browser",
+        "data_saver": false,
         "download": true,
         "network": "any",
         "picker": 50000000,
@@ -1476,6 +1890,15 @@
         "picker": 50000000,
         "picker_name": "50_mb",
         "size": 10000001
+      },
+      {
+        "client": "browser",
+        "data_saver": false,
+        "download": true,
+        "network": "any",
+        "picker": 50000000,
+        "picker_name": "50_mb",
+        "size": 25000000
       },
       {
         "client": "browser",
@@ -1516,6 +1939,15 @@
       {
         "client": "browser",
         "data_saver": false,
+        "download": false,
+        "network": "any",
+        "picker": 50000000,
+        "picker_name": "50_mb",
+        "size": 100000001
+      },
+      {
+        "client": "browser",
+        "data_saver": false,
         "download": true,
         "network": "any",
         "picker": 100000000,
@@ -1539,6 +1971,15 @@
         "picker": 100000000,
         "picker_name": "100_mb",
         "size": 10000001
+      },
+      {
+        "client": "browser",
+        "data_saver": false,
+        "download": true,
+        "network": "any",
+        "picker": 100000000,
+        "picker_name": "100_mb",
+        "size": 25000000
       },
       {
         "client": "browser",
@@ -1575,6 +2016,15 @@
         "picker": 100000000,
         "picker_name": "100_mb",
         "size": 100000000
+      },
+      {
+        "client": "browser",
+        "data_saver": false,
+        "download": false,
+        "network": "any",
+        "picker": 100000000,
+        "picker_name": "100_mb",
+        "size": 100000001
       },
       {
         "client": "cli",
@@ -1593,6 +2043,15 @@
         "picker": null,
         "picker_name": null,
         "size": 100000000
+      },
+      {
+        "client": "cli",
+        "data_saver": false,
+        "download": false,
+        "network": "any",
+        "picker": null,
+        "picker_name": null,
+        "size": 100000001
       }
     ],
     "description": "Auto-download (catch-up and on arrival) for a pending, non-expired file. phone: picker is the picker for the current network (\"On Wi-Fi\" or \"On mobile data\"); Data Saver / Low Data Mode on mobile = Off. browser: one picker, network ignored. cli (listen --files DIR): every file up to MAX_FILE, no picker. picker is the limit in bytes (0 = Off); download = picker > 0 and size <= picker. Assert download for each row."
@@ -1723,9 +2182,26 @@
         "input": "a.pdf",
         "name": "ten",
         "output": "a (10).pdf"
+      },
+      {
+        "existing": [
+          "photo.jpg"
+        ],
+        "input": "Photo.jpg",
+        "name": "case_differs",
+        "output": "Photo (1).jpg"
+      },
+      {
+        "existing": [
+          "PHOTO.JPG",
+          "photo (1).jpg"
+        ],
+        "input": "Photo.jpg",
+        "name": "case_differs_numbered",
+        "output": "Photo (2).jpg"
       }
     ],
-    "description": "CLI listen --files DIR: when the sanitized name exists in DIR, use \"base (N).ext\" with the smallest N >= 1 that is free; base and ext split as names step 5 (no ext -> \"base (N)\"). existing = names already in DIR. Assert collide(name, existing) == output."
+    "description": "CLI listen --files DIR: when the sanitized name exists in DIR, use \"base (N).ext\" with the smallest N >= 1 that is free; names match ignoring case (ASCII, as names are sanitized); base and ext split as names step 5 (no ext -> \"base (N)\"). existing = names already in DIR. Assert collide(name, existing) == output."
   },
   "constants": {
     "BLOB_OVERHEAD": 28,
@@ -1746,7 +2222,8 @@
         "sign_pub": "BAEiTZqaapURL8mkI-FwBNMfjy1r_KjbGAMVPmbkSZIMD_nllYjV9IPQSMRKRBThiPWl7OqFHrqsshLxDJ8OQUU",
         "signed_bytes": "UEEtRklMRTEKUE9TVAovdjEvZmlsZQoxNzk1MzE5MjMyMTIzCjMzCmpwMWlqMk42d0t2SnUwYkhIUGtVNVpaN3hzLWswb21rZG5MQ2J4bHczLW8KOUxqTkFQQUhaVTN0dlBJTExkSWpmdw",
         "signed_text": "PA-FILE1\nPOST\n/v1/file\n1795319232123\n33\njp1ij2N6wKvJu0bHHPkU5ZZ7xs-k0omkdnLCbxlw3-o\n9LjNAPAHZU3tvPILLdIjfw",
-        "signer": "X"
+        "signer": "X",
+        "verifies": true
       },
       {
         "content_length": 100000028,
@@ -1759,7 +2236,8 @@
         "sign_pub": "BAEiTZqaapURL8mkI-FwBNMfjy1r_KjbGAMVPmbkSZIMD_nllYjV9IPQSMRKRBThiPWl7OqFHrqsshLxDJ8OQUU",
         "signed_bytes": "UEEtRklMRTEKUE9TVAovdjEvZmlsZQoxNzk1MzE5MjMyMTIzCjEwMDAwMDAyOAoyQjB1cFBnXzJMTy14bDdGR3I3bEQ1NTFNV285UmxSdGRVMFV2emQ1N0lrCnRSc1k0WlVuN3pBT2Q3NVRiMDNTZmc",
         "signed_text": "PA-FILE1\nPOST\n/v1/file\n1795319232123\n100000028\n2B0upPg_2LO-xl7FGr7lD551MWo9RlRtdU0Uvzd57Ik\ntRsY4ZUn7zAOd75Tb03Sfg",
-        "signer": "X"
+        "signer": "X",
+        "verifies": true
       },
       {
         "id": "202611230347-4e5a659ec86b888000e260b6eddbc12e",
@@ -1771,7 +2249,8 @@
         "sign_pub": "BAEiTZqaapURL8mkI-FwBNMfjy1r_KjbGAMVPmbkSZIMD_nllYjV9IPQSMRKRBThiPWl7OqFHrqsshLxDJ8OQUU",
         "signed_bytes": "UEEtRklMRTEKREVMRVRFCi92MS9maWxlLzIwMjYxMTIzMDM0Ny00ZTVhNjU5ZWM4NmI4ODgwMDBlMjYwYjZlZGRiYzEyZQoxNzk1MzE5MjMyMTIz",
         "signed_text": "PA-FILE1\nDELETE\n/v1/file/202611230347-4e5a659ec86b888000e260b6eddbc12e\n1795319232123",
-        "signer": "X"
+        "signer": "X",
+        "verifies": true
       },
       {
         "id": "202611230347-4e5a659ec86b888000e260b6eddbc12e",
@@ -1783,10 +2262,25 @@
         "sign_pub": "BAEiTZqaapURL8mkI-FwBNMfjy1r_KjbGAMVPmbkSZIMD_nllYjV9IPQSMRKRBThiPWl7OqFHrqsshLxDJ8OQUU",
         "signed_bytes": "UEEtRklMRTEKREVMRVRFCi92MS9maWxlLzIwMjYxMTIzMDM0Ny00ZTVhNjU5ZWM4NmI4ODgwMDBlMjYwYjZlZGRiYzEyZQoxNzk1MzIwMDAwOTk5",
         "signed_text": "PA-FILE1\nDELETE\n/v1/file/202611230347-4e5a659ec86b888000e260b6eddbc12e\n1795320000999",
-        "signer": "X"
+        "signer": "X",
+        "verifies": true
+      },
+      {
+        "content_length": 33,
+        "file_sha256": "jp1ij2N6wKvJu0bHHPkU5ZZ7xs-k0omkdnLCbxlw3-o",
+        "method": "POST",
+        "name": "post_small_tampered_sig",
+        "pa_time": "1795319232123",
+        "send_id": "9LjNAPAHZU3tvPILLdIjfw",
+        "sig": "cw-x6jMTGpORKOSz2OIoAhPyUIyTaPg9NGS4Qoac2zPtFQGB43geGFFbONu8GbKz-xqBZV_A21yJ86vWornflQ",
+        "sign_pub": "BAEiTZqaapURL8mkI-FwBNMfjy1r_KjbGAMVPmbkSZIMD_nllYjV9IPQSMRKRBThiPWl7OqFHrqsshLxDJ8OQUU",
+        "signed_bytes": "UEEtRklMRTEKUE9TVAovdjEvZmlsZQoxNzk1MzE5MjMyMTIzCjMzCmpwMWlqMk42d0t2SnUwYkhIUGtVNVpaN3hzLWswb21rZG5MQ2J4bHczLW8KOUxqTkFQQUhaVTN0dlBJTExkSWpmdw",
+        "signed_text": "PA-FILE1\nPOST\n/v1/file\n1795319232123\n33\njp1ij2N6wKvJu0bHHPkU5ZZ7xs-k0omkdnLCbxlw3-o\n9LjNAPAHZU3tvPILLdIjfw",
+        "signer": "X",
+        "verifies": false
       }
     ],
-    "description": "PA-FILE1 signing strings, frozen, UTF-8, no trailing newline. POST: \"PA-FILE1\\nPOST\\n/v1/file\\n\" + PA-Time + \"\\n\" + Content-Length (decimal) + \"\\n\" + PA-File-SHA256 + \"\\n\" + PA-Send-ID. DELETE: \"PA-FILE1\\nDELETE\\n/v1/file/\" + id + \"\\n\" + PA-Time (no body line). PA-Sig = b64url of raw r||s, ECDSA P-256 SHA-256 over the string, as PA-REQ1. Signer X from golden-v1.json keys.peers. Assert signed_bytes byte for byte from the fields and that sig verifies with sign_pub (verify only)."
+    "description": "PA-FILE1 signing strings, frozen, UTF-8, no trailing newline. POST: \"PA-FILE1\\nPOST\\n/v1/file\\n\" + PA-Time + \"\\n\" + Content-Length (decimal) + \"\\n\" + PA-File-SHA256 + \"\\n\" + PA-Send-ID. DELETE: \"PA-FILE1\\nDELETE\\n/v1/file/\" + id + \"\\n\" + PA-Time (no body line). PA-Sig = b64url of raw r||s, ECDSA P-256 SHA-256 over the string, as PA-REQ1. Signer X from golden-v1.json keys.peers. Assert signed_bytes byte for byte from the fields and that sig verifies with sign_pub (verify only) exactly when verifies is true; a false row has a changed PA-Sig and must be refused."
   },
   "key": {
     "acct_secret": "zFHuiLsY_clB6z6mXYe4QAg82rkyQJYMR45Hkk7yEkI",
@@ -2099,7 +2593,7 @@
       {
         "image": false,
         "input": "CON .txt",
-        "output": "CON .txt"
+        "output": "_CON .txt"
       },
       {
         "image": false,
@@ -2180,9 +2674,34 @@
         "image": false,
         "input": "C:",
         "output": "C_"
+      },
+      {
+        "image": false,
+        "input": "CON. .txt",
+        "output": "_CON. .txt"
+      },
+      {
+        "image": false,
+        "input": "lpt1 .tar.gz",
+        "output": "_lpt1 .tar.gz"
+      },
+      {
+        "image": false,
+        "input": "e\u0301.txt",
+        "output": "e_.txt"
+      },
+      {
+        "image": false,
+        "input": "Cafe\u0301 Menu.pdf",
+        "output": "Cafe_ Menu.pdf"
+      },
+      {
+        "image": false,
+        "input": "invoice\u202egpj.exe",
+        "output": "invoice_gpj.exe"
       }
     ],
-    "description": "File names, applied by sender and receiver. Steps: 1 basename (split on \"/\" and \"\\\\\"); 2 every char (code point) outside [A-Za-z0-9 ._()-] -> \"_\"; 3 collapse runs of \"_\" to one \"_\" and runs of spaces to one space; 4 trim leading and trailing dots and spaces; 5 extension = text after the last dot if 1-10 chars of [A-Za-z0-9], else none (base = all); 6 fallback base if the base has no [A-Za-z0-9] or is > 64 chars: \"file-YYYYMMDD-HHMMSS\" (or \"image-...\" when image is true) from time in UTC, extension kept; 7 cut so the total is <= 100 (guard); 8 if the text before the first dot equals CON, PRN, AUX, NUL, COM1-COM9 or LPT1-LPT9 (any case), prefix \"_\". Digits-only names are kept. image and time are inputs (the caller decides image; time is send or receive time). Assert sanitize(input, time, image) == output.",
+    "description": "File names, applied by sender and receiver. Steps: 1 basename (split on \"/\" and \"\\\\\"); 2 every char (code point) outside [A-Za-z0-9 ._()-] -> \"_\"; 3 collapse runs of \"_\" to one \"_\" and runs of spaces to one space; 4 trim leading and trailing dots and spaces; 5 extension = text after the last dot if 1-10 chars of [A-Za-z0-9], else none (base = all); 6 fallback base if the base has no [A-Za-z0-9] or is > 64 chars: \"file-YYYYMMDD-HHMMSS\" (or \"image-...\" when image is true) from time in UTC, extension kept; 7 cut so the total is <= 100 (guard); 8 if the text before the first dot, without trailing spaces and dots, equals CON, PRN, AUX, NUL, COM1-COM9 or LPT1-LPT9 (any case), prefix \"_\". Digits-only names are kept. Code points are not normalized (an NFD name keeps its combining marks as \"_\"). image and time are inputs (the caller decides image; time is send or receive time). Assert sanitize(input, time, image) == output.",
     "time": 1795405632
   },
   "sha256": {
@@ -2276,9 +2795,23 @@
         "size": 100000001,
         "status": 413,
         "ttl_min": null
+      },
+      {
+        "content_length": 0,
+        "name": "content_length_0",
+        "size": null,
+        "status": 400,
+        "ttl_min": null
+      },
+      {
+        "content_length": 27,
+        "name": "content_length_27",
+        "size": null,
+        "status": 400,
+        "ttl_min": null
       }
     ],
-    "description": "WORKER ONLY. Clients never implement or hardcode a lifetime; they show file.expires. size = Content-Length - 28 (plaintext bytes, decimal). ttl_min = min(1440, floor(14,400,000,000 / size)); size 0 -> 1440. Content-Length > MAX_FILE + 28 -> 413 and ttl_min null. Assert ttl_min and status for each content_length.",
+    "description": "WORKER ONLY. Clients never implement or hardcode a lifetime; they show file.expires. size = Content-Length - 28 (plaintext bytes, decimal). ttl_min = min(1440, floor(14,400,000,000 / size)); size 0 -> 1440. Content-Length > MAX_FILE + 28 -> 413 and ttl_min null. Content-Length < 28 (no room for nonce and tag) -> 400, size and ttl_min null. Assert ttl_min and status for each content_length.",
     "worker_only": true
   },
   "upload_request": {

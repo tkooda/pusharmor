@@ -34,8 +34,9 @@ export function openBlob(key, blob) {
 // ---------------------------------------------------------------- Worker only
 // Lifetime in minutes: min(1440, floor(14,400,000,000 / size)); size 0 -> 1440.
 // size = Content-Length - 28. Content-Length > MAX_FILE + 28 -> 413 (null).
+// Content-Length < 28 -> 400 (null).
 export function ttlMinutes(size) {
-  if (size > MAX_FILE) return null;
+  if (size < 0 || size > MAX_FILE) return null;
   if (size === 0) return 1440;
   return Math.min(1440, Math.floor(14400000000 / size));
 }
@@ -84,18 +85,18 @@ export function sanitizeName(raw, timeSec, image) {
   if (!/[A-Za-z0-9]/.test(base) || base.length > 64) base = (image ? 'image-' : 'file-') + fallbackStamp(timeSec); // 6
   if (base.length + (ext ? ext.length + 1 : 0) > 100) base = base.slice(0, 100 - (ext ? ext.length + 1 : 0)); // 7
   let out = ext ? base + '.' + ext : base;
-  if (RESERVED.has(out.split('.')[0].toUpperCase())) out = '_' + out; // 8
+  if (RESERVED.has(out.split('.')[0].replace(/[ .]+$/, '').toUpperCase())) out = '_' + out; // 8
   return out;
 }
 
-// CLI listen --files DIR: "base (N).ext", N from 1, exact name match.
+// CLI listen --files DIR: "base (N).ext", N from 1; names match ignoring case.
 export function collisionName(name, existing) {
-  const have = new Set(existing);
-  if (!have.has(name)) return name;
+  const have = new Set(existing.map((e) => e.toLowerCase()));
+  if (!have.has(name.toLowerCase())) return name;
   const [base, ext] = splitExt(name);
   for (let n = 1; ; n++) {
     const c = base + ' (' + n + ')' + (ext ? '.' + ext : '');
-    if (!have.has(c)) return c;
+    if (!have.has(c.toLowerCase())) return c;
   }
 }
 

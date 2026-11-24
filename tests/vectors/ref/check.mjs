@@ -384,7 +384,8 @@ test('file-v1: file_sig', () => {
     assert.equal(bytes.toString('utf8'), c.signed_text, c.name);
     assert.ok(!c.signed_text.endsWith('\n'), c.name);
     assert.equal(c.sign_pub, G.keys.peers[c.signer].sign_pub);
-    assert.ok(verifyFile(b64d(c.sign_pub), bytes, b64d(c.sig)), c.name);
+    assert.equal(typeof c.verifies, 'boolean', c.name);
+    assert.equal(verifyFile(b64d(c.sign_pub), bytes, b64d(c.sig)), c.verifies, c.name);
     if (c.method === 'POST') {
       assert.match(c.send_id, /^[A-Za-z0-9_-]{22}$/);
       assert.equal(b64d(c.send_id).length, 16);
@@ -432,10 +433,17 @@ test('file-v1: upload_request', () => {
 
 test('file-v1: ttl (Worker only)', () => {
   for (const c of F.ttl.cases) {
+    if (c.content_length < BLOB_OVERHEAD) {
+      assert.equal(c.size, null, c.name);
+      assert.equal(c.ttl_min, null, c.name);
+      assert.equal(c.status, 400, c.name);
+      continue;
+    }
     assert.equal(c.content_length, c.size + BLOB_OVERHEAD, c.name);
     assert.equal(ttlMinutes(c.size), c.ttl_min, c.name);
     assert.equal(c.status, c.content_length > MAX_FILE + BLOB_OVERHEAD ? 413 : 201, c.name);
   }
+  assert.ok(F.ttl.cases.some((c) => c.status === 400), 'a Content-Length < 28 row');
 });
 
 test('file-v1: key (Worker only)', () => {
@@ -452,15 +460,17 @@ test('file-v1: key (Worker only)', () => {
 });
 
 test('file-v1: names', () => {
-  assert.ok(F.names.cases.length >= 40 && F.names.cases.length <= 60);
+  assert.ok(F.names.cases.length >= 40 && F.names.cases.length <= 70);
   for (const c of F.names.cases) {
     assert.equal(sanitizeName(c.input, F.names.time, c.image), c.output, JSON.stringify(c.input));
     assert.match(c.output, /^[A-Za-z0-9 ._()-]{1,100}$/);
   }
+  assert.equal(sanitizeName('CON .txt', 0, false), '_CON .txt');
 });
 
 test('file-v1: collision', () => {
   for (const c of F.collision.cases) assert.equal(collisionName(c.input, c.existing), c.output, c.name);
+  assert.equal(collisionName('Photo.jpg', ['photo.jpg']), 'Photo (1).jpg');
 });
 
 test('file-v1: auto_download', () => {
