@@ -151,27 +151,57 @@ export class B2Store implements FileStore {
     }
   }
 
+  // One page (one call) of the first versions under prefix; more: further versions exist.
+  async listVersionsPage(prefix: string): Promise<{ versions: Version[]; more: boolean } | "cap"> {
+    const res = await this.call("GET", null, "versions&max-keys=" + PAGE + "&prefix=" + encodeURIComponent(prefix), {});
+    if (!res.ok) {
+      const f = await failure(res);
+      if (f.cap) return "cap";
+      throw new B2Error(res.status, f.code);
+    }
+    const text = await res.text();
+    const versions: Version[] = [];
+    for (const el of [...tags(text, "Version"), ...tags(text, "DeleteMarker")]) {
+      const key = tag(el, "Key");
+      const versionId = tag(el, "VersionId");
+      if (key !== undefined && versionId !== undefined) versions.push({ key, versionId });
+    }
+    return { versions, more: tag(text, "IsTruncated") === "true" };
+  }
+
+  // One page (one call) of the common prefixes directly under prefix (delimiter "/"), after
+  // token; next: the token of the next page, if any.
+  async listPrefixesPage(prefix: string, token?: string): Promise<{ prefixes: string[]; next?: string } | "cap"> {
+    let q = "list-type=2&delimiter=%2F&max-keys=" + PAGE + "&prefix=" + encodeURIComponent(prefix);
+    if (token !== undefined) q += "&continuation-token=" + encodeURIComponent(token);
+    const res = await this.call("GET", null, q, {});
+    if (!res.ok) {
+      const f = await failure(res);
+      if (f.cap) return "cap";
+      throw new B2Error(res.status, f.code);
+    }
+    const text = await res.text();
+    const prefixes: string[] = [];
+    for (const cp of tags(text, "CommonPrefixes")) {
+      const p = tag(cp, "Prefix");
+      if (p !== undefined) prefixes.push(p);
+    }
+    if (tag(text, "IsTruncated") !== "true") return { prefixes };
+    const next = tag(text, "NextContinuationToken");
+    if (next === undefined) throw new B2Error(res.status, "BadPage");
+    return { prefixes, next };
+  }
+
   // The common prefixes directly under prefix (delimiter "/"), all pages.
   async listPrefixes(prefix: string): Promise<string[] | "cap"> {
     const out: string[] = [];
     let token: string | undefined;
     for (;;) {
-      let q = "list-type=2&delimiter=%2F&max-keys=" + PAGE + "&prefix=" + encodeURIComponent(prefix);
-      if (token !== undefined) q += "&continuation-token=" + encodeURIComponent(token);
-      const res = await this.call("GET", null, q, {});
-      if (!res.ok) {
-        const f = await failure(res);
-        if (f.cap) return "cap";
-        throw new B2Error(res.status, f.code);
-      }
-      const text = await res.text();
-      for (const cp of tags(text, "CommonPrefixes")) {
-        const p = tag(cp, "Prefix");
-        if (p !== undefined) out.push(p);
-      }
-      if (tag(text, "IsTruncated") !== "true") return out;
-      token = tag(text, "NextContinuationToken");
-      if (token === undefined) throw new B2Error(res.status, "BadPage");
+      const page = await this.listPrefixesPage(prefix, token);
+      if (page === "cap") return "cap";
+      out.push(...page.prefixes);
+      if (page.next === undefined) return out;
+      token = page.next;
     }
   }
 

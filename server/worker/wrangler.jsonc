@@ -19,7 +19,8 @@
     { "pattern": "api.pusharmor.com", "custom_domain": true },
     { "pattern": "b2file.pusharmor.com", "custom_domain": true }
   ],
-  "limits": { "cpu_ms": 2000 },
+  // subrequests: the file cleanup cron and an account deletion use at most 1,000 storage calls each.
+  "limits": { "cpu_ms": 2000, "subrequests": 2000 },
   // Crons (src/crons.ts): monthly purge, 15-minute health ping, 5-minute file cleanup.
   "triggers": { "crons": ["0 3 1 * *", "*/15 * * * *", "*/5 * * * *"] },
   // head_sampling_rate stays 1 (head sampling is decided before the request runs and would drop

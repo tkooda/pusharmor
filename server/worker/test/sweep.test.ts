@@ -164,6 +164,20 @@ describe("file cleanup cron", () => {
     expect(log.extra.storage).toBe("cap");
   });
 
+  it("never goes over its call budget, also for a folder with more than 1,000 versions", async () => {
+    s3.add(fileKey(NOW - 7200), 2500);
+    s3.add(fileKey(NOW - 7000), 1);
+    for (const max of [1, 2, 3, 4, 5, 6, 7, 8]) {
+      s3.seen.length = 0;
+      await sweepFiles(await testEnv(), NOW, new Log(), max);
+      expect(s3.seen.length, String(max)).toBeLessThanOrEqual(max);
+    }
+    s3.seen.length = 0;
+    const log = new Log();
+    await sweepFiles(await testEnv(), NOW, log, 1000);
+    expect(s3.keys()).toEqual([]);
+  });
+
   it("bounded work: a run stops at its call budget, oldest first; the next run finishes and records the time", async () => {
     for (let i = 0; i < 10; i++) s3.add(fileKey(NOW - 7200 + i * 60));
     const log = new Log();
@@ -215,10 +229,24 @@ describe("account deletion of files", () => {
     for (let i = 0; i < 1100; i++) s3.add(fileKey(NOW + i * 60, other, i));
     s3.add(fileKey(NOW + 60, mine, 1), 2);
     s3.add(fileKey(NOW + 1099 * 60, mine, 2));
-    await deleteAccountFiles(await testEnv(), p.acct, NOW);
+    await deleteAccountFiles(await testEnv(), p.acct, NOW, 1e6);
     expect(listCalls()).toBe(2);
     expect(s3.keys().filter((k) => k.includes("/" + mine + "/"))).toEqual([]);
     expect(s3.keys()).toHaveLength(1100);
+    // Deleted page by page: the first page's files go before the second page is listed.
+    const order = s3.seen.map((x) => (x.q.get("list-type") === "2" ? "page" : x.method === "POST" ? "delete" : "list"));
+    expect(order.indexOf("delete")).toBeLessThan(order.lastIndexOf("page"));
+  });
+
+  it("stays within its call budget; what is left stays for the cron", async () => {
+    const p = await newPeer(randomEmail());
+    await setRow(p.acct, dayOf(NOW));
+    const mine = await acctHash(S.FILE_ACCT_SECRET, p.acct);
+    for (let i = 0; i < 100; i++) s3.add(fileKey(NOW + i * 60, mine, i));
+    await deleteAccountFiles(await testEnv(), p.acct, NOW, 50);
+    expect(s3.seen.length).toBeLessThanOrEqual(50);
+    expect(s3.keys().length).toBeGreaterThan(0);
+    expect(s3.keys().length).toBeLessThan(100);
   });
 
   it("DELETE /v1/account deletes the account's stored files", async () => {

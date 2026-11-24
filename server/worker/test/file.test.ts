@@ -43,10 +43,18 @@ class MemStore implements FileStore {
     if (forced === "cap") return "cap";
     return this.objects.delete(key) ? "ok" : "missing";
   }
-  get(): Promise<GetResult> {
-    throw new Error("unused");
+  async get(key: string): Promise<GetResult> {
+    const b = this.objects.get(key);
+    if (!b) return "missing";
+    return { status: 200, body: new Response(b).body!, length: b.length, contentRange: null, etag: null };
   }
   listPrefixes(): Promise<string[]> {
+    throw new Error("unused");
+  }
+  listPrefixesPage(): Promise<{ prefixes: string[] }> {
+    throw new Error("unused");
+  }
+  listVersionsPage(): Promise<{ versions: Version[]; more: boolean }> {
     throw new Error("unused");
   }
   listVersions(): Promise<Version[]> {
@@ -631,8 +639,29 @@ describe("DELETE /v1/file/<id>", () => {
     const now = Math.floor(Date.now() / 1000);
     expect((now + (r.body.retry_after as number)) % 86400).toBe(0);
     store.calls.length = 0;
-    expect((await upload({ peer: a })).status).toBe(503);
+    expect((await upload({ peer: a })).status).toBe(201);
+  });
+
+  it("a key minute more than 24 h + 5 min behind -> 404 with no storage call or signature", async () => {
+    const a = await approvedSender();
+    const old = minuteOf(Math.floor(Date.now() / 1000) - 86400 - 300 - 120);
+    expect((await del(a, old + "-" + rnd(), { unsigned: true })).status).toBe(404);
     expect(store.calls).toEqual([]);
+  });
+});
+
+describe("caps per kind", () => {
+  it("an upload cap does not block downloads of a stored file", async () => {
+    const a = await approvedSender();
+    const up = await upload({ peer: a });
+    expect(up.status).toBe(201);
+    store.next = "cap";
+    expect((await upload({ peer: a })).status).toBe(503);
+    expect((await upload({ peer: a })).status).toBe(503);
+    const ctx = createExecutionContext();
+    const res = await handle(new Request(up.body.url as string, { headers: { "CF-Connecting-IP": freshIp() } }), await looseEnv({ RL_DL_IP: countingLimit(1e6), RL_DL_KEY: countingLimit(1e6) }), ctx);
+    await waitOnExecutionContext(ctx);
+    expect(res.status).toBe(200);
   });
 });
 

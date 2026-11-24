@@ -65,14 +65,11 @@ export async function expirePending(env: Env, nowS: number, log: Log, chunk = PE
 // object under it is deleted. Every run handles every due folder,
 // oldest first, up to SWEEP_MAX_CALLS storage calls; folders left over stay due and the next
 // run takes them. Runs keep no state, so two runs at once only repeat deletes. Only failures to
-// delete are logged as errors; the time of the last run that left nothing due and had no failure
+// delete are logged as errors; the start time of the last run that left nothing due and had no failure
 // is kept for /v1/health.
 export const FILE_GRACE_S = 300;
 export const SWEEP_MAX_CALLS = 1000;
-const PAGE = 1000;
 const DIR = /^v1\/([0-9]{12})\/$/;
-
-const pages = (n: number) => Math.max(1, Math.ceil(n / PAGE));
 
 // Unix second at which folder v1/<minute>/ is due, or null for a name that is not a minute folder.
 export function dueAt(prefix: string): number | null {
@@ -87,46 +84,69 @@ export async function sweepFiles(env: Env, nowS: number, log: Log, maxCalls = SW
   let calls = 0;
   let deleted = 0;
   let failed = 0;
-  let due: string[];
+  let stop = false;
   const fail = (why: string) => {
     failed++;
     log.error = "file-delete-failed";
     log.extra.storage ??= why;
   };
+  // Minute folders, one page per call, while the budget lasts.
+  const due: string[] = [];
+  let listed = false;
   try {
-    const all = await store.listPrefixes("v1/");
-    if (all === "cap") {
-      fail("cap");
-      return;
+    let token: string | undefined;
+    while (calls < maxCalls) {
+      const page = await store.listPrefixesPage("v1/", token);
+      calls++;
+      if (page === "cap") {
+        fail("cap");
+        return;
+      }
+      for (const p of page.prefixes) {
+        const t = dueAt(p);
+        if (t !== null && t <= nowS) due.push(p);
+      }
+      token = page.next;
+      if (token === undefined) {
+        listed = true;
+        break;
+      }
     }
-    calls += pages(all.length);
-    due = all.filter((p) => {
-      const t = dueAt(p);
-      return t !== null && t <= nowS;
-    });
-    due.sort();
   } catch (e) {
     fail(storageError(e));
     return;
+  } finally {
+    log.extra.files_calls = calls;
   }
-  for (let i = 0; i < due.length && calls < maxCalls; i++) {
+  due.sort();
+  // Each step is one list page (up to 1,000 versions) plus one delete of them: 2 calls.
+  for (let i = 0; i < due.length && !stop; i++) {
     try {
-      const vs = await store.listVersions(due[i]);
-      calls++;
-      if (vs === "cap") {
-        fail("cap");
-        break;
-      }
-      calls += pages(vs.length) - 1;
-      if (vs.length) {
-        const r = await store.deleteVersions(vs);
-        calls += pages(vs.length);
-        if (r === "cap") {
+      for (;;) {
+        if (calls + 2 > maxCalls) {
+          stop = true;
+          break;
+        }
+        const page = await store.listVersionsPage(due[i]);
+        calls++;
+        if (page === "cap") {
           fail("cap");
+          stop = true;
+          break;
+        }
+        if (page.versions.length) {
+          calls++;
+          if ((await store.deleteVersions(page.versions)) === "cap") {
+            fail("cap");
+            stop = true;
+            break;
+          }
+        }
+        if (!page.more) {
+          deleted++;
           break;
         }
       }
-      deleted++;
     } catch (e) {
       fail(storageError(e));
     }
@@ -135,7 +155,7 @@ export async function sweepFiles(env: Env, nowS: number, log: Log, maxCalls = SW
   log.extra.files_calls = calls;
   log.extra.files_dirs = deleted;
   if (left > 0 || failed > 0) log.extra.files_left = left + failed;
-  if (failed === 0 && left === 0) {
+  if (failed === 0 && left === 0 && listed) {
     const q = env.FILE_QUOTA.get(env.FILE_QUOTA.idFromName(SWEEP_OBJECT));
     await q.markSweep(nowS);
   }

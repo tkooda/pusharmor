@@ -51,7 +51,8 @@
     "GOOGLE_CLIENT_SECRET": "Google OAuth client secret (web flow)",
     "APPLE_SIGNIN_KEY_P8": "Sign in with Apple key (.p8 content)",
     "B2_KEY_ID": "file storage application key id",
-    "B2_APP_KEY": "file storage application key"
+    "B2_APP_KEY": "file storage application key",
+    "FILE_ACCT_SECRET": "HMAC key for the account part of file storage keys (b64url, 32 bytes)"
   },
   "public_keys": {
     "android_release_cert_sha256": "list of Android release signing cert SHA-256 fingerprints (assetlinks, App Links)",

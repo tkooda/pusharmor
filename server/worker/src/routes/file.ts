@@ -41,6 +41,8 @@ export function minuteStart(m: string): number | null {
 
 // A key minute later than this many seconds ahead cannot belong to a live file: 404, no storage call.
 export const AHEAD_MAX = 86400 + 60;
+// A key minute this far behind now cannot hold a live file (24 h + the deletion grace): 404.
+export const BEHIND_MAX = 86400 + 300;
 
 // First 16 lowercase hex of HMAC-SHA256(FILE_ACCT_SECRET, raw account id bytes).
 export async function acctHash(secret: string, acct: string): Promise<string> {
@@ -77,33 +79,38 @@ export function quotaLimits(env: { PA_FILE_DAY_LIMIT?: string; PA_FILE_MONTH_LIM
   return { day, month };
 }
 
-// A storage cap seen by this isolate: refuse uploads before the charge until 00:00 UTC.
-let capUntil = 0;
+// Storage caps seen by this isolate, until 00:00 UTC, per kind: "upload" (a cap on an upload:
+// storage or a transaction class) refuses uploads before the charge; "download" (a cap on a
+// download: download bandwidth or Class B) refuses downloads. A cap on a delete is not kept.
+export type CapKind = "upload" | "download";
+const capUntil: Record<CapKind, number> = { upload: 0, download: 0 };
 // Conditions already alerted by this isolate: "config" once, "cap" once per cap period.
 const alerted = new Set<string>();
 export const testing = {
   reset(): void {
-    capUntil = 0;
+    capUntil.upload = 0;
+    capUntil.download = 0;
     alerted.clear();
   },
 };
 
-// Seconds left on a remembered storage cap (0: none).
-export function capLeft(now: number): number {
-  return now < capUntil ? capUntil - now : 0;
+// Seconds left on a remembered storage cap of that kind (0: none).
+export function capLeft(now: number, kind: CapKind): number {
+  return now < capUntil[kind] ? capUntil[kind] - now : 0;
 }
 
-// Remembers a storage cap until 00:00 UTC; returns 503 "files paused" with retry_after.
-export function capHit(c: Ctx): ApiError {
+// Remembers a storage cap of that kind (none: not kept) until 00:00 UTC; returns 503 "files
+// paused" with retry_after.
+export function capHit(c: Ctx, kind?: CapKind): ApiError {
   const t = Math.floor(Date.now() / 1000);
-  capUntil = nextDay(t);
-  return paused(c, "cap", capUntil - t);
+  if (kind) capUntil[kind] = nextDay(t);
+  return paused(c, "cap", nextDay(t) - t);
 }
 
 // 503 "files paused". Alerts only the first time this isolate sees the condition.
 export function paused(c: Ctx, why: "paused" | "config" | "cap", retryAfter?: number): ApiError {
   c.log.file = why;
-  const key = why === "cap" ? "cap:" + capUntil : why;
+  const key = why === "cap" ? "cap:" + nextDay(Math.floor(Date.now() / 1000)) : why;
   if (why !== "paused" && !alerted.has(key)) {
     alerted.add(key);
     c.log.fileAlert = true;
@@ -151,7 +158,7 @@ export async function uploadFile(c: Ctx): Promise<Response> {
   const limits = quotaLimits(c.env);
   if (typeof limits === "string") throw paused(c, limits);
   const now = Math.floor(Date.now() / 1000);
-  if (now < capUntil) throw paused(c, "cap", capUntil - now);
+  if (capLeft(now, "upload") > 0) throw paused(c, "cap", capLeft(now, "upload"));
   const store = storeDeps.store(c.env);
   let hash: string;
   try {
@@ -182,7 +189,7 @@ export async function uploadFile(c: Ctx): Promise<Response> {
     throw new ApiError(502, "storage error");
   }
   if (put === "mismatch") throw new ApiError(400, "hash mismatch");
-  if (put === "cap") throw capHit(c);
+  if (put === "cap") throw capHit(c, "upload");
   // An upload that ends after its own expiry: delete the object, take back this charge, drop
   // this device's send slot (a retry of the same PA-Send-ID is charged again), and refuse it.
   // A failed delete leaves the object to the cleanup of its expiry minute.
@@ -203,18 +210,18 @@ export function storageError(e: unknown): string {
   return e instanceof B2Error ? e.status + " " + e.code : "fetch";
 }
 
-// DELETE /v1/file/<id>. An id minute more than 24 h + 1 min ahead (or not a real minute) -> 404
-// with no storage call; then the POST steps 2-7 (PA-FILE1 DELETE string; counts on RL_FILE). A
+// DELETE /v1/file/<id>. An id minute more than 24 h + 1 min ahead or 24 h + 5 min behind (or not
+// a real minute) -> 404 with no storage call; then the POST steps 2-7 (PA-FILE1 DELETE string; counts on RL_FILE). A
 // file can be deleted while it exists, also after its expiry minute. A cap remembered from an
 // upload does not block a delete. The key comes from the caller's account and the id, so only
 // the account's own objects can be deleted. No quota refund. Storage: no such key -> 404, cap ->
-// 503, any other error -> 502.
+// 503 (not kept), any other error -> 502.
 export async function deleteFile(c: Ctx): Promise<Response> {
   const id = c.params[0];
   const minute = id.slice(0, 12);
   const start = minuteStart(minute);
   const now0 = Math.floor(Date.now() / 1000);
-  if (start === null || start > now0 + AHEAD_MAX) throw new ApiError(404, "not found");
+  if (start === null || start > now0 + AHEAD_MAX || start < now0 - BEHIND_MAX) throw new ApiError(404, "not found");
   const s = await signedStart(c);
   const rows = await all<CallerRow & { approved: number }>(c.env.DB.prepare(SQL.Q_FILE).bind(s.me, s.acct));
   const caller = rows[0];

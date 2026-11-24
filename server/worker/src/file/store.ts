@@ -29,6 +29,8 @@ export interface FileStore {
   get(key: string, range: string | null): Promise<GetResult>;
   remove(key: string): Promise<RemoveResult>;
   listPrefixes(prefix: string): Promise<string[] | "cap">;
+  listPrefixesPage(prefix: string, token?: string): Promise<{ prefixes: string[]; next?: string } | "cap">;
+  listVersionsPage(prefix: string): Promise<{ versions: Version[]; more: boolean } | "cap">;
   listVersions(prefix: string): Promise<Version[] | "cap">;
   deleteVersions(versions: Version[]): Promise<"ok" | "cap">;
 }

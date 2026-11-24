@@ -17,16 +17,19 @@ import { storeDeps, type Version } from "../file/store";
 import { acctHash, storageError } from "./file";
 
 const LIST_PARALLEL = 6;
+export const ACCOUNT_FILES_MAX_CALLS = 1000;
 
-// Deletes every stored file of a deleted account. No storage call when the account never
+// Deletes the stored files of a deleted account. No storage call when the account never
 // uploaded or its last upload day (UTC) is older than yesterday: no file of it can still exist
-// past its deletion time. Else one paged list of the minute folders, then a list of
-// v1/<minute>/<acct-hash>/ under each folder that exists, then a delete of every version found.
-// Runs after the reply; only a failure is logged, and the 5-minute cleanup removes what is left.
-export async function deleteAccountFiles(env: Env, acct: string, nowS: number): Promise<void> {
+// past its deletion time. Else, page by page over the minute folders: list
+// v1/<minute>/<acct-hash>/ under each folder of the page, then delete every version found
+// there, then the next page; at most maxCalls storage calls. Runs after the reply; only a
+// failure is logged. Files left over expire and the 5-minute cleanup removes them.
+export async function deleteAccountFiles(env: Env, acct: string, nowS: number, maxCalls = ACCOUNT_FILES_MAX_CALLS): Promise<void> {
   const log = new Log();
   log.route = "account files";
   log.account = acct;
+  let calls = 0;
   try {
     const q = env.FILE_QUOTA.get(env.FILE_QUOTA.idFromName(acct));
     const day = await q.lastDay();
@@ -34,25 +37,37 @@ export async function deleteAccountFiles(env: Env, acct: string, nowS: number): 
     const store = storeDeps.store(env);
     if (!store || !env.FILE_ACCT_SECRET) return;
     const hash = await acctHash(env.FILE_ACCT_SECRET, acct);
-    const dirs = await store.listPrefixes("v1/");
-    if (dirs === "cap") throw new Error("cap");
-    const found: Version[] = [];
-    let next = 0;
-    const lane = async () => {
-      while (next < dirs.length) {
-        const vs = await store.listVersions(dirs[next++] + hash + "/");
-        if (vs === "cap") throw new Error("cap");
-        found.push(...vs);
+    let token: string | undefined;
+    // Each listing call keeps 2 calls back: one for the next page and one for the delete.
+    while (calls + 3 <= maxCalls) {
+      const page = await store.listPrefixesPage("v1/", token);
+      calls++;
+      if (page === "cap") throw new Error("cap");
+      const dirs = page.prefixes;
+      const found: Version[] = [];
+      let next = 0;
+      const lane = async () => {
+        while (next < dirs.length && calls + 2 < maxCalls) {
+          const dir = dirs[next++];
+          calls++;
+          const vs = await store.listVersionsPage(dir + hash + "/");
+          if (vs === "cap") throw new Error("cap");
+          found.push(...vs.versions);
+        }
+      };
+      await Promise.all(Array.from({ length: LIST_PARALLEL }, lane));
+      for (let k = 0; k < found.length && calls < maxCalls; k += 1000) {
+        calls++;
+        if ((await store.deleteVersions(found.slice(k, k + 1000))) === "cap") throw new Error("cap");
       }
-    };
-    await Promise.all(Array.from({ length: LIST_PARALLEL }, lane));
-    log.extra.files_dirs = dirs.length;
-    log.extra.files_versions = found.length;
-    if (found.length && (await store.deleteVersions(found)) === "cap") throw new Error("cap");
+      token = page.next;
+      if (token === undefined) break;
+    }
   } catch (e) {
     log.error = "file-delete-failed";
     log.extra.storage = e instanceof Error && e.message === "cap" ? "cap" : storageError(e);
   } finally {
+    log.extra.files_calls = calls;
     if (log.error) log.emit();
   }
 }

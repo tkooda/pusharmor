@@ -17,6 +17,7 @@ GOOGLE_CLIENT_SECRET=
 APPLE_SIGNIN_KEY_P8=
 B2_KEY_ID=
 B2_APP_KEY=
+FILE_ACCT_SECRET=
 # Deployment ids: Cloudflare dashboard variables in production (not in wrangler.jsonc).
 GOOGLE_FCM_PROJECT_ID=
 APPLE_APNS_TOPIC=

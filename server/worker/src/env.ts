@@ -62,7 +62,8 @@ export interface Env {
   PA_CODE_SECRET: string;
   PA_CONFIRM_SECRET: string;
   PA_TOKEN_SECRET: string;
-  FILE_ACCT_SECRET: string; // acct-hash in file storage keys
+  // acct-hash in file storage keys
+  FILE_ACCT_SECRET: string;
   // File storage application key id and key (without both, file sending is paused).
   B2_KEY_ID: string;
   B2_APP_KEY: string;
