@@ -282,16 +282,25 @@ fun EmailScreen(vm: AppViewModel, purpose: String, onBack: () -> Unit = {}, onSe
     }
 }
 
-/** A thin bar and the caption of the step a sign-in, device limit, logout, or delete account is at; nothing when none runs. */
+/**
+ * A thin bar that fills by the steps, and the caption of the step a sign-in, device limit, logout, or delete account
+ * is at; a flow of one step shows a small spinner instead. Nothing when none runs.
+ */
 @Composable
 internal fun StepBar(vm: AppViewModel, modifier: Modifier = Modifier) {
     val c = vm.caption.collectAsState().value ?: return
+    val (step, total) = vm.captionStep.collectAsState().value
     Column(modifier.fillMaxWidth()) {
-        androidx.compose.material3.LinearProgressIndicator(Modifier.fillMaxWidth(), color = com.pusharmor.app.ui.theme.BrandGreen)
+        if (total > 1) androidx.compose.material3.LinearProgressIndicator({ step.toFloat() / total }, Modifier.fillMaxWidth(), color = com.pusharmor.app.ui.theme.BrandGreen)
+        else androidx.compose.material3.CircularProgressIndicator(Modifier.size(24.dp), color = com.pusharmor.app.ui.theme.BrandGreen, strokeWidth = 3.dp)
         Text(c, Modifier.padding(top = 4.dp).semantics { liveRegion = LiveRegionMode.Polite }, style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
+
+/** The step after [old] when the caption becomes [new]: a new caption is the next step (up to [at]'s total), the same one is not. */
+internal fun nextStep(at: Pair<Int, Int>, old: String?, new: String): Pair<Int, Int> =
+    if (new == old) at else minOf(at.first + 1, at.second) to at.second
 
 /** A full code is sent once: a keystroke beyond the sixth digit leaves the code as it was and sends nothing. */
 internal fun shouldSubmit(old: String, new: String): Boolean = new != old && new.length == 6

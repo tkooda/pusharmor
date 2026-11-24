@@ -132,9 +132,27 @@ class FileUiTest {
 
     @Test fun uploadBarFollowsTheBytesSent() {
         assertEquals(25, FileUi.uploadStep(0, 1000))
-        assertEquals(60, FileUi.uploadStep(500, 1000))
-        assertEquals(95, FileUi.uploadStep(1000, 1000))
-        assertEquals(95, FileUi.uploadStep(2000, 1000))
+        assertEquals(62, FileUi.uploadStep(500, 1000))
+        assertEquals(100, FileUi.uploadStep(1000, 1000))
+        assertEquals(100, FileUi.uploadStep(2000, 1000))
         assertEquals(25, FileUi.uploadStep(0, 0))
+    }
+
+    /** The send bar fills from 0 by the bytes encrypted, and stays under Sending until the whole file is read. */
+    @Test fun encryptBarFollowsTheBytesRead() {
+        assertEquals(0, FileUi.encryptStep(0, 1000))
+        assertEquals(12, FileUi.encryptStep(500, 1000))
+        assertEquals(24, FileUi.encryptStep(999, 1000))
+        assertEquals(25, FileUi.encryptStep(1000, 1000))
+        assertEquals(0, FileUi.encryptStep(0, 0))
+    }
+
+    @Test fun bytePercent() {
+        assertEquals(0, FileUi.bytePercent(0, 1000))
+        assertEquals(40, FileUi.bytePercent(400, 1000))
+        assertEquals(100, FileUi.bytePercent(1000, 1000))
+        assertEquals(100, FileUi.bytePercent(5000, 1000))
+        assertEquals(0, FileUi.bytePercent(-1, 1000))
+        assertEquals(0, FileUi.bytePercent(10, 0))
     }
 }

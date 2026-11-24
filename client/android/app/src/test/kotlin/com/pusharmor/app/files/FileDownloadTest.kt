@@ -136,6 +136,17 @@ class FileDownloadTest {
         assertEquals("a.pdf", store.state("k1").plain)
     }
 
+    @Test fun decryptReportsTheBytesRead() {
+        downloaded()
+        val total = store.blob("k1").length()
+        val seen = ArrayList<Long>()
+        assertTrue(store.decrypt("k1", f, "a.pdf", false, { 1L shl 30 }, { seen += it }) is FileStore.Decrypted.Ok)
+        assertTrue(seen.isNotEmpty())
+        assertEquals(seen.sorted(), seen)
+        assertEquals(total, seen.last())
+        assertEquals(100, FileUi.bytePercent(seen.last(), total))
+    }
+
     /** The decrypted file has its own folder: a name like an internal file harms nothing. */
     @Test fun anyNameIsSafe() {
         for (name in listOf("blob", "state", "state.tmp", "plain.tmp", "manual")) {

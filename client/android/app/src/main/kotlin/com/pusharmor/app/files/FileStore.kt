@@ -152,12 +152,12 @@ class FileStore(
      * Decrypts the downloaded blob of [key] into a private temp file, moved into place under [name] only after the
      * tag passes. [manual] (the Decrypt button) skips the free-memory check. [heapFree]: bytes the heap can still
      * grow by. The decrypt-attempted mark is set first and cleared on every orderly end, including a cancel
-     * ([cancelled] is checked between reads; it throws [CancellationException]).
+     * ([cancelled] is checked between reads; it throws [CancellationException]). [onBytes] gets the blob bytes read so far.
      */
-    fun decrypt(key: String, f: FileValue, name: String, manual: Boolean, heapFree: () -> Long, cancelled: () -> Boolean = { false }): Decrypted =
-        locked(key) { decryptLocked(key, f, name, manual, heapFree, cancelled) }
+    fun decrypt(key: String, f: FileValue, name: String, manual: Boolean, heapFree: () -> Long, onBytes: (Long) -> Unit = {}, cancelled: () -> Boolean = { false }): Decrypted =
+        locked(key) { decryptLocked(key, f, name, manual, heapFree, onBytes, cancelled) }
 
-    private fun decryptLocked(key: String, f: FileValue, name: String, manual: Boolean, heapFree: () -> Long, cancelled: () -> Boolean): Decrypted {
+    private fun decryptLocked(key: String, f: FileValue, name: String, manual: Boolean, heapFree: () -> Long, onBytes: (Long) -> Unit, cancelled: () -> Boolean): Decrypted {
         var s = state(key)
         check(s.downloaded) { "not downloaded" }
         if (!manual && s.memoryError) return Decrypted.NoMemory // never retried by itself
@@ -168,7 +168,7 @@ class FileStore(
         val tmp = File(d, TMP)
         val ok = try {
             blob(key).inputStream().use { input ->
-                FileOutputStream(tmp).use { out -> FileCrypt.open(B64url.decode(f.key), Cancellable(input, cancelled), out).also { if (it) out.fd.sync() } }
+                FileOutputStream(tmp).use { out -> FileCrypt.open(B64url.decode(f.key), Cancellable(input, cancelled, onBytes), out).also { if (it) out.fd.sync() } }
             }
         } catch (e: OutOfMemoryError) {
             tmp.delete()
@@ -201,11 +201,12 @@ class FileStore(
         return Decrypted.Final(code, text)
     }
 
-    private class Cancellable(private val inner: InputStream, private val cancelled: () -> Boolean) : InputStream() {
+    private class Cancellable(private val inner: InputStream, private val cancelled: () -> Boolean, private val onBytes: (Long) -> Unit) : InputStream() {
+        private var read = 0L
         override fun read(): Int = throw UnsupportedOperationException()
         override fun read(b: ByteArray, off: Int, len: Int): Int {
             if (cancelled()) throw CancellationException("decrypt cancelled")
-            return inner.read(b, off, len)
+            return inner.read(b, off, len).also { if (it > 0) { read += it; onBytes(read) } }
         }
     }
 

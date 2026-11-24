@@ -176,7 +176,11 @@ internal fun FileRowBody(vm: AppViewModel, h: HistoryEntity, f: FileValue, style
                 line(PaIcons.Download, "Downloading ${status.percent}%", cs.onSurfaceVariant)
                 LinearProgressIndicator({ status.percent / 100f }, Modifier.fillMaxWidth().padding(top = 4.dp).heightIn(max = 4.dp))
             }
-            FileUi.Status.Decrypting -> LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 8.dp).heightIn(max = 4.dp))
+            FileUi.Status.Decrypting -> {
+                val d by vm.files.decryptPercent.collectAsState()
+                val percent = d?.takeIf { it.first == h.id }?.second ?: 0
+                LinearProgressIndicator({ percent / 100f }, Modifier.fillMaxWidth().padding(top = 8.dp).heightIn(max = 4.dp))
+            }
             is FileUi.Status.Failed -> {
                 val removed = status.text == FileUi.REMOVED
                 line(if (removed) PaIcons.Info else PaIcons.Error, status.text, if (removed) cs.onSurfaceVariant else cs.error)

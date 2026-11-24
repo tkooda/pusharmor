@@ -7,6 +7,7 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.ui.Alignment
@@ -16,7 +17,9 @@ import com.pusharmor.app.ui.theme.BrandTile
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.AlertDialogDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -47,7 +50,7 @@ class ShareActivity : ComponentActivity() {
         val text = if (file != null) "" else intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString() ?: intent.getCharSequenceExtra(Intent.EXTRA_SUBJECT)?.toString()
         if (text == null) { Toast.makeText(this, UiText.brief(UiText.SHARE_NOTHING), Toast.LENGTH_LONG).show(); finish(); return }
         // The dialog shows at once: a placeholder until the peer read returns, never a blank box.
-        setContent { Frame { LinearProgressIndicator(Modifier.fillMaxWidth().padding(24.dp), color = BrandGreen) } }
+        setContent { Frame { Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(Modifier.size(24.dp), color = BrandGreen, strokeWidth = 3.dp) } } }
         // A floating dialog nearly as wide as the screen, as tall as its content; a tap outside cancels.
         // After setContent: installing the window's views resets a floating window to wrap its content.
         window.setLayout((resources.displayMetrics.widthPixels * DIALOG_WIDTH).toInt(), WindowManager.LayoutParams.WRAP_CONTENT)

@@ -81,8 +81,7 @@ class FileModel(private val g: Graph, private val scope: CoroutineScope, private
         val p = prior
         val value = if (p != null && p.uri == c.uri && p.size == c.size && g.fileClient.nowSec() < p.value.expires) p.value else {
             val input = g.app.contentResolver.openInputStream(Uri.parse(c.uri)) ?: throw FileChangedException()
-            val sealed = input.use { g.fileStore.seal(File(g.app.cacheDir, "send"), it, c.size, name) }
-            onStep(10)
+            val sealed = input.use { g.fileStore.seal(File(g.app.cacheDir, "send"), Counted(it) { n -> onStep(FileUi.encryptStep(n, c.size)) }, c.size, name) }
             val length = sealed.blob.length()
             val reply = try { g.fileClient.upload(sealed.blob, sealed.sha256, FileClient.newSendId()) { onStep(FileUi.uploadStep(it, length)) } } finally { sealed.blob.delete() }
             FileValue(reply.url, reply.expires, B64url.encode(sealed.key), name, c.size, sealed.sha256).also { prior = Prior(c.uri, c.size, it) }
@@ -90,6 +89,13 @@ class FileModel(private val g: Graph, private val scope: CoroutineScope, private
         val out = g.sender().sendFile(recipients, value, now, onStep)
         if (out.error == null) { prior = null; chosen.value = null }
         return out
+    }
+
+    /** The file being sealed: reports the bytes read so far after each read. */
+    private class Counted(input: java.io.InputStream, private val onBytes: (Long) -> Unit) : java.io.FilterInputStream(input) {
+        private var read = 0L
+        override fun read(): Int = super.read().also { if (it >= 0) onBytes(++read) }
+        override fun read(b: ByteArray, off: Int, len: Int): Int = super.read(b, off, len).also { if (it > 0) { read += it; onBytes(read) } }
     }
 
     /** The error text of a failed file send; null when the caller words it. */
@@ -200,11 +206,16 @@ class FileModel(private val g: Graph, private val scope: CoroutineScope, private
         refreshQuiet()
     }
 
+    /** The History row being decrypted and its percent decrypted: its bar fills by the bytes read. */
+    val decryptPercent = MutableStateFlow<Pair<Long, Int>?>(null)
+
     private fun decryptOne(h: HistoryEntity, manual: Boolean) {
         val f = ReceivedFiles.fileOf(h) ?: return
         val name = FileUi.receivedName(f.name, h.at)
+        val total = g.fileStore.blob(ReceivedFiles.key(h.id)).length()
+        decryptPercent.value = h.id to 0
         val r = try {
-            g.fileStore.decrypt(ReceivedFiles.key(h.id), f, name, manual, FileWork::heapFree) { !shown }
+            g.fileStore.decrypt(ReceivedFiles.key(h.id), f, name, manual, FileWork::heapFree, { n -> decryptPercent.value = h.id to FileUi.bytePercent(n, total) }) { !shown }
         } catch (e: CancellationException) { return } catch (e: Exception) {
             // any other failure ends the decrypt with the row error and a Decrypt button; with no blob left, a Download button (a new download)
             Log.w("PushArmor", "decrypt", e)

@@ -27,9 +27,15 @@ object FileUi {
     fun tooLarge(name: String) = "\"$name\" is too large to send"
     fun unreadable(name: String) = "Unable to read \"$name\""
 
-    /** The send bar during an upload: from encrypted to 95 by the bytes sent of [total]. */
+    /** The send bar while the file is encrypted: from 0 to encrypted by the bytes read of [total]. */
+    fun encryptStep(read: Long, total: Long): Int = bytePercent(read, total) * com.pusharmor.protocol.engine.SendFlow.Step.ENCRYPTED / 100
+
+    /** The send bar during an upload: from encrypted to 100 by the bytes sent of [total]. */
     fun uploadStep(sent: Long, total: Long): Int =
-        com.pusharmor.protocol.engine.SendFlow.Step.ENCRYPTED + if (total <= 0) 0 else (minOf(sent, total) * 70 / total).toInt()
+        com.pusharmor.protocol.engine.SendFlow.Step.ENCRYPTED + bytePercent(sent, total) * (100 - com.pusharmor.protocol.engine.SendFlow.Step.ENCRYPTED) / 100
+
+    /** [done] of [total] bytes as a percent, 0 to 100. */
+    fun bytePercent(done: Long, total: Long): Int = if (total <= 0) 0 else (minOf(maxOf(done, 0), total) * 100 / total).toInt()
 
     // ---- auto-download ----
 
