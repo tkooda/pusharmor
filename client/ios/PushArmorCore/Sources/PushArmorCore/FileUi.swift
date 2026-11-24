@@ -244,11 +244,18 @@ public enum FileUi {
     }
 
     /// The buttons of a ready received file: an image that decodes gets View, Copy, Share and Save;
-    /// any other file (an image that does not decode too) Open, Share and Save.
+    /// HTML and SVG Share and Save only (never previewed here); any other file (an image that
+    /// does not decode too) Open, Share and Save.
     public enum Action: Equatable, Sendable { case view, copy, open, share, save }
 
     public static func actions(name: String, decodes: Bool) -> [Action] {
-        kind(name) == .image && decodes ? [.view, .copy, .share, .save] : [.open, .share, .save]
+        if kind(name) == .image && decodes { return [.view, .copy, .share, .save] }
+        return webContent(name) ? [.share, .save] : [.open, .share, .save]
+    }
+
+    /// A received HTML or SVG file: never previewed, as a preview would render it.
+    public static func webContent(_ name: String) -> Bool {
+        ["html", "htm", "xhtml", "xht", "shtml", "svg", "svgz"].contains(ext(name))
     }
 
     /// "Preview not available" shows for a file named as an image that does not decode.
