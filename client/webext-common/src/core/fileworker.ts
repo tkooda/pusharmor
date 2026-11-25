@@ -148,6 +148,9 @@ export class FileWorker {
     const t = { n: tries };
     const total = ref.size + 28;
     try {
+      const self = await this.d.self();
+      if (!self) throw new FileError("failed", null, 401, "logged out");
+      const signer = { id: self.id, key: self.sign.privateKey, signPub: b64urlEncode(self.sign_pub), encPub: b64urlEncode(self.enc_pub) };
       const have = await this.d.store.size(key);
       let start = have;
       let shown = -1;
@@ -168,7 +171,7 @@ export class FileWorker {
         },
       };
       tell(have);
-      await downloadFile(deps, this.d.store, key, ref, t);
+      await downloadFile(deps, signer, this.d.store, key, ref, t);
       return { ok: true, tries: t.n };
     } catch (e) {
       return { ok: false, tries: t.n, err: jobError(e) };

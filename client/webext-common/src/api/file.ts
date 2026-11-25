@@ -1,10 +1,11 @@
 // File transfers: POST /v1/file (PA-FILE1, one PA-Send-ID per send, at most 2
-// automatic retries, each signed again) and the file GET (Range resume into the
-// file store, sha256 of the blob checked right after the last byte).
+// automatic retries, each signed again) and the file GET (PA-DL1, each request
+// signed again; Range resume into the file store, sha256 of the blob checked
+// right after the last byte).
 import { b64urlEncode } from "../crypto/b64url.ts";
 import { randomBytes } from "../crypto/bytes.ts";
 import { BLOB_OVERHEAD, MAX_FILE } from "../crypto/filecrypt.ts";
-import { fileSignedBytes } from "../crypto/pasig.ts";
+import { downloadSignedBytes, fileSignedBytes } from "../crypto/pasig.ts";
 import { sha256Blob } from "../crypto/sha256.ts";
 import { sign } from "../crypto/keys.ts";
 import { type FinalCode, FILE_DAMAGED, enoughStorage, fileStatus, storageFullText } from "../model/filerules.ts";
@@ -177,6 +178,26 @@ export async function uploadFile(
   }
 }
 
+/** The device that signs a file GET: its peer id, signing key, and b64url raw public keys. */
+export interface DownloadSigner {
+  id: string;
+  key: CryptoKey;
+  signPub: string;
+  encPub: string;
+}
+
+/** Headers of a file GET (PA-DL1). path: the URL pathname with its leading "/". Range is added by the caller, unsigned. */
+export async function downloadHeaders(signer: DownloadSigner, paTime: string, path: string): Promise<Record<string, string>> {
+  const sig = await sign(signer.key, downloadSignedBytes(path, paTime));
+  return {
+    "PA-ID": signer.id,
+    "PA-Time": paTime,
+    "PA-Sign-Pub": signer.signPub,
+    "PA-Enc-Pub": signer.encPub,
+    "PA-Sig": b64urlEncode(sig),
+  };
+}
+
 export interface DownloadDeps extends FileDeps {
   /** Bytes this extension may still store; null = unknown. */
   freeBytes(): Promise<number | null>;
@@ -196,23 +217,23 @@ export interface FileRef {
  * tries: automatic attempts used for this file so far (kept by the caller across calls).
  * Returns the blob once its size and sha256 match; one re-download when they do not. Throws FileError.
  */
-export async function downloadFile(d: DownloadDeps, store: FileStore, key: string, f: FileRef, tries: { n: number }): Promise<Blob> {
+export async function downloadFile(d: DownloadDeps, signer: DownloadSigner, store: FileStore, key: string, f: FileRef, tries: { n: number }): Promise<Blob> {
   try {
-    return await download(d, store, key, f, tries);
+    return await download(d, signer, store, key, f, tries);
   } catch (e) {
     if (e instanceof FileError) await store.clear(key); // a final error keeps no partial blob
     throw e;
   }
 }
 
-async function download(d: DownloadDeps, store: FileStore, key: string, f: FileRef, tries: { n: number }): Promise<Blob> {
+async function download(d: DownloadDeps, signer: DownloadSigner, store: FileStore, key: string, f: FileRef, tries: { n: number }): Promise<Blob> {
   if (f.size > MAX_FILE) throw new FileError("too_large", null);
   if (!fileUrlOk(f.url)) throw new FileError("damaged", FILE_DAMAGED);
   const want = f.size + BLOB_OVERHEAD;
   if (!enoughStorage(await d.freeBytes(), f.size)) throw new FileError("storage", storageFullText("download", f.name));
   for (let checks = 0; ; checks++) {
     try {
-      await fetchBlob(d, store, key, f, want, tries);
+      await fetchBlob(d, signer, store, key, f, want, tries);
       const blob = await store.blob(key);
       if (blob.size === want && (await sha256Blob(blob)) === f.sha256) return blob;
     } catch (e) {
@@ -226,7 +247,9 @@ async function download(d: DownloadDeps, store: FileStore, key: string, f: FileR
 
 class Damaged extends Error {}
 
-async function fetchBlob(d: DownloadDeps, store: FileStore, key: string, f: FileRef, want: number, tries: { n: number }): Promise<void> {
+async function fetchBlob(d: DownloadDeps, signer: DownloadSigner, store: FileStore, key: string, f: FileRef, want: number, tries: { n: number }): Promise<void> {
+  const path = new URL(f.url).pathname;
+  let skewed = false;
   let have = await store.size(key);
   if (have > want) {
     await store.clear(key);
@@ -238,8 +261,10 @@ async function fetchBlob(d: DownloadDeps, store: FileStore, key: string, f: File
     let status: number;
     let json: Record<string, unknown> = {};
     try {
-      const init: RequestInit = { method: "GET", redirect: "follow" };
-      if (have) init.headers = { Range: "bytes=" + have + "-" };
+      // each request is signed again with a fresh PA-Time
+      const headers = await downloadHeaders(signer, String(d.now() + (await d.getOffset()) * 1000), path);
+      if (have) headers.Range = "bytes=" + have + "-";
+      const init: RequestInit = { method: "GET", redirect: "follow", headers };
       const r = await request(d, f.url, init, true, abort.signal);
       status = r.status;
       json = r.json;
@@ -266,6 +291,10 @@ async function fetchBlob(d: DownloadDeps, store: FileStore, key: string, f: File
       }
     } finally {
       clearTimeout(timer);
+    }
+    if (status === 401 && json.error === "clock skew" && !skewed) {
+      skewed = true; // signed again with the new offset; not one of the tries
+      continue;
     }
     const nowSec = Math.floor(d.now() / 1000) + (await d.getOffset());
     const o = fileStatus("download", status, json, nowSec, f.expires);

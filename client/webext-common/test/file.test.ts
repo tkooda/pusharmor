@@ -6,12 +6,12 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { IDBFactory, IDBKeyRange } from "fake-indexeddb";
-import { type DownloadDeps, FileError, downloadFile, fileUrlOk, uploadFile, uploadHeaders } from "../src/api/file.ts";
+import { type DownloadDeps, FileError, downloadFile, downloadHeaders, fileUrlOk, uploadFile, uploadHeaders } from "../src/api/file.ts";
 import { b64urlDecode, b64urlEncode } from "../src/crypto/b64url.ts";
 import { buf, utf8, utf8Decode } from "../src/crypto/bytes.ts";
 import { BLOB_OVERHEAD, MAX_FILE, openFile, sealFile } from "../src/crypto/filecrypt.ts";
 import { importPrivate, verify } from "../src/crypto/keys.ts";
-import { fileSignedBytes } from "../src/crypto/pasig.ts";
+import { downloadSignedBytes, fileSignedBytes } from "../src/crypto/pasig.ts";
 import { Sha256, sha256Blob } from "../src/crypto/sha256.ts";
 import { collide, sanitizeName } from "../src/model/filename.ts";
 import { DEFAULT_PICKER, PICKER_SIZES, autoDownload, catchUpDue, enoughStorage, fileStatus, fileWait, storageFullText } from "../src/model/filerules.ts";
@@ -75,6 +75,24 @@ test("file-v1 file_sig: signed bytes and signatures", async () => {
     assert.equal(b64urlEncode(b), c.signed_bytes, c.name);
     assert.equal(utf8Decode(b), c.signed_text, c.name);
     assert.equal(await verify(d(c.sign_pub), d(c.sig), b), c.verifies, c.name);
+  }
+});
+
+test("file-v1 download_sig: signed bytes, headers and signatures", async () => {
+  const X = G.keys.peers.X;
+  const signer = { id: X.id, key: (await importPrivate("ECDSA", d(X.sign_priv), d(X.sign_pub))).privateKey, signPub: X.sign_pub, encPub: X.enc_pub };
+  assert.equal(V.download_sig.cases.length, 3);
+  for (const c of V.download_sig.cases) {
+    assert.equal(c.path, new URL(c.url).pathname, c.name);
+    const b = downloadSignedBytes(c.path, c.pa_time);
+    assert.equal(b64urlEncode(b), c.signed_bytes, c.name);
+    assert.equal(utf8Decode(b), c.signed_text, c.name);
+    assert.equal(await verify(d(c.sign_pub), d(c.sig), b), c.verifies, c.name);
+    const h = await downloadHeaders(signer, c.pa_time, c.path);
+    assert.deepEqual(Object.keys(h).sort(), Object.keys(c.headers).sort(), c.name);
+    for (const k of ["PA-ID", "PA-Time", "PA-Sign-Pub", "PA-Enc-Pub"]) assert.equal(h[k], c.headers[k], c.name + " " + k);
+    assert.equal(h["PA-Sig"]!.length, 86);
+    assert.ok(await verify(d(c.sign_pub), d(h["PA-Sig"]!), b), c.name);
   }
 });
 
@@ -227,6 +245,9 @@ async function signer() {
   return { id: X.id as string, key: (await importPrivate("ECDSA", d(X.sign_priv), d(X.sign_pub))).privateKey };
 }
 
+const XP = G.keys.peers.X;
+const DL = { id: XP.id as string, key: (await importPrivate("ECDSA", d(XP.sign_priv), d(XP.sign_pub))).privateKey, signPub: XP.sign_pub as string, encPub: XP.enc_pub as string };
+
 const OK201 = { id: "202611230347-0123456789abcdef0123456789abcdef", expires: 1795405632, url: FV.url, quota: {} };
 
 test("upload: 2 automatic retries, signed again, one PA-Send-ID", async () => {
@@ -286,9 +307,9 @@ test("download: Range resume, sha256 check, one re-download", async () => {
     calls,
   );
   const tries = { n: 0 };
-  const got = await downloadFile(dd, store, "r1", f, tries);
+  const got = await downloadFile(dd, DL, store, "r1", f, tries);
   assert.deepEqual(new Uint8Array(await got.arrayBuffer()), blob);
-  assert.deepEqual(calls[1]!.init.headers, { Range: "bytes=1000-" });
+  assert.equal((calls[1]!.init.headers as Record<string, string>).Range, "bytes=1000-");
   assert.equal(tries.n, 1);
   assert.deepEqual(await openFile(key, new Uint8Array(await got.arrayBuffer())), plain);
   await store.clear("r1");
@@ -299,60 +320,60 @@ test("download: Range resume, sha256 check, one re-download", async () => {
   bad[100]! ^= 1;
   const calls2: { url: string; init: RequestInit }[] = [];
   const dd2 = deps([new Response(buf(bad), { status: 200 }), new Response(buf(bad), { status: 200 })], calls2);
-  await assert.rejects(downloadFile(dd2, store, "r2", f, { n: 0 }), (e: FileError) => e.code === "damaged" && e.text === "Unable to open this file. It is not valid or was damaged.");
+  await assert.rejects(downloadFile(dd2, DL, store, "r2", f, { n: 0 }), (e: FileError) => e.code === "damaged" && e.text === "Unable to open this file. It is not valid or was damaged.");
   assert.equal(calls2.length, 2);
   assert.equal(await store.size("r2"), 0);
   // damaged once, then good
   const dd3 = deps([new Response(buf(bad), { status: 200 }), new Response(buf(blob), { status: 200 })], []);
-  assert.equal((await downloadFile(dd3, store, "r3", f, { n: 0 })).size, blob.length);
+  assert.equal((await downloadFile(dd3, DL, store, "r3", f, { n: 0 })).size, blob.length);
 
   // 404 before expires -> Deleted; 410 -> Expired
-  await assert.rejects(downloadFile(deps([jsonRes(404, {})], []), store, "r4", f, { n: 0 }), (e: FileError) => e.code === "deleted");
-  await assert.rejects(downloadFile(deps([jsonRes(410, {})], []), store, "r4", f, { n: 0 }), (e: FileError) => e.text === "Expired");
+  await assert.rejects(downloadFile(deps([jsonRes(404, {})], []), DL, store, "r4", f, { n: 0 }), (e: FileError) => e.code === "deleted");
+  await assert.rejects(downloadFile(deps([jsonRes(410, {})], []), DL, store, "r4", f, { n: 0 }), (e: FileError) => e.text === "Expired");
   // retries: 5 automatic attempts per file in all
   const t5 = { n: 3 };
-  await assert.rejects(downloadFile(deps([jsonRes(502, {}), jsonRes(502, {})], []), store, "r5", f, t5), (e: FileError) => e.code === "failed" && e.text === "Download failed");
+  await assert.rejects(downloadFile(deps([jsonRes(502, {}), jsonRes(502, {})], []), DL, store, "r5", f, t5), (e: FileError) => e.code === "failed" && e.text === "Download failed");
   assert.equal(t5.n, 5);
   // not enough storage: final, no request
   const calls6: { url: string; init: RequestInit }[] = [];
   const dd6 = deps([], calls6);
   dd6.freeBytes = async () => 2 * f.size + 9_999_999;
-  await assert.rejects(downloadFile(dd6, store, "r6", f, { n: 0 }), (e: FileError) => e.code === "storage" && e.text === 'Not enough storage to download "a.bin"');
+  await assert.rejects(downloadFile(dd6, DL, store, "r6", f, { n: 0 }), (e: FileError) => e.code === "storage" && e.text === 'Not enough storage to download "a.bin"');
   assert.equal(calls6.length, 0);
   // a bad URL never gets a request
-  await assert.rejects(downloadFile(deps([], []), store, "r7", { ...f, url: "https://example.com/x" }, { n: 0 }), (e: FileError) => e.code === "damaged");
+  await assert.rejects(downloadFile(deps([], []), DL, store, "r7", { ...f, url: "https://example.com/x" }, { n: 0 }), (e: FileError) => e.code === "damaged");
 
   // final errors drop the partial blob: Deleted, Expired, storage full, tries used up
   const part = (k = "r8") => store.append(k, new Blob([buf(blob.subarray(0, 100))]));
   await part();
-  await assert.rejects(downloadFile(deps([jsonRes(404, {})], []), store, "r8", f, { n: 0 }), (e: FileError) => e.code === "deleted");
+  await assert.rejects(downloadFile(deps([jsonRes(404, {})], []), DL, store, "r8", f, { n: 0 }), (e: FileError) => e.code === "deleted");
   assert.equal(await store.size("r8"), 0);
   await part();
-  await assert.rejects(downloadFile(deps([jsonRes(410, {})], []), store, "r8", f, { n: 0 }), (e: FileError) => e.code === "expired");
+  await assert.rejects(downloadFile(deps([jsonRes(410, {})], []), DL, store, "r8", f, { n: 0 }), (e: FileError) => e.code === "expired");
   assert.equal(await store.size("r8"), 0);
   await part();
-  await assert.rejects(downloadFile(dd6, store, "r8", f, { n: 0 }), (e: FileError) => e.code === "storage");
+  await assert.rejects(downloadFile(dd6, DL, store, "r8", f, { n: 0 }), (e: FileError) => e.code === "storage");
   assert.equal(await store.size("r8"), 0);
   await part();
-  await assert.rejects(downloadFile(deps([jsonRes(502, {})], []), store, "r8", f, { n: 4 }), (e: FileError) => e.code === "failed");
+  await assert.rejects(downloadFile(deps([jsonRes(502, {})], []), DL, store, "r8", f, { n: 4 }), (e: FileError) => e.code === "failed");
   assert.equal(await store.size("r8"), 0);
 
   // 416: the stored part does not fit the object; start again once
   await part("r9");
   const calls9: { url: string; init: RequestInit }[] = [];
-  assert.equal((await downloadFile(deps([new Response("", { status: 416 }), new Response(buf(blob), { status: 200 })], calls9), store, "r9", f, { n: 0 })).size, blob.length);
-  assert.deepEqual(calls9[0]!.init.headers, { Range: "bytes=100-" });
-  assert.equal(calls9[1]!.init.headers, undefined);
+  assert.equal((await downloadFile(deps([new Response("", { status: 416 }), new Response(buf(blob), { status: 200 })], calls9), DL, store, "r9", f, { n: 0 })).size, blob.length);
+  assert.equal((calls9[0]!.init.headers as Record<string, string>).Range, "bytes=100-");
+  assert.equal((calls9[1]!.init.headers as Record<string, string>).Range, undefined);
   // a whole reply that is too short, twice: damaged, no resume
   const short = () => new Response(buf(blob.subarray(0, 50)), { status: 200 });
   const calls10: { url: string; init: RequestInit }[] = [];
-  await assert.rejects(downloadFile(deps([short(), short()], calls10), store, "r10", f, { n: 0 }), (e: FileError) => e.code === "damaged" && e.text === "Unable to open this file. It is not valid or was damaged.");
+  await assert.rejects(downloadFile(deps([short(), short()], calls10), DL, store, "r10", f, { n: 0 }), (e: FileError) => e.code === "damaged" && e.text === "Unable to open this file. It is not valid or was damaged.");
   assert.equal(calls10.length, 2);
   assert.equal(await store.size("r10"), 0);
   // a redirect off the file hosts: damaged, the body is not stored
   const moved = new Response(buf(blob), { status: 200 });
   Object.defineProperty(moved, "url", { value: "https://example.com/x" });
-  await assert.rejects(downloadFile(deps([moved], []), store, "r11", f, { n: 0 }), (e: FileError) => e.code === "damaged");
+  await assert.rejects(downloadFile(deps([moved], []), DL, store, "r11", f, { n: 0 }), (e: FileError) => e.code === "damaged");
   assert.equal(await store.size("r11"), 0);
 
   // a full disk while storing: the storage-full text, and no partial blob
@@ -361,8 +382,60 @@ test("download: Range resume, sha256 check, one re-download", async () => {
     throw new DOMException("full", "QuotaExceededError");
   };
   await part();
-  await assert.rejects(downloadFile(deps([new Response(buf(blob), { status: 200 })], []), full, "r8", f, { n: 0 }), (e: FileError) => e.code === "storage" && e.text === 'Not enough storage to download "a.bin"');
+  await assert.rejects(downloadFile(deps([new Response(buf(blob), { status: 200 })], []), DL, full, "r8", f, { n: 0 }), (e: FileError) => e.code === "storage" && e.text === 'Not enough storage to download "a.bin"');
   assert.equal(await store.size("r8"), 0);
+  store.close();
+});
+
+test("download: every request signed (PA-DL1), a fresh PA-Time on each retry and Range resume; refusals", async () => {
+  const store = await FileStore.open(new IDBFactory(), IDBKeyRange);
+  const blob = new Uint8Array(await (await sealFile(new Uint8Array(32).fill(4), new Uint8Array(3000))).arrayBuffer());
+  const f = { url: FV.url, expires: 1795405632, name: "a.bin", size: 3000, sha256: await sha256Blob(new Blob([buf(blob)])) };
+  const path = new URL(FV.url).pathname;
+  let sent = false;
+  const cut = new ReadableStream<Uint8Array>({
+    pull(c) {
+      if (sent) return c.error(new Error("cut"));
+      sent = true;
+      c.enqueue(blob.subarray(0, 1000));
+    },
+  });
+  const calls: { url: string; init: RequestInit }[] = [];
+  const dd = deps([jsonRes(502, {}), new Response(cut, { status: 200 }), new Response(buf(blob).subarray(1000), { status: 206, headers: { "Content-Range": "bytes 1000-" + (blob.length - 1) + "/" + blob.length } })], calls);
+  let now = 1795319232123;
+  dd.now = () => (now += 7);
+  await downloadFile(dd, DL, store, "s1", f, { n: 0 });
+  assert.equal(calls.length, 3);
+  const times = new Set<string>();
+  for (const [i, c] of calls.entries()) {
+    const h = c.init.headers as Record<string, string>;
+    assert.equal(h["PA-ID"], XP.id);
+    assert.equal(h["PA-Sign-Pub"], XP.sign_pub);
+    assert.equal(h["PA-Enc-Pub"], XP.enc_pub);
+    assert.match(h["PA-Time"]!, /^[0-9]{13}$/);
+    times.add(h["PA-Time"]!);
+    assert.ok(await verify(d(XP.sign_pub), d(h["PA-Sig"]!), downloadSignedBytes(path, h["PA-Time"]!)), "request " + i);
+    assert.equal(h.Range, i === 2 ? "bytes=1000-" : undefined);
+  }
+  assert.equal(times.size, 3, "a fresh PA-Time on each request");
+  await store.clear("s1");
+
+  // clock skew: signed again with the corrected offset, not one of the tries; a second one is final
+  const calls2: { url: string; init: RequestInit }[] = [];
+  const dd2 = deps([jsonRes(401, { error: "clock skew" }, { "PA-Epoch": "1795319532" }), new Response(buf(blob), { status: 200 })], calls2);
+  const t2 = { n: 0 };
+  await downloadFile(dd2, DL, store, "s2", f, t2);
+  assert.equal(t2.n, 0);
+  assert.equal((calls2[1]!.init.headers as Record<string, string>)["PA-Time"], String(1795319232123 + 300_000));
+  await store.clear("s2");
+  const skew = () => jsonRes(401, { error: "clock skew" });
+  await assert.rejects(downloadFile(deps([skew(), skew()], []), DL, store, "s3", f, { n: 0 }), (e: FileError) => e.code === "failed" && e.text === "Download failed" && e.status === 401);
+
+  // a device of another account, or a refused signature: Download failed at once
+  const calls4: { url: string; init: RequestInit }[] = [];
+  await assert.rejects(downloadFile(deps([jsonRes(403, { error: "wrong account" })], calls4), DL, store, "s4", f, { n: 0 }), (e: FileError) => e.code === "failed" && e.text === "Download failed" && e.status === 403 && e.error === "wrong account");
+  assert.equal(calls4.length, 1);
+  await assert.rejects(downloadFile(deps([jsonRes(401, { error: "invalid client signature" })], []), DL, store, "s4", f, { n: 0 }), (e: FileError) => e.code === "failed" && e.text === "Download failed" && e.status === 401);
   store.close();
 });
 

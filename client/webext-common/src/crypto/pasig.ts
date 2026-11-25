@@ -29,3 +29,10 @@ export function fileSignedBytes(
   } else if (!/^\/v1\/file\/[0-9]{12}-[0-9a-f]{32}$/.test(path)) throw new Error("bad file path");
   return ascii(s);
 }
+
+/** PA-DL1 signed bytes of a file host GET: "PA-DL1\nGET\n" + path + "\n" + PA-Time. Range is not signed. */
+export function downloadSignedBytes(path: string, paTime: string): Uint8Array {
+  if (!path.startsWith("/v1/") || path.includes("?")) throw new Error("bad path");
+  if (!/^[0-9]{13}$/.test(paTime)) throw new Error("bad PA-Time");
+  return ascii("PA-DL1\nGET\n" + path + "\n" + paTime);
+}

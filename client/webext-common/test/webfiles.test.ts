@@ -9,6 +9,7 @@ import { type FileHost, Files, HostGone, fileKey, fileOpenFailed, sendFileError 
 import type { JobReq } from "../src/core/fileworker.ts";
 import { FileWorker } from "../src/core/fileworker.ts";
 import { sealFile } from "../src/crypto/filecrypt.ts";
+import { generateKeySet } from "../src/crypto/keys.ts";
 import { sendingCaption } from "../src/model/busy.ts";
 import { b64urlEncode } from "../src/crypto/b64url.ts";
 import { sha256Blob } from "../src/crypto/sha256.ts";
@@ -382,17 +383,23 @@ test("worker: a second download or decrypt of the same key joins the one running
   let fetches = 0;
   let release: () => void = () => undefined;
   const gate = new Promise<void>((r) => (release = r));
+  const keys = await generateKeySet();
   const w = new FileWorker({
     store,
-    self: async () => null,
-    fetch: async () => {
+    self: async () => ({ ...keys, id: "peer-id" }),
+    fetch: async (_i, init) => {
+      const h = init.headers as Record<string, string>;
+      assert.equal(h["PA-ID"], "peer-id");
+      assert.equal(h["PA-Sign-Pub"], b64urlEncode(keys.sign_pub));
+      assert.equal(h["PA-Enc-Pub"], b64urlEncode(keys.enc_pub));
+      assert.equal(h["PA-Sig"]!.length, 86);
       fetches++;
       await gate;
       return new Response(null, { status: 410 });
     },
     progress: () => undefined,
     save: async () => ({ path: null }),
-    file: { client: "chrome/0", now: () => 0, sleep: async () => undefined, getOffset: async () => 0, setOffset: async () => undefined },
+    file: { client: "chrome/0", now: () => NOW * 1000, sleep: async () => undefined, getOffset: async () => 0, setOffset: async () => undefined },
   });
   const ref = { url: "https://b2file.pusharmor.com/v1/x", expires: 10, name: "a", size: 5, sha256: "x" };
   const a = w.run({ op: "download", key: "f1", ref, tries: 0, id: 1 });
