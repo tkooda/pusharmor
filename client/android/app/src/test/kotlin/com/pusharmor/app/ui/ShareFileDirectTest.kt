@@ -68,7 +68,13 @@ class ShareFileDirectTest {
         g.notifier.ensureChannels()
     }
 
-    @After fun done() = io {
+    @After fun done() {
+        // each send ends within its test: the next test starts with no send running
+        idleUntil { services.all { shadowOf(it).isStoppedBySelf } }
+        doneIo()
+    }
+
+    private fun doneIo() = io {
         app.fakeHttp = null
         g.dao.deleteAllHistory()
         g.store.wipeRegistration()
@@ -266,6 +272,61 @@ class ShareFileDirectTest {
         FileModel.sweepCopies(app.cacheDir, System.currentTimeMillis() - 1000)
         assertTrue(!old.exists() && fresh.exists())
         fresh.delete()
+    }
+
+    private fun progress() = nm.activeNotifications.firstOrNull { it.id == Notifier.SENDING_ID }
+
+    private fun idleUntil(done: () -> Boolean) {
+        val end = System.currentTimeMillis() + 5000
+        while (!done() && System.currentTimeMillis() < end) { Thread.sleep(20); shadowOf(Looper.getMainLooper()).idle() }
+    }
+
+    /** A send that ends while a second share's start is still to come stops the service only up to its own start. */
+    @Test fun endedSendDoesNotStopANewerStart() {
+        val first = kotlinx.coroutines.CompletableDeferred<Unit>()
+        var secondRan = false
+        DirectSendService.start(app, DirectSendService.Work("one") { first.await() })
+        val s = Robolectric.buildService(DirectSendService::class.java).create().get()
+        s.onStartCommand(null, 0, 1)
+        DirectSendService.start(app, DirectSendService.Work("two") { secondRan = true; g.notifier.sendingProgress("two", 50) })
+        first.complete(Unit)
+        idleUntil { shadowOf(s).isStoppedBySelf }
+        assertEquals(1, shadowOf(s).stopSelfResultId)
+        // the second start comes: it runs, and its end stops the service with the progress notification gone
+        s.onStartCommand(null, 0, 2)
+        idleUntil { secondRan && shadowOf(s).stopSelfResultId == 2 }
+        assertTrue(secondRan)
+        assertEquals(2, shadowOf(s).stopSelfResultId)
+        assertEquals(null, progress())
+    }
+
+    /** A send still running when the service reached its time limit removes its progress notification when it ends. */
+    @Test fun sendAfterTimeLimitRemovesItsProgress() {
+        val go = kotlinx.coroutines.CompletableDeferred<Unit>()
+        var posted = false
+        DirectSendService.start(app, DirectSendService.Work("one") { go.await(); g.notifier.sendingProgress("one", 80); posted = true })
+        val s = Robolectric.buildService(DirectSendService::class.java).create().get()
+        s.onStartCommand(null, 0, 1)
+        s.onTimeout(1, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+        s.onDestroy()
+        go.complete(Unit)
+        idleUntil { posted }
+        shadowOf(Looper.getMainLooper()).idle()
+        assertTrue(posted)
+        assertEquals(null, progress())
+    }
+
+    /** When the service cannot start the send still runs; its progress notification goes when it ends. */
+    @Test fun sendWithoutTheServiceRemovesItsProgress() {
+        val noStart = object : android.content.ContextWrapper(app) {
+            override fun startForegroundService(service: Intent?) = throw IllegalStateException("not allowed")
+        }
+        var ran = false
+        DirectSendService.start(noStart, DirectSendService.Work("one") { g.notifier.sendingProgress("one", 50); ran = true })
+        idleUntil { ran }
+        shadowOf(Looper.getMainLooper()).idle()
+        assertTrue(ran)
+        assertEquals(null, progress())
     }
 
     @Test fun routesOnlyAShortcutInTheAllSet() {
