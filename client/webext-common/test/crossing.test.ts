@@ -229,6 +229,22 @@ test("a kept commit whose sender is still not listed after the fetch is dropped 
   assert.equal((await a.p.storageLocal.get(["pair_held"]))["pair_held"], undefined);
 });
 
+test("24 commits from unlisted senders during a fetch wait are all kept; a 25th drops the oldest", async () => {
+  const { clock, w, a, b } = await unlisted();
+  await a.p.storageLocal.set({ [NET_NOT_BEFORE]: clock.t + 60_000 });
+  const senders = [b];
+  for (let i = 1; i < 25; i++) senders.push(await device(w, clock));
+  const held = async () => ((await a.p.storageLocal.get(["pair_held"]))["pair_held"] as { from: string }[]).map((h) => h.from);
+  for (const s of senders.slice(0, 24)) {
+    await s.e.pairStart(a.id);
+    await deliver(w, a);
+  }
+  assert.deepEqual(await held(), senders.slice(0, 24).map((s) => s.id));
+  await senders[24]!.e.pairStart(a.id);
+  await deliver(w, a);
+  assert.deepEqual(await held(), senders.slice(1).map((s) => s.id));
+});
+
 const pairPosts = (w: MockWorker, to: string, k: string) => w.calls.filter((c) => c.method === "POST" && c.path === "/v1/pair/" + to && (c.body as { k: string }).k === k).length;
 
 test("popup open: a lost commit, reply, or open is sent again by the waiting side, 60 s after the last send", async () => {

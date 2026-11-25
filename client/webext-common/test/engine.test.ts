@@ -828,18 +828,18 @@ test("a failed reply with no Retry-After keeps Reply; with Retry-After it waits"
   assert.ok(!(await b.e.pairRowView(a.id))!.actions.includes("reply"));
 });
 
-test("10th open entry is dropped", async () => {
+test("25th open entry is dropped", async () => {
   const clock = new Clock();
   const w = new MockWorker(clock);
   const x = await device(w, clock);
   const ns = [];
-  for (let i = 0; i < 10; i++) ns.push(await device(w, clock));
+  for (let i = 0; i < 25; i++) ns.push(await device(w, clock));
   await refresh(x, ...ns);
   for (const n of ns) {
     await n.e.pairStart(x.id);
     await deliver(w, x);
   }
-  assert.equal((await allEntries(x.p.storageLocal)).size, 9);
+  assert.equal((await allEntries(x.p.storageLocal)).size, 24);
 });
 
 test("Retry-After on an automatic reply: not_before stored, earlier triggers do nothing, alarm sends it", async () => {

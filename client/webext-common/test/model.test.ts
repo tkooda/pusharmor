@@ -349,11 +349,11 @@ test("pair_decide rules a to e", () => {
   assert.deepEqual(pairDecide(base({ pinned: true, approved: true, approveVerified: true, lastGetApprovesMe: true })), { action: "drop", rule: "d", notice: "unreadable" });
   assert.deepEqual(pairDecide(base({ pinned: true, approved: true, approveVerified: true, lastGetApprovesMe: null })), { action: "drop", rule: "d", notice: "unreadable" });
   assert.deepEqual(pairDecide(base({ pinned: true, approved: true, approveVerified: true, lastGetApprovesMe: false })), { action: "notice", rule: "d", notice: "half" });
-  // e: not listed -> fetch; 10th open entry dropped; 11th automatic reply prompted; cap rolls over at 24 h
+  // e: not listed -> fetch; 25th open entry dropped; 11th automatic reply prompted; cap rolls over at 24 h
   assert.equal(pairDecide(base({ inLastList: false })).action, "fetch");
   assert.equal(pairDecide(base({ inLastList: false, fetched: true })).action, "drop");
-  assert.equal(pairDecide(base({ openEntries: 9 })).action, "drop");
-  assert.equal(pairDecide(base({ openEntries: 8 })).action, "reply");
+  assert.equal(pairDecide(base({ openEntries: 24 })).action, "drop");
+  assert.equal(pairDecide(base({ openEntries: 23 })).action, "reply");
   const now = 1_000_000_000_000;
   const ten = Array.from({ length: 10 }, (_, i) => now - i * 1000);
   assert.equal(pairDecide(base({ capTimestamps: ten })).action, "prompt");

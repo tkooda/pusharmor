@@ -46,7 +46,7 @@ import {
   verifyNameEntry,
 } from "../model/message.ts";
 import { SEND_CAP, utf8Len } from "../model/padding.ts";
-import { AUTO_REPLY_WINDOW_MS, noReply, pairDecide, type PairDecision, pairHint, pairTimeout, type ResendResult } from "../model/pairdecide.ts";
+import { AUTO_REPLY_WINDOW_MS, MAX_OPEN_ENTRIES, noReply, pairDecide, type PairDecision, pairHint, pairTimeout, type ResendResult } from "../model/pairdecide.ts";
 import { replayCheck, replayRecord } from "../model/replay.ts";
 import { DEFAULT_STORAGE, receivedName } from "../model/filerow.ts";
 import { DEFAULT_PICKER } from "../model/filerules.ts";
@@ -762,7 +762,7 @@ export class Engine {
 
   private async holdCommit(from: string, cN: Uint8Array, src: Src): Promise<void> {
     const held = ((await this.p.storageLocal.get([PAIR_HELD]))[PAIR_HELD] as HeldCommit[] | undefined) ?? [];
-    const next = [...held.filter((h) => h.from !== from), { from, c_N: b64urlEncode(cN), src }].slice(-10);
+    const next = [...held.filter((h) => h.from !== from), { from, c_N: b64urlEncode(cN), src }].slice(-MAX_OPEN_ENTRIES);
     await this.p.storageLocal.set({ [PAIR_HELD]: next });
     await this.db.setMeta("fetch_pending", true);
     this.p.alarmAt("fetch", Math.max(await this.netNotBefore(), now(this.p) + 30_000));

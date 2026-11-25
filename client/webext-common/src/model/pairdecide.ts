@@ -4,7 +4,7 @@ import { compareBytes, equal } from "../crypto/bytes.ts";
 
 const AUTO_REPLY_CAP = 10;
 export const AUTO_REPLY_WINDOW_MS = 24 * 3600 * 1000;
-export const MAX_OPEN_ENTRIES = 9;
+export const MAX_OPEN_ENTRIES = 24;
 
 export type Role = "N" | "X";
 export type PairState = "committed" | "prompted" | "replied" | "shown";
