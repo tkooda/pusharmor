@@ -54,6 +54,16 @@ jobs:
       - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
         with:
           cache-read-only: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+      # The Gradle dependency cache. Only a passing job on a push to main
+      # saves it, so it holds every artifact this job resolves; other
+      # branches restore it and seldom fetch from Maven Central.
+      - id: deps
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.gradle/caches/modules-2
+          key: android-deps-emulator-${{ matrix.api }}-${{ matrix.flavor }}-${{ hashFiles('client/android/gradle/libs.versions.toml', 'client/android/**/*.gradle.kts') }}
+          restore-keys: android-deps-emulator-${{ matrix.api }}-${{ matrix.flavor }}-
       - name: Instrumented tests
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
@@ -67,6 +77,13 @@ jobs:
           emulator-build: 16740729
           working-directory: client/android
           script: ./gradlew --no-daemon --stacktrace --build-cache --parallel :app:${{ matrix.task }}
+      - name: Save the dependency cache (main only)
+        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.deps.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.gradle/caches/modules-2
+          key: ${{ steps.deps.outputs.cache-primary-key }}
       - name: Upload test results
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

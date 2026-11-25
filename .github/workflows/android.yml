@@ -38,14 +38,19 @@ jobs:
       - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
         with:
           cache-read-only: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+      # The Gradle dependency cache. Only a passing job on a push to main
+      # saves it, so it holds every artifact this job resolves; other
+      # branches restore it and seldom fetch from Maven Central.
       # Robolectric fetches its android-all jars from Maven Central into
-      # ~/.m2 at test time; keep them between runs. The key follows the
-      # Robolectric version and the module build files.
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      # ~/.m2 at test time; they are kept in the same cache.
+      - id: deps
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.m2/repository/org/robolectric
-          key: robolectric-${{ hashFiles('client/android/gradle/libs.versions.toml', 'client/android/app/build.gradle.kts', 'client/android/store/build.gradle.kts') }}
-          restore-keys: robolectric-
+          path: |
+            ~/.gradle/caches/modules-2
+            ~/.m2/repository/org/robolectric
+          key: android-deps-jvm-${{ hashFiles('client/android/gradle/libs.versions.toml', 'client/android/**/*.gradle.kts') }}
+          restore-keys: android-deps-jvm-
       - name: Unit tests
         run: >-
           ./gradlew --no-daemon --stacktrace --build-cache --parallel
@@ -58,6 +63,14 @@ jobs:
           name: android-jvm-test-results
           path: client/android/*/build/test-results/
           retention-days: 7
+      - name: Save the dependency cache (main only)
+        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.deps.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.gradle/caches/modules-2
+            ~/.m2/repository/org/robolectric
+          key: ${{ steps.deps.outputs.cache-primary-key }}
 
   android-lint:
     name: lint
@@ -82,12 +95,29 @@ jobs:
       - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
         with:
           cache-read-only: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+      # The Gradle dependency cache. Only a passing job on a push to main
+      # saves it, so it holds every artifact this job resolves; other
+      # branches restore it and seldom fetch from Maven Central.
+      - id: deps
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.gradle/caches/modules-2
+          key: android-deps-lint-${{ hashFiles('client/android/gradle/libs.versions.toml', 'client/android/**/*.gradle.kts') }}
+          restore-keys: android-deps-lint-
       - name: Android SDK packages (exact)
         run: |
           # shellcheck disable=SC2086
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install $SDK_PACKAGES < /dev/null
       - name: Lint
         run: ./gradlew --no-daemon --stacktrace --build-cache --parallel :app:lintPlayDebug :app:lintFossDebug
+      - name: Save the dependency cache (main only)
+        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.deps.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.gradle/caches/modules-2
+          key: ${{ steps.deps.outputs.cache-primary-key }}
 
   android-debug:
     name: debug builds
@@ -112,6 +142,16 @@ jobs:
       - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
         with:
           cache-read-only: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+      # The Gradle dependency cache. Only a passing job on a push to main
+      # saves it, so it holds every artifact this job resolves; other
+      # branches restore it and seldom fetch from Maven Central.
+      - id: deps
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.gradle/caches/modules-2
+          key: android-deps-debug-${{ hashFiles('client/android/gradle/libs.versions.toml', 'client/android/**/*.gradle.kts') }}
+          restore-keys: android-deps-debug-
       - name: Android SDK packages (exact)
         run: |
           # shellcheck disable=SC2086
@@ -125,6 +165,13 @@ jobs:
           name: android-debug-apks
           path: client/android/app/build/outputs/apk/*/debug/*.apk
           retention-days: 7
+      - name: Save the dependency cache (main only)
+        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.deps.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.gradle/caches/modules-2
+          key: ${{ steps.deps.outputs.cache-primary-key }}
 
   android-release:
     name: release builds, release APK check
@@ -149,6 +196,16 @@ jobs:
       - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
         with:
           cache-read-only: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+      # The Gradle dependency cache. Only a passing job on a push to main
+      # saves it, so it holds every artifact this job resolves; other
+      # branches restore it and seldom fetch from Maven Central.
+      - id: deps
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.gradle/caches/modules-2
+          key: android-deps-release-${{ hashFiles('client/android/gradle/libs.versions.toml', 'client/android/**/*.gradle.kts') }}
+          restore-keys: android-deps-release-
       - name: Android SDK packages (exact)
         run: |
           # shellcheck disable=SC2086
@@ -167,6 +224,13 @@ jobs:
             echo "the foss release dependency tree holds the artifacts above"
             exit 1
           fi
+      - name: Save the dependency cache (main only)
+        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.deps.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.gradle/caches/modules-2
+          key: ${{ steps.deps.outputs.cache-primary-key }}
 
   android-bundle:
     name: release bundle
@@ -191,9 +255,26 @@ jobs:
       - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
         with:
           cache-read-only: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+      # The Gradle dependency cache. Only a passing job on a push to main
+      # saves it, so it holds every artifact this job resolves; other
+      # branches restore it and seldom fetch from Maven Central.
+      - id: deps
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.gradle/caches/modules-2
+          key: android-deps-bundle-${{ hashFiles('client/android/gradle/libs.versions.toml', 'client/android/**/*.gradle.kts') }}
+          restore-keys: android-deps-bundle-
       - name: Android SDK packages (exact)
         run: |
           # shellcheck disable=SC2086
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install $SDK_PACKAGES < /dev/null
       - name: Release bundle (play)
         run: ./gradlew --no-daemon --stacktrace --build-cache --parallel :app:bundlePlayRelease
+      - name: Save the dependency cache (main only)
+        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.deps.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.gradle/caches/modules-2
+          key: ${{ steps.deps.outputs.cache-primary-key }}
