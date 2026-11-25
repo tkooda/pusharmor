@@ -7,7 +7,7 @@ public enum FileUi {
     public static let filesHeader = "Files"
     public static let onWifi = "On Wi-Fi"
     public static let onMobile = "On mobile data"
-    public static let storageTitle = "Storage for received files"
+    public static let storageTitle = "Storage for sent and received files"
     public static let storageHelper = "When full, the oldest files are removed from this device"
     public static let removed = "Removed from this device"
     public static let previewNA = "Preview not available"
