@@ -65,8 +65,8 @@ final class PairDecideTests: XCTestCase {
         XCTAssertEqual(d(input()), .init(.reply, .commit, .createdReplied, capCounted: true))
         XCTAssertEqual(d(input(listed: .afterFetch)), .init(.reply, .commit, .createdReplied, capCounted: true))
         XCTAssertEqual(d(input(listed: .no)), .init(.drop, .couldNotRead, .none))
-        XCTAssertEqual(d(input(open: 8)), .init(.reply, .commit, .createdReplied, capCounted: true))
-        XCTAssertEqual(d(input(open: 9)), .init(.drop, .couldNotRead, .none))  // the 10th open entry
+        XCTAssertEqual(d(input(open: 23)), .init(.reply, .commit, .createdReplied, capCounted: true))
+        XCTAssertEqual(d(input(open: 24)), .init(.drop, .couldNotRead, .none))  // the 25th open entry
         let ten = (0 ..< 10).map { now - 3600 * Int64($0) - 1 }
         XCTAssertEqual(d(input(cap: Array(ten.prefix(9)))).action, .reply)
         XCTAssertEqual(d(input(cap: ten)), .init(.prompt, .commit, .createdPrompted))   // 11th in 24 h

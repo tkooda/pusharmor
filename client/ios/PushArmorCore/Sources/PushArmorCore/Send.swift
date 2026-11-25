@@ -82,7 +82,7 @@ extension Core {
     }
 
     /// The Worker takes at most this many recipients in one POST /v1/send.
-    static let maxSendTargets = 9
+    static let maxSendTargets = 24
 
     /// Sync deletions targets: every other approved device of this account that approves
     /// this device, logged out and command line devices excluded.

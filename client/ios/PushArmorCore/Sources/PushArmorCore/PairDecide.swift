@@ -5,7 +5,7 @@ import Foundation
 public enum PairDecide {
     public static let capWindow: Int64 = 86400
     public static let capMax = 10
-    public static let maxOpenEntries = 9
+    public static let maxOpenEntries = 24
 
     public enum Role: String, Sendable { case n = "N", x = "X" }
     public enum State: String, Sendable { case committed, prompted, replied, shown }
