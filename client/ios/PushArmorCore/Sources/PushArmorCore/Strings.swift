@@ -8,6 +8,9 @@ public enum S {
     public static let unknownType = "Unknown message type, please update"
     /// The row error of a received file that could not be decrypted for lack of memory.
     public static let notEnoughMemory = "Not enough memory to decrypt"
+    /// The row error of a received file whose decrypt stopped when the app closed, with no
+    /// low-memory warning during it.
+    public static let decryptInterrupted = "Decryption was interrupted"
     /// The toast after a message in a newer format version arrived.
     public static let newerVersion = "A device uses a newer version. Update PushArmor"
     public static let locked = "New message. Unlock to view."

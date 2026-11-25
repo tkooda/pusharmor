@@ -479,13 +479,37 @@ final class FileTests: XCTestCase {
         XCTAssertNil(g.decryptMark)
         XCTAssertFalse(FileManager.default.fileExists(atPath: xDir.appendingPathComponent(g.blobName).path))
 
-        // a decrypt mark left at app start (the app closed during it) shows the memory error
+        // a decrypt mark left at app start (the app closed during it) shows that the decrypt
+        // was interrupted, with a Decrypt button
+        g.state = "ready"
         g.decryptMark = 5
         try x.core.store.saveFile(g)
         try x.core.settleDecryptMarks()
         g = try XCTUnwrap(try x.core.store.file(fid))
         XCTAssertNil(g.decryptMark)
+        XCTAssertEqual(g.code, "failed")
+        XCTAssertEqual(g.error, "Decryption was interrupted")
+        XCTAssertEqual(FileUi.status(g, plainThere: false, received: nil, nowSec: 0), .decryptFailed(text: "Decryption was interrupted"))
+        // with a low-memory warning during that decrypt, it shows the memory error
+        g.code = nil
+        g.error = nil
+        g.decryptMark = 5
+        try x.core.store.saveFile(g)
+        try x.core.markDecryptLowMemory()
+        XCTAssertEqual(try x.core.store.file(fid)?.decryptMark, -1)
+        try x.core.settleDecryptMarks()
+        g = try XCTUnwrap(try x.core.store.file(fid))
+        XCTAssertNil(g.decryptMark)
         XCTAssertEqual(g.code, "memory")
+        XCTAssertEqual(g.error, "Not enough memory to decrypt")
+        XCTAssertEqual(FileUi.status(g, plainThere: false, received: nil, nowSec: 0), .noMemory)
+        // a warning with no decrypt running marks nothing
+        try x.core.markDecryptLowMemory()
+        XCTAssertNil(try x.core.store.file(fid)?.decryptMark)
+        g.state = "done"
+        g.code = nil
+        g.error = nil
+        try x.core.store.saveFile(g)
 
         // the History row goes: the record and its local files go too
         try x.core.store.db.exec("DELETE FROM history WHERE rowid = ?", [.int(r.rowid!)])
@@ -574,7 +598,7 @@ final class FileTests: XCTestCase {
         b.decryptMark = 5
         try n.core.store.saveFile(b)
         try n.core.settleDecryptMarks()
-        XCTAssertEqual(try status(b), .noMemory)
+        XCTAssertEqual(try status(b), .decryptFailed(text: "Decryption was interrupted"))
         try FileManager.default.removeItem(at: taken)
         guard case .done = try n.core.fileDecrypt(b.id, dir: dir, freeMemory: nil, manual: true) else { return XCTFail("decrypt") }
 

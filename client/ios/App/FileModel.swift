@@ -77,6 +77,12 @@ extension AppModel {
             }
             return true
         }
+        // a low-memory warning during a decrypt marks it: if the app then closes, its row shows
+        // the memory error, else that the decrypt was interrupted
+        _ = NotificationCenter.default.addObserver(forName: UIApplication.didReceiveMemoryWarningNotification,
+                                                   object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { try? self?.core?.markDecryptLowMemory() }
+        }
     }
 
     /// Reloads the file records (part of reload()).

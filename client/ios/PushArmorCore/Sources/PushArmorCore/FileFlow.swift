@@ -233,16 +233,29 @@ extension Core {
     }
 
     /// Received files whose decrypt mark is still set at app start: the app closed during that
-    /// decrypt. They show the memory error and are never retried by themselves.
+    /// decrypt. They show the memory error if a low-memory warning came during it (a mark below
+    /// 0), else that the decrypt was interrupted; they are never retried by themselves.
     public func settleDecryptMarks() throws {
         try store.db.write {
             for var f in try store.allFiles() where f.decryptMark != nil {
+                let lowMemory = (f.decryptMark ?? 0) < 0
                 f.decryptMark = nil
-                f.code = "memory"
-                f.error = S.notEnoughMemory
+                if lowMemory {
+                    f.code = "memory"
+                    f.error = S.notEnoughMemory
+                } else {
+                    f.code = FileRules.FinalCode.failed.rawValue
+                    f.error = S.decryptInterrupted
+                }
                 try store.saveFile(f)
             }
         }
+    }
+
+    /// A low-memory warning came: the running decrypt's mark becomes -1, so a later app start
+    /// shows the memory error if the app closed during it.
+    public func markDecryptLowMemory() throws {
+        try store.db.exec("UPDATE files SET decrypt_mark = -1 WHERE decrypt_mark IS NOT NULL")
     }
 
     public enum DecryptResult: Equatable, Sendable {

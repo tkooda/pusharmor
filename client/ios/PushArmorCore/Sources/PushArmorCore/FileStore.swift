@@ -38,7 +38,8 @@ public struct FileRecord: Equatable, Sendable {
     public var status: Int = 0
     public var replyError: String?
     public var retryAfter: Int64?
-    /// Unix ms when a decrypt started; cleared on every orderly stop.
+    /// Unix ms when a decrypt started (-1 after a low-memory warning during it); cleared on
+    /// every orderly stop.
     public var decryptMark: Int64?
     /// Send only: PA-Send-ID, upload tries, recipient ids (JSON array), message id, |All| at send time.
     /// Received files use `tries` as 1 while the last run ended in its first 401 "clock skew" in a
