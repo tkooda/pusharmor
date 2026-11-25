@@ -9,7 +9,7 @@ object FileUi {
     const val HELPER = "Larger files expire sooner, between 1 and 24 hours after they are sent"
     const val ON_WIFI = "On Wi-Fi"
     const val ON_MOBILE = "On mobile data"
-    const val STORAGE_TITLE = "Storage for received files"
+    const val STORAGE_TITLE = "Storage for sent and received files"
     const val STORAGE_HELPER = "When full, the oldest files are removed from this device"
     const val REMOVED = "Removed from this device"
     const val NO_MEMORY = "Not enough memory to decrypt"

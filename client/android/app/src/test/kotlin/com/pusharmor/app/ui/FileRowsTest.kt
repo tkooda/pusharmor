@@ -151,7 +151,8 @@ class FileRowsTest {
         // the helper text sits above both pickers; both default to Up to 50 MB
         assertTrue(helper < t.indexOf("On Wi-Fi") && helper < t.indexOf("On mobile data"))
         assertEquals(t.toString(), 2, t.count { it == "Up to 50 MB" })
-        assertTrue("Storage for received files" in t)
+        assertTrue("Files" in t)
+        assertTrue("Storage for sent and received files" in t)
         assertTrue("When full, the oldest files are removed from this device" in t)
         close(c)
     }
