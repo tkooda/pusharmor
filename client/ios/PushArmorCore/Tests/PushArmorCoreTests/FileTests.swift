@@ -1,7 +1,7 @@
 import XCTest
 @testable import PushArmorCore
 
-/// tests/vectors/file-v1.json (names, collision, auto_download, sha256, file_sig, upload_request),
+/// tests/vectors/file-v1.json (names, collision, auto_download, sha256, file_sig, download_sig, upload_request),
 /// the status table, the attempt count, the file message, and the send and receive state machine
 /// over two devices and the fake Worker.
 final class FileTests: XCTestCase {
@@ -93,6 +93,47 @@ final class FileTests: XCTestCase {
             XCTAssertEqual(signed, b(c["signed_bytes"]), name)
             XCTAssertEqual(String(decoding: signed, as: UTF8.self), c["signed_text"] as! String, name)
             XCTAssertEqual(Signatures.verify(b(c["sig"]), data: signed, publicKey: b(c["sign_pub"])), c["verifies"] as! Bool, name)
+        }
+    }
+
+    /// PA-DL1: the signed bytes from path and PA-Time, the path is the URL pathname, every header
+    /// from the fields, and PA-Sig verifies exactly when the row says so. Signer X signs the same
+    /// headers again (only PA-Sig differs: ECDSA is randomized), and that PA-Sig verifies too.
+    func testDownloadSigVectors() throws {
+        let cases = Self.cases("download_sig")
+        XCTAssertEqual(cases.count, 3)
+        let x = (GoldenTests.golden["keys"] as! J)["peers"] as! [String: J]
+        for c in cases {
+            let name = c["name"] as! String
+            let path = c["path"] as! String, t = c["pa_time"] as! String
+            XCTAssertEqual(c["method"] as! String, "GET", name)
+            let url = try XCTUnwrap(URL(string: c["url"] as! String), name)
+            XCTAssertEqual(URLComponents(url: url, resolvingAgainstBaseURL: false)?.percentEncodedPath, path, name)
+            let signed = FileSig.downloadBytes(path: path, paTime: t)
+            XCTAssertEqual(signed, b(c["signed_bytes"]), name)
+            XCTAssertEqual(String(decoding: signed, as: UTF8.self), c["signed_text"] as! String, name)
+            let h = c["headers"] as! [String: String]
+            let p = try XCTUnwrap(x[c["signer"] as! String], name)
+            XCTAssertEqual(Set(h.keys), ["PA-ID", "PA-Time", "PA-Sign-Pub", "PA-Enc-Pub", "PA-Sig"], name)
+            XCTAssertEqual(h["PA-ID"], p["id"] as? String, name)
+            XCTAssertEqual(h["PA-Time"], t, name)
+            XCTAssertEqual(h["PA-Sign-Pub"], c["sign_pub"] as? String, name)
+            XCTAssertEqual(h["PA-Sign-Pub"], p["sign_pub"] as? String, name)
+            XCTAssertEqual(h["PA-Enc-Pub"], c["enc_pub"] as? String, name)
+            XCTAssertEqual(h["PA-Enc-Pub"], p["enc_pub"] as? String, name)
+            XCTAssertEqual(h["PA-Sig"], c["sig"] as? String, name)
+            XCTAssertEqual(h["PA-Sign-Pub"]?.count, 87, name)
+            XCTAssertEqual(h["PA-Enc-Pub"]?.count, 87, name)
+            XCTAssertEqual(h["PA-Sig"]?.count, 86, name)
+            XCTAssertEqual(Signatures.verify(b(c["sig"]), data: signed, publicKey: b(c["sign_pub"])), c["verifies"] as! Bool, name)
+            guard c["verifies"] as! Bool else { continue }
+            let signer = try SoftwareSigner(raw: b(p["sign_priv"]))
+            let id = try XCTUnwrap(PeerId(text: p["id"] as! String), name)
+            let ours = try FileSig.downloadHeaders(signer: signer, encPub: b(p["enc_pub"]), peerId: id,
+                                                   timeMs: Int64(t)!, path: path)
+            XCTAssertEqual(ours.filter { $0.key != "PA-Sig" }, h.filter { $0.key != "PA-Sig" }, name)
+            XCTAssertEqual(ours["PA-Sig"]?.count, 86, name)
+            XCTAssertTrue(Signatures.verify(b(ours["PA-Sig"]), data: signed, publicKey: b(c["sign_pub"])), name)
         }
     }
 
@@ -497,6 +538,103 @@ final class FileTests: XCTestCase {
         let rec = try XCTUnwrap(try x.core.store.file(s))
         XCTAssertEqual(rec.state, "failed")
         XCTAssertEqual(rec.error, "Not enough storage to download \"report (1).pdf\"")
+    }
+
+    /// Every file GET is signed with this device's keys and a fresh PA-Time: a retry minutes later
+    /// carries the new time and a new PA-Sig over it; Range is never among the signed headers.
+    func testDownloadHeadersFreshForEachRequest() throws {
+        let w = FakeWorker(), clock = TestClock()
+        let x = try Device(worker: w, clock: clock, name: "Xdev")
+        let url = URL(string: Self.ref.url)!
+        let path = "/v1/202611230347/3f9a1c5e7b2d4a60/202611230347-0123456789abcdef0123456789abcdef"
+        func check(_ h: [String: String]?) throws -> String {
+            let h = try XCTUnwrap(h)
+            XCTAssertEqual(Set(h.keys), ["PA-ID", "PA-Time", "PA-Sign-Pub", "PA-Enc-Pub", "PA-Sig"])
+            XCTAssertEqual(h["PA-ID"], x.id.text)
+            XCTAssertEqual(h["PA-Sign-Pub"], B64URL.encode(x.keys.signer.publicKey))
+            XCTAssertEqual(h["PA-Enc-Pub"], B64URL.encode(x.keys.decryptor.publicKey))
+            XCTAssertEqual(h["PA-Sign-Pub"]?.count, 87)
+            XCTAssertEqual(h["PA-Enc-Pub"]?.count, 87)
+            XCTAssertEqual(h["PA-Sig"]?.count, 86)
+            let t = try XCTUnwrap(h["PA-Time"])
+            XCTAssertTrue(Signatures.verify(B64URL.decode(h["PA-Sig"]!)!, data: FileSig.downloadBytes(path: path, paTime: t),
+                                            publicKey: x.keys.signer.publicKey))
+            return t
+        }
+        let t1 = try check(x.core.fileDownloadHeaders(url))
+        XCTAssertEqual(t1, String(clock.now * 1000))
+        // a retry after a wait past the 5 minute window: signed again with the time of that request
+        clock.now += 400
+        let t2 = try check(x.core.fileDownloadHeaders(url))
+        XCTAssertEqual(t2, String(clock.now * 1000))
+        XCTAssertNotEqual(t1, t2)
+        // the relay server's clock offset (PA-Epoch) is in PA-Time
+        x.core.api.setOffset(-60)
+        XCTAssertEqual(try check(x.core.fileDownloadHeaders(url)), String((clock.now - 60) * 1000))
+        // no peer id: nothing to sign with
+        try x.core.store.setMe("id", .null)
+        XCTAssertNil(x.core.fileDownloadHeaders(url))
+    }
+
+    /// A 401 "clock skew" (a stale PA-Time) starts again at once, signed again, and is not an
+    /// attempt; a second one in a row, a 403 and any other 401 end in "Download failed".
+    func testDownloadClockSkewSignsAgainOnce() throws {
+        let w = FakeWorker(), clock = TestClock()
+        let x = try Device(worker: w, clock: clock, name: "Xdev")
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("files-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let ref = FileRef(url: Self.ref.url, expires: 4_000_000_000, key: Self.ref.key, name: "a.bin", size: 1000,
+                          sha256: Self.ref.sha256)
+        func add() throws -> Int64 { try x.core.store.addFile(Core.receivedFile(ref, historyRowid: 1, now: clock.now)) }
+        let skew = Data("{\"error\":\"clock skew\"}".utf8)
+
+        XCTAssertEqual(FileFlow.afterDownload(status: 401, error: "clock skew", retryAfter: nil, blobSize: nil, blobSHA: nil,
+                                              ref: ref, again: false, nowSec: 0, skewFirst: true), .signAgain)
+        XCTAssertEqual(FileFlow.afterDownload(status: 401, error: "clock skew", retryAfter: nil, blobSize: nil, blobSHA: nil,
+                                              ref: ref, again: false, nowSec: 0), .final(.failed, FileRules.downloadFailed))
+
+        let a = try add()
+        XCTAssertTrue(try x.core.fileDownloadStarts(a, task: "s 1"))
+        XCTAssertEqual(try x.core.store.file(a)?.attempts, 1)
+        try x.core.fileTaskEnded(a, task: "s 1", status: 401, body: skew, blobArrived: false)
+        var f = try XCTUnwrap(try x.core.store.file(a))
+        XCTAssertEqual(f.state, "pending")
+        XCTAssertEqual(f.attempts, 0)
+        XCTAssertEqual(try x.core.fileCheck(a, dir: dir), .signAgain)
+        XCTAssertEqual(try x.core.store.file(a)?.state, "pending")
+        // the second skew in a row is an attempt and ends in "Download failed"
+        XCTAssertTrue(try x.core.fileDownloadStarts(a, task: "s 2"))
+        try x.core.fileTaskEnded(a, task: "s 2", status: 401, body: skew, blobArrived: false)
+        f = try XCTUnwrap(try x.core.store.file(a))
+        XCTAssertEqual(f.attempts, 1)
+        XCTAssertEqual(try x.core.fileCheck(a, dir: dir), .final(.failed, FileRules.downloadFailed))
+        f = try XCTUnwrap(try x.core.store.file(a))
+        XCTAssertEqual(f.state, "failed")
+        XCTAssertEqual(f.error, "Download failed")
+
+        // a skew after another error is again the first in a row
+        let c = try add()
+        XCTAssertTrue(try x.core.fileDownloadStarts(c, task: "c 1"))
+        try x.core.fileTaskEnded(c, task: "c 1", status: 401, body: skew, blobArrived: false)
+        XCTAssertEqual(try x.core.fileCheck(c, dir: dir), .signAgain)
+        XCTAssertTrue(try x.core.fileDownloadStarts(c, task: "c 2"))
+        try x.core.fileTaskEnded(c, task: "c 2", status: 503, body: nil, blobArrived: false)
+        XCTAssertEqual(try x.core.fileCheck(c, dir: dir), .retry(nil))
+        XCTAssertTrue(try x.core.fileDownloadStarts(c, task: "c 3"))
+        try x.core.fileTaskEnded(c, task: "c 3", status: 401, body: skew, blobArrived: false)
+        XCTAssertEqual(try x.core.store.file(c)?.attempts, 1)
+        XCTAssertEqual(try x.core.fileCheck(c, dir: dir), .signAgain)
+
+        // 403 and any other 401: "Download failed" at once
+        for (i, reply) in [(403, "{\"error\":\"wrong account\"}"), (401, "{\"error\":\"invalid client signature\"}"),
+                           (401, "{\"error\":\"bad id\"}")].enumerated() {
+            let d = try add()
+            XCTAssertTrue(try x.core.fileDownloadStarts(d, task: "d \(i)"))
+            try x.core.fileTaskEnded(d, task: "d \(i)", status: reply.0, body: Data(reply.1.utf8), blobArrived: false)
+            XCTAssertEqual(try x.core.fileCheck(d, dir: dir), .final(.failed, FileRules.downloadFailed), reply.1)
+            XCTAssertEqual(try x.core.store.file(d)?.error, "Download failed")
+        }
     }
 
     func testOneTaskPerFileManualMarkAndKeptBytes() throws {

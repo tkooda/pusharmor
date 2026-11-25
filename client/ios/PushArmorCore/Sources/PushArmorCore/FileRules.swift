@@ -235,6 +235,21 @@ public enum FileSig {
                 "PA-File-SHA256": sha256, "PA-Send-ID": sendId, "PA-Sig": B64URL.encode(sig),
                 "Content-Type": "application/octet-stream"]
     }
+
+    /// PA-DL1: a file host GET. `path` is the URL pathname with its leading "/"; Range is not signed.
+    public static func downloadBytes(path: String, paTime: String) -> Data {
+        Bytes.ascii("PA-DL1\nGET\n" + path + "\n" + paTime)
+    }
+
+    /// The headers of one file host GET, signed now; every request is signed again. The public
+    /// keys are b64url of the raw points, as at registration.
+    public static func downloadHeaders(signer: PASigner, encPub: Data, peerId: PeerId, timeMs: Int64,
+                                       path: String) throws -> [String: String] {
+        let t = RequestSigning.paTime(ms: timeMs)
+        let sig = try signer.sign(downloadBytes(path: path, paTime: t))
+        return ["PA-ID": peerId.text, "PA-Time": t, "PA-Sign-Pub": B64URL.encode(signer.publicKey),
+                "PA-Enc-Pub": B64URL.encode(encPub), "PA-Sig": B64URL.encode(sig)]
+    }
 }
 
 /// SHA-256 as 43-char b64url, of bytes or of a whole file (streamed).

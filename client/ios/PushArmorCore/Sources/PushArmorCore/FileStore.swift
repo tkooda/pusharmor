@@ -40,6 +40,8 @@ public struct FileRecord: Equatable, Sendable {
     /// Unix ms when a decrypt started; cleared on every orderly stop.
     public var decryptMark: Int64?
     /// Send only: PA-Send-ID, upload tries, recipient ids (JSON array), message id, |All| at send time.
+    /// Received files use `tries` as 1 while the last run ended in its first 401 "clock skew" in a
+    /// row (that run was not an attempt; a second one in a row is), else 0.
     public var sendId: String?
     public var tries: Int = 0
     public var recipients: [String] = []
@@ -160,7 +162,8 @@ extension Store {
     /// only while the record still waits for that very task, so a stale or second completion never
     /// overwrites a later state. blobArrived: the body is now at the record's blob name. Else
     /// `received` bytes arrived in this run and `resumable` says resume data keeps them: a run that
-    /// kept bytes is not counted as an attempt, nor is one the app stopped to take it over (`notCounted`).
+    /// kept bytes is not counted as an attempt, nor is one the app stopped to take it over (`notCounted`),
+    /// nor the first run in a row that got 401 "clock skew" (a stale or early PA-Time: signed again).
     public func fileTaskEnded(_ id: Int64, task: String, status: Int, body: Data?, blobArrived: Bool, received: Int64 = 0,
                               resumable: Bool = false, notCounted: Bool = false) throws {
         try db.write {
@@ -170,13 +173,15 @@ extension Store {
             f.replyError = j?["error"]?.stringValue
             if case .number(let t)? = j?["retry_after"] { f.retryAfter = FileRef.uint(t) } else { f.retryAfter = nil }
             f.task = nil
+            let skewFirst = !blobArrived && status == 401 && f.replyError == "clock skew" && f.tries == 0
+            f.tries = skewFirst ? 1 : 0
             if blobArrived {
                 f.attemptsState = f.attemptsState.end()
                 f.have = 0
                 f.state = "blob"
             } else {
                 let kept = resumable ? max(f.openAt, 0) + max(received, 0) : 0
-                if notCounted {
+                if notCounted || skewFirst {
                     f.attemptsState = FileRules.Attempts(used: max(f.attempts - 1, 0), openAt: -1)
                 } else {
                     f.attemptsState = resumable && received > 0 ? f.attemptsState.stopped(have: kept) : f.attemptsState.end()

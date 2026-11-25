@@ -12,17 +12,23 @@ public enum FileFlow {
         case again
         /// An error to retry later (retry_after seconds when given).
         case retry(Int64?)
+        /// The first 401 "clock skew" in a row: start again now, signed with a fresh PA-Time
+        /// (not an attempt).
+        case signAgain
         case final(FileRules.FinalCode, String)
     }
 
     /// The decision after a download. blobSize and blobSHA describe the file that arrived (nil
     /// when none). The HTTP status is checked before any hash: 404 and 410 are never "damaged".
+    /// `skewFirst`: this 401 "clock skew" follows no other one (Store.fileTaskEnded); a second
+    /// one in a row ends in the usual "Download failed".
     public static func afterDownload(status: Int, error: String?, retryAfter: Int64?, blobSize: Int64?, blobSHA: String?,
-                                     ref: FileRef, again: Bool, nowSec: Int64) -> DownloadNext {
+                                     ref: FileRef, again: Bool, nowSec: Int64, skewFirst: Bool = false) -> DownloadNext {
         if status == 200 || status == 206 {
             if let size = blobSize, size == ref.size + Int64(FileCrypto.overhead), blobSHA == ref.sha256 { return .ready }
             return again ? .final(.damaged, FileRules.fileDamaged) : .again
         }
+        if status == 401 && error == "clock skew" && skewFirst { return .signAgain }
         switch FileRules.fileStatus(upload: false, status: status, error: error, retryAfter: retryAfter, nowSec: nowSec,
                                     expires: ref.expires) {
         case .retry(let w): return .retry(w)
@@ -169,6 +175,15 @@ extension Core {
         }
     }
 
+    /// The headers of one GET of a received file's URL (PA-DL1), signed now with this device's
+    /// keys; nil when the URL has no path or the device has no peer id (or cannot sign).
+    public func fileDownloadHeaders(_ url: URL) -> [String: String]? {
+        guard let path = URLComponents(url: url, resolvingAgainstBaseURL: false)?.percentEncodedPath, path.hasPrefix("/"),
+              let me = (try? store.me())?.id else { return nil }
+        return try? FileSig.downloadHeaders(signer: keys.signer, encPub: keys.decryptor.publicKey, peerId: me,
+                                            timeMs: api.workerNowMs, path: path)
+    }
+
     /// The download task of `id` ended (see Store.fileTaskEnded).
     public func fileTaskEnded(_ id: Int64, task: String, status: Int, body: Data?, blobArrived: Bool, received: Int64 = 0,
                               resumable: Bool = false) throws {
@@ -192,7 +207,8 @@ extension Core {
             sha = FileHash.of(file: blob)
         }
         let next = FileFlow.afterDownload(status: f.status, error: f.replyError, retryAfter: f.retryAfter, blobSize: size,
-                                          blobSHA: sha, ref: ref, again: f.again, nowSec: fileNowSec)
+                                          blobSHA: sha, ref: ref, again: f.again, nowSec: fileNowSec,
+                                          skewFirst: f.state == "pending" && f.tries == 1)
         switch next {
         case .ready:
             f.state = "ready"
@@ -202,7 +218,7 @@ extension Core {
             f.again = true
             f.have = 0
             f.state = "pending"
-        case .retry:
+        case .retry, .signAgain:
             if f.state == "blob" { try? FileManager.default.removeItem(at: blob) }
             f.state = "pending"
         case .final(let c, let t):

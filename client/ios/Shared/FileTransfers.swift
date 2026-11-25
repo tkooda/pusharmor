@@ -114,7 +114,12 @@ final class FileTransfers: NSObject, URLSessionDownloadDelegate, URLSessionDataD
         (s.configuration.identifier ?? "") + " " + String(t.taskIdentifier)
     }
 
-    private func fileId(_ t: URLSessionTask) -> Int64? { t.taskDescription.flatMap { Int64($0) } }
+    /// A task's description is the file id; a download from resume data adds " resume".
+    private func fileId(_ t: URLSessionTask) -> Int64? {
+        t.taskDescription.flatMap { $0.split(separator: " ").first }.flatMap { Int64($0) }
+    }
+
+    static let resumeMark = " resume"
 
     // MARK: completions that could not be applied yet
 
@@ -272,7 +277,10 @@ final class FileTransfers: NSObject, URLSessionDownloadDelegate, URLSessionDataD
 
     /// Starts (or resumes, with saved resume data) the download of file `id`; the record takes the
     /// task only when it is waiting for one. `manual`: the Download button. `wait`: seconds before
-    /// the system begins it.
+    /// the system begins it. Each new request is signed now (PA-DL1); a delayed one is signed
+    /// again when the system begins it. A resumed task sends the request kept in its resume data:
+    /// when its PA-Time is too old the reply is 401 "clock skew", and the file starts again at
+    /// once with a fresh request (FileFlow.signAgain, not an attempt).
     func startDownload(_ id: Int64, core: Core, manual: Bool, inApp: Bool = true, wait: Int64? = nil) {
         guard let f = try? core.store.file(id), let ref = f.ref else { return }
         guard FileRules.fileURLOK(ref.url), let url = URL(string: ref.url) else {
@@ -291,18 +299,31 @@ final class FileTransfers: NSObject, URLSessionDownloadDelegate, URLSessionDataD
         // (no mobile data) starts over, so the tap may use mobile data
         if manual && !f.manual { try? FileManager.default.removeItem(at: resume) }
         let task: URLSessionDownloadTask
+        var resumed = false
         if let d = try? Data(contentsOf: resume) {
             try? FileManager.default.removeItem(at: resume)
             task = s.downloadTask(withResumeData: d)
+            resumed = true
         } else {
+            guard let headers = core.fileDownloadHeaders(url) else {
+                // no peer id, or the key cannot sign: a file waiting for a download fails as usual
+                guard f.state == "pending" || (manual && f.state == "failed") else { return }
+                var g = f
+                g.state = "failed"
+                g.code = FileRules.FinalCode.failed.rawValue
+                g.error = FileRules.downloadFailed
+                try? core.store.saveFile(g)
+                return
+            }
             var req = URLRequest(url: url)
+            for (k, v) in headers { req.setValue(v, forHTTPHeaderField: k) }
             let p = core.filePickers()
             req.allowsCellularAccess = manual || f.manual || FileRules.autoDownload(picker: p.mobile, size: f.size)
             // the NSE cannot see Low Data Mode later on: its task waits for an unconstrained network
             req.allowsConstrainedNetworkAccess = inApp
             task = s.downloadTask(with: req)
         }
-        task.taskDescription = String(id)
+        task.taskDescription = String(id) + (resumed ? Self.resumeMark : "")
         if let w = wait, w > 0 { task.earliestBeginDate = Date(timeIntervalSinceNow: Double(min(w, 3600))) }
         guard (try? core.fileDownloadStarts(id, task: Self.taskKey(s, task), manual: manual)) == true else {
             task.cancel()
@@ -382,7 +403,7 @@ final class FileTransfers: NSObject, URLSessionDownloadDelegate, URLSessionDataD
         let next = try? core.fileCheck(id, dir: dir)
         let used = Int64((try? core.store.file(id))?.attempts ?? 1)
         switch next {
-        case .again?: startDownload(id, core: core, manual: false)
+        case .again?, .signAgain?: startDownload(id, core: core, manual: false)
         case .retry(let w)?: startDownload(id, core: core, manual: false, wait: w ?? 30 * max(used, 1))
         case nil:
             // no reply: a take-over starts here at once, a transport error after a wait
@@ -581,6 +602,20 @@ final class FileTransfers: NSObject, URLSessionDownloadDelegate, URLSessionDataD
         lock.unlock()
         downloadEnded(Ended(upload: false, id: id, task: k, status: arrived || !(200 ... 299).contains(status) ? status : 0,
                             body: body, arrived: arrived, received: 0, resumable: false, epoch: nil), cancelled: false)
+    }
+
+    /// A delayed download (a retry after a wait) begins: its request is signed again now, so its
+    /// PA-Time is fresh however long it waited. A task from resume data keeps its request (its
+    /// resume data holds it); a task that cannot be signed here goes as it is.
+    func urlSession(_ session: URLSession, task: URLSessionTask, willBeginDelayedRequest request: URLRequest,
+                    completionHandler: @escaping @Sendable (URLSession.DelayedRequestDisposition, URLRequest?) -> Void) {
+        guard task is URLSessionDownloadTask, task.taskDescription?.hasSuffix(Self.resumeMark) == false, let url = request.url,
+              let headers = withCore({ $0.fileDownloadHeaders(url) }) ?? nil else {
+            return completionHandler(.continueLoading, nil)
+        }
+        var r = request
+        for (k, v) in headers { r.setValue(v, forHTTPHeaderField: k) }
+        completionHandler(.useNewRequest, r)
     }
 
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64,
