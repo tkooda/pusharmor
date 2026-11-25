@@ -7,7 +7,7 @@ import { sanitizeName, splitExt } from "./filename.ts";
 
 export const HELPER = "Larger files expire sooner, between 1 and 24 hours after they are sent";
 export const AUTO_TITLE = "Download automatically";
-export const STORAGE_TITLE = "Storage for received files";
+export const STORAGE_TITLE = "Storage for sent and received files";
 export const STORAGE_HELPER = "When full, the oldest files are removed from this device";
 export const REMOVED = "Removed from this device";
 export const NO_MEMORY = "Not enough memory to decrypt";
