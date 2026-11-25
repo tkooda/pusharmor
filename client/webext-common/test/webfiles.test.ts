@@ -257,6 +257,45 @@ test("receive: a picker that is Off leaves the row waiting for Download; a faile
   assert.equal(sendFileError({ code: "failed", text: null, status: 0, error: "unreadable" }, "a.txt"), 'Unable to read "a.txt"');
 });
 
+test("send: a sent file keeps a local copy with the received-file buttons; a failed send keeps none; row delete and auto-delete remove it", async () => {
+  const s = await fileSetup();
+  const expires = Math.floor(s.clock.t / 1000) + 24 * H;
+  const png = new Uint8Array(1000);
+  png.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  s.hostA.answer = async (req) => (req.op === "upload" ? { ok: true, url: FILE.url, expires, key: FILE.key, sha256: FILE.sha256 } : null);
+  const picked = await s.storeA.putPicked(new Blob([png]));
+  assert.equal((await s.fa.send(picked, "cat.png", 1000, [s.b.id])).sent, 1);
+  const row = (await s.a.db.history()).find((x) => x.type === "file" && x.dir === "out")!;
+  assert.equal(await s.storeA.picked(picked), null, "the picked copy goes");
+  assert.deepEqual(new Uint8Array(await (await s.storeA.plain(fileKey(row.id!)))!.arrayBuffer()), png);
+  assert.deepEqual(row.fs, { plain: true, image: true });
+  assert.ok((await s.fa.here()).has(fileKey(row.id!)));
+  assert.deepEqual(F.fileActions(row.fs!, true), ["view", "copy", "save"], "the same buttons as a downloaded image");
+  // a failed upload keeps no copy
+  s.hostA.answer = async () => ({ ok: false, err: { code: "paused", text: "File sending is paused. Try again later", status: 503, error: "files paused" } });
+  await s.fa.send(await s.storeA.putPicked(new Blob(["x"])), "a.txt", 1, "all", undefined, true);
+  assert.deepEqual([...(await s.storeA.plainSizes()).keys()], [fileKey(row.id!)]);
+  // row delete: the copy goes with the bytes of gone rows
+  await s.a.db.deleteHistoryWhere((x) => x.id === row.id);
+  await s.fa.gc();
+  assert.equal(await s.storeA.plain(fileKey(row.id!)), null);
+  // auto-delete
+  s.hostA.answer = async (req) => (req.op === "upload" ? { ok: true, url: FILE.url + "3", expires, key: FILE.key, sha256: FILE.sha256 } : null);
+  await s.fa.send(await s.storeA.putPicked(new Blob(["z"])), "c.txt", 1, [s.b.id]);
+  const row2 = (await s.a.db.history()).find((x) => x.type === "file" && x.dir === "out" && x.file?.url === FILE.url + "3")!;
+  assert.deepEqual(row2.fs, { plain: true, image: false });
+  s.clock.t += 31 * 86400_000;
+  await s.a.e.purgeHistory();
+  await s.fa.gc();
+  assert.equal(await s.storeA.plain(fileKey(row2.id!)), null);
+  // a send no device got keeps no copy
+  s.hostA.answer = async (req) => (req.op === "upload" ? { ok: true, url: FILE.url + "2", expires, key: FILE.key, sha256: FILE.sha256 } : null);
+  s.w.rows.get(s.b.id)!.push = false;
+  const r = await s.fa.send(await s.storeA.putPicked(new Blob(["y"])), "b.txt", 1, [s.b.id], undefined, true);
+  assert.equal(r.sent, 0);
+  assert.equal((await s.storeA.plainSizes()).size, 0);
+});
+
 async function downloadedRow(s: Awaited<ReturnType<typeof fileSetup>>): Promise<number> {
   return s.b.db.addHistory({ dir: "in", peer: s.a.id, type: "file", content: "cat.png", n: 1, pairing_id: null, received: s.clock.t, read: true, file: { ...FILE, expires: Math.floor(s.clock.t / 1000) + H }, fs: { got: true } });
 }

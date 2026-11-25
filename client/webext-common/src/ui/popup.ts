@@ -1037,9 +1037,9 @@ function fileLines(env: UiEnv, r: HistRow, nowMs: number, row: HTMLElement): HTM
   return out;
 }
 
-/** The buttons of a decrypted file: View (images), Copy (images, where the clipboard takes them), Save. */
+/** The buttons of a decrypted (or sent) file kept here: View (images), Copy (images, where the clipboard takes them), Save. */
 function fileButtons(env: UiEnv, r: HistRow): HTMLElement[] {
-  if (r.dir !== "in" || !r.fs?.plain || r.here !== true) return [];
+  if (!r.fs?.plain || r.here !== true) return [];
   const name = r.content;
   const btn: Record<"view" | "copy" | "save", () => HTMLElement> = {
     view: () => h("button", { class: "ac", onclick: async () => { const b = await plainOf(env, r); if (b) viewImage(b, name); } }, icon("image", 15), "View"),

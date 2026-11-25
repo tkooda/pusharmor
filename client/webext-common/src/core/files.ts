@@ -9,7 +9,7 @@ import { FILE_DAMAGED, catchUpDue, storageFullText } from "../model/filerules.ts
 
 /** A decrypt that could not run (not a damaged file and not short of memory). */
 export const fileOpenFailed = (name: string): string => 'Unable to decrypt "' + name + '"\nTry again';
-import { DOWNLOAD_FAILED, type FileState, decryptPlan, kind, storageLimit, storageOptions, toRemove, tooLarge, unreadable } from "../model/filerow.ts";
+import { DOWNLOAD_FAILED, type FileState, decryptPlan, kind, sniffImage, storageLimit, storageOptions, toRemove, tooLarge, unreadable } from "../model/filerow.ts";
 import { sanitizeName } from "../model/filename.ts";
 import type { FileValue } from "../model/message.ts";
 import type { HistoryRow } from "../store/db.ts";
@@ -113,8 +113,8 @@ export class Files implements FilesHook {
   /**
    * quiet: a menu send, which shows its own result (no second notification from afterFailure).
    * Sends the picked file (stored under picked by the Send view): sealed and uploaded where transfers
-   * run, then the file message goes to each device as a message does. The picked file is dropped once
-   * a device got it.
+   * run, then the file message goes to each device as a message does. Once a device got it, the picked
+   * file becomes the sent row's local copy (as a downloaded file is kept) and the picked copy is dropped.
    */
   async send(picked: string, name: string, size: number, targets: string[] | "all", shown?: string[], quiet = false): Promise<SendResult> {
     const self = await this.e.self();
@@ -143,9 +143,25 @@ export class Files implements FilesHook {
     }
     const value: FileValue = { url: out.url, expires: out.expires, key: out.key, name: clean, size, sha256: out.sha256 };
     const r = await this.e.deliver(self, to, { type: "file", value }, { type: "file", content: clean, file: value });
-    if (r.sent > 0) await this.dropPicked(picked);
+    if (r.sent > 0) {
+      await this.keepSent(picked, value.url).catch(() => undefined);
+      await this.dropPicked(picked);
+    }
     if (!quiet && (r.error || r.sent < r.total)) this.afterFailure(picked, r.error || [actionLine("send"), ...r.failures.map((f) => f.text)].join("\n"), r.sent > 0);
     return r;
+  }
+
+  /** Keeps the picked file as the local copy of the sent row of url, where decrypted files are kept. */
+  private async keepSent(picked: string, url: string): Promise<void> {
+    const store = await this.store();
+    const blob = await store.picked(picked);
+    const row = (await this.e.db.history()).find((x) => x.type === "file" && x.dir === "out" && x.file?.url === url);
+    if (!blob || row?.id === undefined) return;
+    const key = fileKey(row.id);
+    await store.putPlain(key, blob);
+    const image = sniffImage(new Uint8Array(await blob.slice(0, 32).arrayBuffer())) !== null;
+    await this.setFs(row.id, (x) => ({ ...x, plain: true, image }));
+    await this.evict(key);
   }
 
   private async dropPicked(picked: string): Promise<void> {
@@ -314,7 +330,8 @@ export class Files implements FilesHook {
    */
   async evict(keep?: string): Promise<void> {
     const store = await this.store();
-    const rows = new Map((await this.fileRows()).map((r) => [fileKey(r.id), r]));
+    // sent files with a local copy count too
+    const rows = new Map((await this.e.db.history()).filter((r) => r.type === "file" && r.id !== undefined).map((r) => [fileKey(r.id!), r]));
     const files = [...(await store.sizes())]
       .filter(([key]) => key !== keep && !this.running.has(Number(key.slice(1))) && !this.decrypting.has(Number(key.slice(1))))
       .map(([key, bytes]) => ({ key, at: rows.get(key)?.received ?? 0, bytes }));
