@@ -30,6 +30,9 @@ class ReceivedFiles(
     companion object {
         fun key(historyId: Long) = historyId.toString()
         fun fileOf(h: HistoryEntity): FileValue? = if (h.type != "file") null else h.content?.let { InnerMessage.fileValueOf(StrictJson.parseOrNull(it)) }
+        private val SERVER_ID = Regex("[0-9]{12}-[0-9a-f]{32}")
+        /** The relay server's id of [f]'s stored file: the last part of its URL; null when that is not a file id. */
+        fun serverId(f: FileValue): String? = f.url.substringAfterLast('/').takeIf { SERVER_ID.matches(it) }
     }
 
     fun wifiPicker(): Long = FileUi.picker(settings.get(Settings.K.FILE_WIFI))

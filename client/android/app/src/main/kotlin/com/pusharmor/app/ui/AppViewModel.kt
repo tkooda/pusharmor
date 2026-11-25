@@ -12,6 +12,7 @@ import androidx.lifecycle.viewModelScope
 import com.pusharmor.app.PaApp
 import com.pusharmor.app.data.Settings
 import com.pusharmor.app.files.DirectSendService
+import com.pusharmor.app.files.ReceivedFiles
 import com.pusharmor.app.session.Session
 import com.pusharmor.net.ErrorText
 import com.pusharmor.net.WorkerClient
@@ -565,8 +566,28 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun deleteHistory(ids: List<Long>) = io(UiText.UNABLE_DELETE_MESSAGES) {
-        if (!syncDelete(g.dao.historyRows(ids))) ids.chunked(500).forEach { g.dao.deleteHistory(it) }
+        val rows = g.dao.historyRows(ids)
+        val before = message.value
+        if (!syncDelete(rows)) ids.chunked(500).forEach { g.dao.deleteHistory(it) }
         files.forget(ids)
+        // shown only when the delete above set no notice of its own
+        deleteFilesOnServer(rows)?.let { if (message.value == before) message.value = it }
+    }
+
+    /**
+     * Sync deletions on: the files of the file rows go from the relay server's file storage too, after the rows
+     * went here. 404 (already gone) counts as done. The notice of the first failure, or null.
+     */
+    private fun deleteFilesOnServer(rows: List<HistoryEntity>): String? {
+        if (!(g.settings.get(Settings.K.SYNC_DELETIONS) ?: true)) return null
+        var notice: String? = null
+        for (h in rows) {
+            val id = ReceivedFiles.fileOf(h)?.let(ReceivedFiles::serverId) ?: continue
+            val r = try { g.client.deleteFile(id) } catch (e: Exception) { null }
+            if (r is ApiResult.Ok || (r is ApiResult.Http && r.status == 404)) continue
+            if (notice == null) notice = if (r == null) ErrorText.text(UiText.UNABLE_DELETE_FILE_SERVER, ErrorText.TRY_AGAIN) else ErrorText.of(UiText.UNABLE_DELETE_FILE_SERVER, r)
+        }
+        return notice
     }
 
     /** The delete progress bar of a delete in several del calls: its part done and caption; null when none shows. */

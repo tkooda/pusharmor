@@ -208,4 +208,74 @@ class SyncDeletionsTest {
         assertEquals("This deletes the selected messages off this and other paired devices.", UiText.deleteSelectedBody(true))
         assertEquals("This deletes the selected messages off this device.", UiText.deleteSelectedBody(false))
     }
+
+    private val fileId = "202611251200-" + "0123456789abcdef".repeat(2)
+    private val fileDeletes = java.util.Collections.synchronizedList(ArrayList<okhttp3.Request>())
+
+    /** /v1/send takes every del; DELETE /v1/file replies [fileStatus]. */
+    private fun fileServer(fileStatus: Int) {
+        app.fakeHttp = Interceptor { chain ->
+            val req = chain.request()
+            val file = req.url.encodedPath.startsWith("/v1/file/")
+            if (file) fileDeletes += req
+            val code = if (file) fileStatus else 200
+            Response.Builder().request(req).protocol(Protocol.HTTP_1_1).code(code).message("x")
+                .body((if (file) "{}" else "{\"r\":{\"$peerId\":\"sent\"}}").toResponseBody("application/json".toMediaType())).build()
+        }
+    }
+
+    private fun fileRow(direction: String, msgId: String?, url: String = "https://b2file.pusharmor.com/v1/202611251200/0123456789abcdef/$fileId") = io {
+        val k = B64url.encode(ByteArray(32))
+        g.dao.insertHistory(HistoryEntity(direction = direction, peerId = if (direction == "SENT") null else peerId, type = "file",
+            content = com.pusharmor.protocol.FileValue(url, 1, k, "a.txt", 1, k).toJson(), n = null, pairingId = null,
+            at = 1, read = true, results = "{}", count = 1, msgId = msgId))
+    }
+
+    /** Sync deletions on: sent and received file rows delete their file on the relay server, signed PA-FILE1. */
+    @Test fun fileRowsDeleteTheirFileOnTheRelayServer() {
+        val vm = AppViewModel(app)
+        fileServer(200)
+        val ids = listOf(fileRow("SENT", "aaaa"), fileRow("RECEIVED", null), row("bbbb"))
+        run(vm) { vm.deleteHistory(ids) }
+        assertEquals(0, count())
+        assertEquals(2, fileDeletes.size)
+        for (r in fileDeletes) {
+            assertEquals("DELETE", r.method)
+            assertEquals("/v1/file/$fileId", r.url.encodedPath)
+            assertEquals("B".repeat(40), r.header("PA-ID"))
+            val t = r.header("PA-Time")!!
+            assertTrue(com.pusharmor.crypto.P256.verify(g.keysOrNull!!.signPub, com.pusharmor.crypto.Ids.fileDeleteSigningBytes(fileId, t), B64url.decode(r.header("PA-Sig")!!)))
+        }
+        assertNull(vm.message.value)
+    }
+
+    @Test fun alreadyGoneFileIsDoneAndANonFileUrlIsSkipped() {
+        val vm = AppViewModel(app)
+        fileServer(404)
+        val ids = listOf(fileRow("SENT", "aaaa"), fileRow("SENT", "cccc", url = "https://b2file.pusharmor.com/v1/x/y/z"))
+        run(vm) { vm.deleteHistory(ids) }
+        assertEquals(0, count())
+        assertEquals(1, fileDeletes.size)
+        assertNull(vm.message.value)
+    }
+
+    @Test fun fileDeleteFailureShowsTheError() {
+        val vm = AppViewModel(app)
+        fileServer(500)
+        val ids = listOf(fileRow("SENT", "aaaa"), fileRow("RECEIVED", null))
+        run(vm) { vm.deleteHistory(ids) }
+        assertEquals(0, count()) // the rows go here whatever the relay server says
+        assertEquals("Unable to delete on the relay server.\nThe relay server is not working right now. Try again later.", vm.message.value)
+    }
+
+    @Test fun settingOffDeletesNoFileOnTheRelayServer() {
+        val vm = AppViewModel(app)
+        fileServer(200)
+        g.settings.set(Settings.K.SYNC_DELETIONS, false)
+        val ids = listOf(fileRow("SENT", "aaaa"), fileRow("RECEIVED", "bbbb"))
+        run(vm) { vm.deleteHistory(ids) }
+        assertEquals(0, count())
+        assertEquals(0, fileDeletes.size)
+        assertNull(vm.message.value)
+    }
 }

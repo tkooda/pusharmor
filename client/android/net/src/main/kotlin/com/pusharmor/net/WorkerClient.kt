@@ -110,14 +110,15 @@ class WorkerClient(
      * One call. [signed]: PA-ID + PA-Time + PA-Sig; [signedNoId]: PA-Time + PA-Sig only
      * (POST /peers, DELETE /account). [path] includes /v1 and no query. [once]: one attempt
      * with [ONCE_TIMEOUT_MS], no retry. [retry] false: a call the server must not see twice is not retried.
+     * [signedBytes]: the bytes PA-Sig signs for a PA-Time, in place of the PA-REQ1 bytes (DELETE /v1/file signs PA-FILE1).
      */
-    fun call(method: String, path: String, body: ByteArray?, signed: Boolean, signedNoId: Boolean = false, query: Map<String, String> = emptyMap(), once: Boolean = false, retry: Boolean = true): Reply? {
+    fun call(method: String, path: String, body: ByteArray?, signed: Boolean, signedNoId: Boolean = false, query: Map<String, String> = emptyMap(), once: Boolean = false, retry: Boolean = true, signedBytes: ((String) -> ByteArray)? = null): Reply? {
         val bytes = body ?: ByteArray(0)
         val url = base.newBuilder().encodedPath(path).apply { query.forEach { (k, v) -> addQueryParameter(k, v) } }.build()
         val rb = Request.Builder().url(url).header("PA-Client", paClient)
         if (signed || signedNoId) {
             val t = paTime()
-            val sig = keys().sign(Ids.requestSigningBytes(method, path, t, bytes))
+            val sig = keys().sign(signedBytes?.invoke(t) ?: Ids.requestSigningBytes(method, path, t, bytes))
             if (signed) rb.header("PA-ID", ownId() ?: return null)
             rb.header("PA-Time", t).header("PA-Sig", B64url.encode(sig))
         }
@@ -224,6 +225,9 @@ class WorkerClient(
 
     override fun deletePeer(id: String, messages: Map<String, String>) =
         result(call("DELETE", "/v1/peers/$id", obj("m" to map(messages)).toByteArray(), true), ::results)
+
+    /** DELETE /v1/file/<id>: the file goes from the relay server's file storage; 404 when it is already gone. */
+    fun deleteFile(id: String) = result(call("DELETE", "/v1/file/$id", null, true, signedBytes = { Ids.fileDeleteSigningBytes(id, it) })) { }
 
     /** PATCH push: {"push": {...} | null}. [pushJson] is the serialized push object or "null". */
     fun patchPush(pushJson: String) = result(call("PATCH", "/v1/peers/${me()}", obj("push" to pushJson).toByteArray(), true)) { }
