@@ -112,6 +112,8 @@ export class Rpc {
   readonly login: Login;
   /** The network work of the last popup open (popupSettled waits for it). */
   private opening: Promise<void> = Promise.resolve();
+  /** The last History delete, with its relay server file deletes. */
+  private fileDeletes: Promise<string | null> = Promise.resolve(null);
   constructor(e: Engine) {
     this.e = e;
     this.login = new Login(e);
@@ -194,8 +196,20 @@ export class Rpc {
         for (const r of await e.db.history()) if (!r.read) await e.db.put("history", { ...r, read: true });
         await e.updateBadge();
         return null;
-      case "historyDelete":
-        return e.deleteHistory((a.ids as number[]).map(Number));
+      case "historyDelete": {
+        // answers once the rows are gone here; the relay server file deletes go on (historyDeleteFiles waits for them)
+        let local!: (n: string | null) => void;
+        const first = new Promise<string | null>((r) => (local = r));
+        const all = e.deleteHistory((a.ids as number[]).map(Number), local);
+        this.fileDeletes = all.catch(() => null);
+        return Promise.race([first, all]);
+      }
+      case "historyDeleteFiles": {
+        // the whole delete's notice: the device notice when there was one, else the relay server file notice
+        const r = await this.fileDeletes;
+        this.fileDeletes = Promise.resolve(null);
+        return r;
+      }
       case "sendSel":
         return ((await e.p.storageLocal.get([SEND_SEL_KEY]))[SEND_SEL_KEY] as string[] | undefined) ?? [];
       case "sendSelSet":

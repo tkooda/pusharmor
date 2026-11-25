@@ -819,9 +819,11 @@ export async function historyView(env: UiEnv, root: HTMLElement, focus?: string,
           const sync = (await rpc<{ syncDeletions: boolean }>(env, "getSettings")).syncDeletions;
           if (!(await confirmDialog(title, "This deletes the selected messages off " + (sync ? "this and other paired devices." : "this device."), "Delete"))) return;
           delBar.start(); // shows only when the background sends steps (several batches)
+          let files = false;
           try {
             const notice = await rpc<string | null>(env, "historyDelete", { ids });
             if (notice) toast(notice, "err");
+            else files = true;
           } catch (e) {
             toast((e as Error).message, "err"); // rows whose delete reached the relay server are gone: redraw
           } finally {
@@ -829,6 +831,11 @@ export async function historyView(env: UiEnv, root: HTMLElement, focus?: string,
           }
           clear(root);
           await historyView(env, root, undefined, nav);
+          // the relay server file deletes finish after the list updates
+          if (files) {
+            const notice = await rpc<string | null>(env, "historyDeleteFiles").catch(() => null);
+            if (notice) toast(notice, "err");
+          }
         },
       }, "Delete " + n + " selected"),
     );

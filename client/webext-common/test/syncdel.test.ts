@@ -416,3 +416,26 @@ test("file delete failure does not replace the Sync deletions notice", async () 
   const notice = await a.e.deleteHistory([...out, await fileRow(a, "out", FID)]);
   assert.match(notice!, /^Unable to delete on "/);
 });
+
+test("History delete answers once the rows are gone here; a slow relay server file delete reports after", async () => {
+  const { w, a } = await setup();
+  let open!: () => void;
+  const gate = new Promise<void>((r) => (open = r));
+  const handle = w.handle.bind(w);
+  w.handle = async (url, init) => {
+    if (init.method === "DELETE" && new URL(url).pathname.startsWith("/v1/file/")) await gate;
+    return handle(url, init);
+  };
+  w.inject.push({ match: /DELETE \/v1\/file\//, status: 403, body: { error: "unapproved" }, times: 1 });
+  const rpc = new Rpc(a.e);
+  const r = await rpc.handle({ op: "historyDelete", args: { ids: [await fileRow(a, "out", FID)] } });
+  assert.deepEqual(r, { ok: true, data: null }); // the file delete is still held
+  assert.equal((await rows(a)).length, 0);
+  assert.equal(w.fileDeletes.length, 0);
+  const files = rpc.handle({ op: "historyDeleteFiles" });
+  open();
+  const f = await files;
+  assert.equal(f.ok, true);
+  assert.match((f as { data: string }).data, /^Unable to delete on the relay server\.\n/);
+  assert.deepEqual(await rpc.handle({ op: "historyDeleteFiles" }), { ok: true, data: null });
+});

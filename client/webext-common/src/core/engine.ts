@@ -1747,9 +1747,11 @@ export class Engine {
    * Deletes History rows. With Sync deletions on, the message ids of the rows go to the other
    * devices first; a row is deleted here only when every device it was sent to (and that is still
    * a target) accepted it. Else the row stays with the devices it waits on; a new delete of it
-   * goes to those devices only. Returns the notice naming the devices that did not get it, else null.
+   * goes to those devices only. Returns the notice naming the devices that did not get it, else
+   * the relay server file notice, else null. `localDone` gets the device notice right after the
+   * local delete, before the relay server file deletes, so the list can update at once.
    */
-  async deleteHistory(rowIds: number[]): Promise<string | null> {
+  async deleteHistory(rowIds: number[], localDone?: (notice: string | null) => void): Promise<string | null> {
     const rows: HistoryRow[] = [];
     for (const id of rowIds) {
       const row = await this.db.get<HistoryRow>("history", id);
@@ -1865,6 +1867,7 @@ export class Engine {
         if (names.length === 1 && word === "error") notice = syncDeleteResultText(names, null) + "\n" + reasonOf(err);
         else notice = syncDeleteResultText(names, word === "error" ? null : word);
       }
+      localDone?.(notice);
       const fileErr = syncOn ? await this.deleteServerFiles(rows) : null;
       if (notice === null && fileErr !== null) notice = "Unable to delete on the relay server.\n" + reasonOf(fileErr);
       return notice;
