@@ -1123,6 +1123,21 @@ def test_listen_exec_missing_program_keeps_the_message(net, tmp_path, monkeypatc
     assert [json.loads(x)["body"] for x in capsys.readouterr().out.splitlines()] == ["keep me"]
 
 
+def test_send_to_24_devices_is_one_call(net, tmp_path, monkeypatch, capsys):
+    net.limit = 25
+    a = tmp_path / "a"
+    ida = login(monkeypatch, a)
+    for i in range(24):
+        b = tmp_path / ("b%d" % i)
+        pair_two(monkeypatch, net, a, b, (ida, login(monkeypatch, b)))
+    assert len(net.peers) == 25
+    sends = net.log.count(("POST", "/v1/send"))
+    capsys.readouterr()
+    assert run(a, "send", "hi") == 0
+    assert net.log.count(("POST", "/v1/send")) == sends + 1
+    assert capsys.readouterr().out.endswith("Sent to 24 of 24 devices.\n")
+
+
 def test_send_no_devices_and_logout(net, tmp_path, monkeypatch, capsys):
     login(monkeypatch, tmp_path)
     assert run(tmp_path, "send", "hi") == 4
@@ -1725,6 +1740,15 @@ def test_odd_strings_from_the_relay_server_are_dropped(net, tmp_path, monkeypatc
     assert "Traceback" not in capsys.readouterr().err
     assert pa._ids(["a b", "\ud800", 5, pid, pid]) == [pid]
     assert (tmp_path / "devices.toml").exists()
+
+
+def test_choose_evict_takes_up_to_24_devices(monkeypatch, capsys):
+    rows = [{"id": pa.b64e(bytes([i]) * 30), "platform": "ios", "created": 10} for i in range(25)]
+    monkeypatch.setattr(pa, "ask", lambda prompt="": " ".join(str(i) for i in range(1, 25)))
+    assert pa.choose_evict(rows) == [r["id"] for r in rows[:24]]
+    monkeypatch.setattr(pa, "ask", lambda prompt="": " ".join(str(i) for i in range(1, 26)))
+    with pytest.raises(pa.Fail):
+        pa.choose_evict(rows)
 
 
 def test_choose_evict_ignores_unicode_digits(monkeypatch, capsys):

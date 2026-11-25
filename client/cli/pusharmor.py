@@ -715,7 +715,7 @@ PAIR_TIMEOUT_DAYS = 14
 PAIR_TIMEOUT_S = PAIR_TIMEOUT_DAYS * 86400
 PAIR_CAP_WINDOW_S = 86400
 PAIR_CAP_MAX = 10
-PAIR_MAX_OPEN = 9
+PAIR_MAX_OPEN = 24
 
 
 def commit_hash(sign_pub_n, enc_pub_n, r_n):
@@ -3215,7 +3215,7 @@ def choose_evict(peers):
     except EOFError:
         a = ""
     picks = sorted({int(w) for w in a.split() if re.fullmatch(r"[0-9]{1,2}", w) and 1 <= int(w) <= len(rows)})
-    if not picks or len(picks) > 9:
+    if not picks or len(picks) > 24:
         raise Fail("No devices were chosen to remove, so you are not logged in. Run `pusharmor login` to try again.")
     return [rows[i - 1]["id"] for i in picks]
 
