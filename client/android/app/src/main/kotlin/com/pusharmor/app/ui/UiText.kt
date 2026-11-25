@@ -251,7 +251,7 @@ object UiText {
 
     fun directSendingFileList(file: String): String = "Sending \"$file\" to:"
     /** Line 2 of the error of a Direct Share file send that the app closed during. */
-    fun directSendClosed(file: String): String = "The app closed before \"$file\" was sent"
+    fun directSendClosed(file: String): String = "PushArmor closed before \"$file\" was sent. Share it again"
 
     fun directSendingList(type: ContentType): String =
         "Sending ${when (type) { ContentType.URL -> "URL"; ContentType.TEL -> "phone number"; ContentType.TEXT -> "text" }} to:"

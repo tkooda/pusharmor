@@ -170,7 +170,7 @@ class ShareFileDirectTest {
         try {
             io { DirectSendService.reportLeft(g, System.currentTimeMillis() - 1000) }
             assertTrue(!old.exists() && fresh.exists())
-            val text = "Unable to send.\nThe app closed before \"doc.pdf\" was sent"
+            val text = "Unable to send.\nPushArmor closed before \"doc.pdf\" was sent. Share it again"
             assertEquals(text, notice(Notifier.NOTICE_ID)?.notification?.extras?.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString())
             val (row, st) = keptState()
             assertEquals("SENT", row.direction)
