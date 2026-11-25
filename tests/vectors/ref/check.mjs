@@ -20,7 +20,7 @@ import { isPhone, parseReceivedUrl } from './detect.mjs';
 import { decrypt as wpDecrypt, encrypt as wpEncrypt } from './webpush.mjs';
 import { RFC6979_P256 } from './rfc-vectors.mjs';
 import {
-  BLOB_OVERHEAD, MAX_FILE, acctHash, autoDownload, collisionName, fileDeleteBytes, fileKey, filePostBytes, openBlob,
+  BLOB_OVERHEAD, MAX_FILE, acctHash, autoDownload, collisionName, downloadBytes, fileDeleteBytes, fileKey, filePostBytes, openBlob,
   sanitizeName, sealBlob, ttlMinutes, verifyFile,
 } from './file.mjs';
 import { buildFile, buildGolden, stableJson } from './gen.mjs';
@@ -392,6 +392,34 @@ test('file-v1: file_sig', () => {
     } else {
       assert.equal(c.path, '/v1/file/' + c.id);
     }
+  }
+});
+
+test('file-v1: download_sig', () => {
+  const X = G.keys.peers.X;
+  assert.equal(F.download_sig.cases.length, 3);
+  for (const c of F.download_sig.cases) {
+    const bytes = downloadBytes(c.path, c.pa_time);
+    assert.equal(b64e(bytes), c.signed_bytes, c.name);
+    assert.equal(bytes.toString('utf8'), c.signed_text, c.name);
+    assert.ok(!c.signed_text.endsWith('\n'), c.name);
+    assert.equal(c.method, 'GET');
+    assert.equal(c.path, new URL(c.url).pathname, c.name);
+    assert.match(c.path, /^\/v1\/[0-9]{12}\/[0-9a-f]{16}\/[0-9]{12}-[0-9a-f]{32}$/);
+    assert.equal(c.path.split('/')[3], acctHash(b64d(F.key.acct_secret), b64d(X.id).subarray(0, 9)), c.name);
+    assert.equal(c.sign_pub, X.sign_pub);
+    assert.equal(c.enc_pub, X.enc_pub);
+    assert.deepEqual(Object.keys(c.headers).sort(), ['PA-Enc-Pub', 'PA-ID', 'PA-Sig', 'PA-Sign-Pub', 'PA-Time']);
+    assert.equal(c.headers['PA-ID'], X.id);
+    assert.equal(c.headers['PA-Time'], c.pa_time);
+    assert.equal(c.headers['PA-Sign-Pub'], c.sign_pub);
+    assert.equal(c.headers['PA-Enc-Pub'], c.enc_pub);
+    assert.equal(c.headers['PA-Sig'], c.sig);
+    assert.equal(c.sign_pub.length, 87);
+    assert.equal(c.enc_pub.length, 87);
+    assert.equal(c.sig.length, 86);
+    assert.equal(typeof c.verifies, 'boolean', c.name);
+    assert.equal(verifyFile(b64d(c.sign_pub), bytes, b64d(c.sig)), c.verifies, c.name);
   }
 });
 

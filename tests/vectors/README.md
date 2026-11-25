@@ -82,7 +82,8 @@ must match `stored_c_N`.
 File send vectors, built and checked the same way (`node ref/gen.mjs`
 writes both files; `ref/check.mjs` checks both). Reference code is in
 `ref/file.mjs`. Sections: `constants` (`MAX_FILE`, `BLOB_OVERHEAD`),
-`file_sig` (PA-FILE1 POST and DELETE strings and PA-Sig), `blob`,
+`file_sig` (PA-FILE1 POST and DELETE strings and PA-Sig), `download_sig`
+(PA-DL1 file host GET string, headers and PA-Sig), `blob`,
 `upload_request`, `sha256`, `ttl`, `key`, `names`, `collision` (CLI
 `listen --files DIR`) and `auto_download`. `ttl` and `key` carry
 `"worker_only": true`: clients never hardcode a file lifetime.

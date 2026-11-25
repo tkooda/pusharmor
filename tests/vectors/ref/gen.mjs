@@ -19,7 +19,7 @@ import { windowAccept, replayOutcome } from './replay.mjs';
 import { isPhone, parseReceivedUrl } from './detect.mjs';
 import { RFC8291_EXAMPLE, RFC9180_SUITE } from './rfc-vectors.mjs';
 import {
-  BLOB_OVERHEAD, MAX_FILE, autoDownload, collisionName, fileDeleteBytes, fileKey, filePostBytes, sanitizeName, sealBlob,
+  BLOB_OVERHEAD, MAX_FILE, autoDownload, collisionName, downloadBytes, fileDeleteBytes, fileKey, filePostBytes, sanitizeName, sealBlob,
   ttlMinutes,
 } from './file.mjs';
 
@@ -1063,6 +1063,36 @@ function fileSigSection() {
   };
 }
 
+function downloadSigSection() {
+  const k = fileKey({ acceptTime: Date.UTC(2026, 10, 22, 3, 47, 12) / 1000, size: 1234567, secret: ACCT_SECRET, account: X.account, randHex: randHexOf('download') });
+  const path = new URL(k.url).pathname;
+  const one = (name, paTime = FILE_TIME) => {
+    const signed = downloadBytes(path, paTime);
+    const sig = b64e(sign(X.signPriv, signed));
+    return {
+      name, method: 'GET', signer: X.name, sign_pub: b64e(X.signPub), enc_pub: b64e(X.encPub), url: k.url, path,
+      pa_time: paTime, signed_text: signed.toString('utf8'), signed_bytes: b64e(signed), sig, verifies: true,
+      headers: { 'PA-ID': X.idB64, 'PA-Time': paTime, 'PA-Sign-Pub': b64e(X.signPub), 'PA-Enc-Pub': b64e(X.encPub), 'PA-Sig': sig },
+    };
+  };
+  const tampered = (c) => {
+    const s = b64d(c.sig);
+    s[s.length - 1] ^= 1;
+    return { ...c, sig: b64e(s), headers: { ...c.headers, 'PA-Sig': b64e(s) }, verifies: false };
+  };
+  return {
+    description:
+      'PA-DL1 signing string for a GET on the file host, frozen, UTF-8, no trailing newline: "PA-DL1\\nGET\\n" + path + ' +
+      '"\\n" + PA-Time, where path is the URL pathname with its leading "/". The Range header is not signed; each request ' +
+      '(each retry and each resumed Range request) gets a fresh PA-Time and PA-Sig. Headers: PA-ID, PA-Time, PA-Sign-Pub and ' +
+      'PA-Enc-Pub (87-char b64url raw points of the signing device), PA-Sig (86-char b64url raw r||s, ECDSA P-256 SHA-256, ' +
+      'as PA-REQ1). Signer X from golden-v1.json keys.peers; the url is a file of the account of X. Assert signed_bytes byte ' +
+      'for byte from path and pa_time, path equals the url pathname, every header from the fields, and that sig verifies with ' +
+      'sign_pub (verify only) exactly when verifies is true; a false row has a changed PA-Sig and must be refused.',
+    cases: [one('download'), one('download_other_time', '1795320000999'), tampered(one('download_tampered_sig'))],
+  };
+}
+
 const BLOB_INPUTS = [
   ['empty', ''],
   ['hello', 'hello, file'],
@@ -1290,6 +1320,7 @@ export function buildFile() {
       BLOB_OVERHEAD,
     },
     file_sig: fileSigSection(),
+    download_sig: downloadSigSection(),
     blob: blobSection(),
     upload_request: uploadSection(),
     sha256: sha256Section(),

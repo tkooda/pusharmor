@@ -2209,6 +2209,74 @@
     "description": "MAX_FILE = largest plaintext size in bytes; BLOB_OVERHEAD = blob bytes beyond the plaintext (nonce 12 + tag 16). Content-Length limit = MAX_FILE + BLOB_OVERHEAD."
   },
   "description": "PushArmor file send vectors v1 (normative). Binary values are strict b64url unless a field says hex. Sizes are bytes (decimal), times are unix seconds, PA-Time is unix ms. Sections marked worker_only (ttl, key) are for the Worker; clients never hardcode a lifetime.",
+  "download_sig": {
+    "cases": [
+      {
+        "enc_pub": "BBZeumRHp6YpZexNODD4BAnJj5MNmvI1mdku0rui3gddDwUwlsskQNvH0j5khJ5Ql8vDlPkNwJu5u3DRlctZ1yQ",
+        "headers": {
+          "PA-Enc-Pub": "BBZeumRHp6YpZexNODD4BAnJj5MNmvI1mdku0rui3gddDwUwlsskQNvH0j5khJ5Ql8vDlPkNwJu5u3DRlctZ1yQ",
+          "PA-ID": "CuVpna7--EmbwbnHnXELNLEqO59jjlhbwgppFu5n",
+          "PA-Sig": "UIy0ZYUYLXvihW12Rf14dYHVcB1VXmG3mfH-SbbzOAijDlbZiZjOK5CP8fAr1uViFbfY5bO8DCA3_K5SM-BHzw",
+          "PA-Sign-Pub": "BAEiTZqaapURL8mkI-FwBNMfjy1r_KjbGAMVPmbkSZIMD_nllYjV9IPQSMRKRBThiPWl7OqFHrqsshLxDJ8OQUU",
+          "PA-Time": "1795319232123"
+        },
+        "method": "GET",
+        "name": "download",
+        "pa_time": "1795319232123",
+        "path": "/v1/202611230347/458bbf6411b9c507/202611230347-ea693ca998684beac1e474e0584259ce",
+        "sig": "UIy0ZYUYLXvihW12Rf14dYHVcB1VXmG3mfH-SbbzOAijDlbZiZjOK5CP8fAr1uViFbfY5bO8DCA3_K5SM-BHzw",
+        "sign_pub": "BAEiTZqaapURL8mkI-FwBNMfjy1r_KjbGAMVPmbkSZIMD_nllYjV9IPQSMRKRBThiPWl7OqFHrqsshLxDJ8OQUU",
+        "signed_bytes": "UEEtREwxCkdFVAovdjEvMjAyNjExMjMwMzQ3LzQ1OGJiZjY0MTFiOWM1MDcvMjAyNjExMjMwMzQ3LWVhNjkzY2E5OTg2ODRiZWFjMWU0NzRlMDU4NDI1OWNlCjE3OTUzMTkyMzIxMjM",
+        "signed_text": "PA-DL1\nGET\n/v1/202611230347/458bbf6411b9c507/202611230347-ea693ca998684beac1e474e0584259ce\n1795319232123",
+        "signer": "X",
+        "url": "https://b2file.pusharmor.com/v1/202611230347/458bbf6411b9c507/202611230347-ea693ca998684beac1e474e0584259ce",
+        "verifies": true
+      },
+      {
+        "enc_pub": "BBZeumRHp6YpZexNODD4BAnJj5MNmvI1mdku0rui3gddDwUwlsskQNvH0j5khJ5Ql8vDlPkNwJu5u3DRlctZ1yQ",
+        "headers": {
+          "PA-Enc-Pub": "BBZeumRHp6YpZexNODD4BAnJj5MNmvI1mdku0rui3gddDwUwlsskQNvH0j5khJ5Ql8vDlPkNwJu5u3DRlctZ1yQ",
+          "PA-ID": "CuVpna7--EmbwbnHnXELNLEqO59jjlhbwgppFu5n",
+          "PA-Sig": "QTRJv33ESQTFDTgGpH_DLfD6AfX0t8JJ7B_mvgAyvjzffD5ZygGg4jN9BtgbXltXI-eEvMXk8D4C7b2D6CvqQA",
+          "PA-Sign-Pub": "BAEiTZqaapURL8mkI-FwBNMfjy1r_KjbGAMVPmbkSZIMD_nllYjV9IPQSMRKRBThiPWl7OqFHrqsshLxDJ8OQUU",
+          "PA-Time": "1795320000999"
+        },
+        "method": "GET",
+        "name": "download_other_time",
+        "pa_time": "1795320000999",
+        "path": "/v1/202611230347/458bbf6411b9c507/202611230347-ea693ca998684beac1e474e0584259ce",
+        "sig": "QTRJv33ESQTFDTgGpH_DLfD6AfX0t8JJ7B_mvgAyvjzffD5ZygGg4jN9BtgbXltXI-eEvMXk8D4C7b2D6CvqQA",
+        "sign_pub": "BAEiTZqaapURL8mkI-FwBNMfjy1r_KjbGAMVPmbkSZIMD_nllYjV9IPQSMRKRBThiPWl7OqFHrqsshLxDJ8OQUU",
+        "signed_bytes": "UEEtREwxCkdFVAovdjEvMjAyNjExMjMwMzQ3LzQ1OGJiZjY0MTFiOWM1MDcvMjAyNjExMjMwMzQ3LWVhNjkzY2E5OTg2ODRiZWFjMWU0NzRlMDU4NDI1OWNlCjE3OTUzMjAwMDA5OTk",
+        "signed_text": "PA-DL1\nGET\n/v1/202611230347/458bbf6411b9c507/202611230347-ea693ca998684beac1e474e0584259ce\n1795320000999",
+        "signer": "X",
+        "url": "https://b2file.pusharmor.com/v1/202611230347/458bbf6411b9c507/202611230347-ea693ca998684beac1e474e0584259ce",
+        "verifies": true
+      },
+      {
+        "enc_pub": "BBZeumRHp6YpZexNODD4BAnJj5MNmvI1mdku0rui3gddDwUwlsskQNvH0j5khJ5Ql8vDlPkNwJu5u3DRlctZ1yQ",
+        "headers": {
+          "PA-Enc-Pub": "BBZeumRHp6YpZexNODD4BAnJj5MNmvI1mdku0rui3gddDwUwlsskQNvH0j5khJ5Ql8vDlPkNwJu5u3DRlctZ1yQ",
+          "PA-ID": "CuVpna7--EmbwbnHnXELNLEqO59jjlhbwgppFu5n",
+          "PA-Sig": "UIy0ZYUYLXvihW12Rf14dYHVcB1VXmG3mfH-SbbzOAijDlbZiZjOK5CP8fAr1uViFbfY5bO8DCA3_K5SM-BHzg",
+          "PA-Sign-Pub": "BAEiTZqaapURL8mkI-FwBNMfjy1r_KjbGAMVPmbkSZIMD_nllYjV9IPQSMRKRBThiPWl7OqFHrqsshLxDJ8OQUU",
+          "PA-Time": "1795319232123"
+        },
+        "method": "GET",
+        "name": "download_tampered_sig",
+        "pa_time": "1795319232123",
+        "path": "/v1/202611230347/458bbf6411b9c507/202611230347-ea693ca998684beac1e474e0584259ce",
+        "sig": "UIy0ZYUYLXvihW12Rf14dYHVcB1VXmG3mfH-SbbzOAijDlbZiZjOK5CP8fAr1uViFbfY5bO8DCA3_K5SM-BHzg",
+        "sign_pub": "BAEiTZqaapURL8mkI-FwBNMfjy1r_KjbGAMVPmbkSZIMD_nllYjV9IPQSMRKRBThiPWl7OqFHrqsshLxDJ8OQUU",
+        "signed_bytes": "UEEtREwxCkdFVAovdjEvMjAyNjExMjMwMzQ3LzQ1OGJiZjY0MTFiOWM1MDcvMjAyNjExMjMwMzQ3LWVhNjkzY2E5OTg2ODRiZWFjMWU0NzRlMDU4NDI1OWNlCjE3OTUzMTkyMzIxMjM",
+        "signed_text": "PA-DL1\nGET\n/v1/202611230347/458bbf6411b9c507/202611230347-ea693ca998684beac1e474e0584259ce\n1795319232123",
+        "signer": "X",
+        "url": "https://b2file.pusharmor.com/v1/202611230347/458bbf6411b9c507/202611230347-ea693ca998684beac1e474e0584259ce",
+        "verifies": false
+      }
+    ],
+    "description": "PA-DL1 signing string for a GET on the file host, frozen, UTF-8, no trailing newline: \"PA-DL1\\nGET\\n\" + path + \"\\n\" + PA-Time, where path is the URL pathname with its leading \"/\". The Range header is not signed; each request (each retry and each resumed Range request) gets a fresh PA-Time and PA-Sig. Headers: PA-ID, PA-Time, PA-Sign-Pub and PA-Enc-Pub (87-char b64url raw points of the signing device), PA-Sig (86-char b64url raw r||s, ECDSA P-256 SHA-256, as PA-REQ1). Signer X from golden-v1.json keys.peers; the url is a file of the account of X. Assert signed_bytes byte for byte from path and pa_time, path equals the url pathname, every header from the fields, and that sig verifies with sign_pub (verify only) exactly when verifies is true; a false row has a changed PA-Sig and must be refused."
+  },
   "file_sig": {
     "cases": [
       {

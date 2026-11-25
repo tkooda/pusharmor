@@ -1,4 +1,4 @@
-// File send reference: PA-FILE1 signing strings, the AES-256-GCM blob, the
+// File send reference: PA-FILE1 and PA-DL1 signing strings, the AES-256-GCM blob, the
 // Worker lifetime and key rules, file names, CLI name collisions, and the
 // auto-download decision.
 import { createCipheriv, createDecipheriv } from 'node:crypto';
@@ -13,6 +13,8 @@ export const BLOB_OVERHEAD = 28; // 12-byte nonce + 16-byte GCM tag
 export const filePostBytes = (paTime, contentLength, fileSha256, sendId) =>
   utf8('PA-FILE1\nPOST\n/v1/file\n' + paTime + '\n' + contentLength + '\n' + fileSha256 + '\n' + sendId);
 export const fileDeleteBytes = (id, paTime) => utf8('PA-FILE1\nDELETE\n/v1/file/' + id + '\n' + paTime);
+// PA-DL1: a file host GET, path = URL pathname with its leading "/". Range is not signed.
+export const downloadBytes = (path, paTime) => utf8('PA-DL1\nGET\n' + path + '\n' + paTime);
 export const signFile = (sk, bytes) => sign(sk, bytes);
 export const verifyFile = (pub, bytes, sig) => verify(pub, bytes, sig);
 
