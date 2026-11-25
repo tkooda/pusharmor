@@ -158,12 +158,25 @@ class ShareActivity : ComponentActivity() {
         setContent { Frame { UpdateScreen(Modifier.padding(vertical = 24.dp)) } }
     }
 
-    /** A file over the cap or one that cannot be read: its toast, and the dialog closes. Else the file goes as [sendDirect] sends text. */
+    /**
+     * A file over the cap or one that cannot be read fails as a send that fails: an error notification and a History
+     * row in the failed state, and the dialog closes. Else the file goes as [sendDirect] sends text.
+     */
     private fun sendDirectFile(peer: Peer, uri: android.net.Uri) {
         lifecycleScope.launch {
-            var refused: String? = null
-            val c = withContext(Dispatchers.IO) { vm.files.inspect(uri) { refused = it } }
-            if (c == null) { Toast.makeText(this@ShareActivity, UiText.brief(refused!!), Toast.LENGTH_LONG).show(); finish() }
+            var refused: Pair<String, FileModel.Chosen>? = null
+            val c = withContext(Dispatchers.IO) {
+                vm.files.inspect(uri) { t, f -> refused = t to f }.also {
+                    refused?.let { (t, f) -> try { vm.files.failedRow(f, t) } catch (e: Exception) { android.util.Log.w("PushArmor", "failed file row", e) } }
+                }
+            }
+            if (c == null) {
+                val text = refused!!.first
+                val n = vm.g.notifier
+                // as for a send that fails: with notifications off the error is a toast, never silent
+                if (n.noticeShows()) n.notice(text) else Toast.makeText(applicationContext, UiText.brief(text), Toast.LENGTH_LONG).show()
+                finish()
+            }
             else sendDirect(peer, "", c)
         }
     }

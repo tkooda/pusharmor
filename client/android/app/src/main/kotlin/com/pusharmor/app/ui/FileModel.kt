@@ -48,10 +48,13 @@ class FileModel(private val g: Graph, private val scope: CoroutineScope, private
     val chosen = MutableStateFlow<Chosen?>(null)
 
     /** Reads the name and size of a picked or shared file; a file over the cap or one that cannot be read gives a toast instead. */
-    fun choose(uri: Uri): Job = scope.launch(Dispatchers.IO) { inspect(uri, toast)?.let { chosen.value = it } }
+    fun choose(uri: Uri): Job = scope.launch(Dispatchers.IO) { inspect(uri) { t, _ -> toast(t) }?.let { chosen.value = it } }
 
-    /** The name and size of [uri] (off the main thread); a file over the cap or one that cannot be read gives [refuse] its text and null. */
-    fun inspect(uri: Uri, refuse: (String) -> Unit): Chosen? {
+    /**
+     * The name and size of [uri] (off the main thread); a file over the cap or one that cannot be read gives [refuse]
+     * its text and the file as read (size 0 when unknown), and null.
+     */
+    fun inspect(uri: Uri, refuse: (String, Chosen) -> Unit): Chosen? {
         val cr = g.app.contentResolver
         var name = "file"
         var size = -1L
@@ -70,8 +73,8 @@ class FileModel(private val g: Graph, private val scope: CoroutineScope, private
             size = -1
         }
         when {
-            size < 0 -> refuse(FileUi.unreadable(name))
-            size > FileCrypt.MAX_FILE -> refuse(FileUi.tooLarge(name))
+            size < 0 -> refuse(FileUi.unreadable(name), Chosen(uri.toString(), name, 0))
+            size > FileCrypt.MAX_FILE -> refuse(FileUi.tooLarge(name), Chosen(uri.toString(), name, size))
             else -> return Chosen(uri.toString(), name, size)
         }
         return null

@@ -174,15 +174,43 @@ class ShareFileDirectTest {
             notice(Notifier.NOTICE_ID)?.notification?.extras?.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString())
     }
 
+    /** A refused file fails as a send that fails: the error notification and a failed History row with no Download. */
+    private fun assertRefused(text: String) {
+        assertTrue(calls.none { it == "/v1/file" })
+        assertEquals(text, notice(Notifier.NOTICE_ID)?.notification?.extras?.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString())
+        val (row, st) = keptState()
+        assertEquals("SENT", row.direction)
+        assertEquals(com.pusharmor.protocol.FileRules.FinalCode.FAILED, st.code)
+        val f = com.pusharmor.app.files.ReceivedFiles.fileOf(row)!!
+        assertEquals("", f.url)
+        assertEquals(com.pusharmor.app.files.FileUi.Status.Failed(text, false, null),
+            com.pusharmor.app.files.FileUi.status(st, false, 0, false, f.size, f.expires, System.currentTimeMillis() / 1000))
+    }
+
     @Test fun tooLargeFileIsRefused() {
         answer(201)
         val big = File(app.cacheDir, "big.bin").apply { java.io.RandomAccessFile(this, "rw").use { it.setLength(FileCrypt.MAX_FILE + 1) } }
         try {
             assertTrue(share(big).isFinishing)
-            // a file URL gives no display name: the toast names it "file"
-            assertEquals("\"file\" is too large to send", ShadowToast.getTextOfLatestToast())
-            assertTrue(calls.none { it == "/v1/file" })
+            // a file URL gives no display name: the text names it "file"
+            assertRefused("\"file\" is too large to send")
         } finally { big.delete() }
+    }
+
+    @Test fun unreadableFileIsRefused() {
+        answer(201)
+        assertTrue(share(File(app.cacheDir, "gone.bin").apply { delete() }).isFinishing)
+        assertRefused("Unable to read \"file\"")
+    }
+
+    /** With notifications off a refused file is still never silent: its toast. */
+    @Test fun refusedFileWithNotificationsOffIsAToast() {
+        answer(201)
+        shadowOf(nm).setNotificationsEnabled(false)
+        try {
+            assertTrue(share(File(app.cacheDir, "gone.bin").apply { delete() }).isFinishing)
+            assertEquals("Unable to read \"file\"", ShadowToast.getTextOfLatestToast())
+        } finally { shadowOf(nm).setNotificationsEnabled(true) }
     }
 
     /** Copies left by an app that closed mid-send go at the next start; one made since then stays. */
