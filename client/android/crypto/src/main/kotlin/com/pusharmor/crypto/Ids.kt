@@ -135,4 +135,7 @@ object Ids {
 
     /** Signed string of DELETE /v1/file/<id>. */
     fun fileDeleteSigningBytes(id: String, paTime: String): ByteArray = ascii("PA-FILE1\nDELETE\n/v1/file/$id\n$paTime")
+
+    /** Signed string of a file host GET (PA-DL1): [path] is the URL pathname with its leading "/". Range is not signed. */
+    fun downloadSigningBytes(path: String, paTime: String): ByteArray = ascii("PA-DL1\nGET\n$path\n$paTime")
 }

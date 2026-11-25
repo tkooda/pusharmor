@@ -94,4 +94,25 @@ class FileCryptTest {
             if (c.bool("verifies")) assertTrue(P256.verify(pub, bytes, Golden.keysOf(c.str("signer")).sign(bytes)))
         }
     }
+
+    @Test fun downloadSigVectors() {
+        val cases = FileVectors.cases("download_sig")
+        assertTrue(cases.size >= 3)
+        assertTrue(cases.any { !it.bool("verifies") })
+        for (c in cases) {
+            assertEquals("GET", c.str("method"))
+            assertEquals(c.str("path"), java.net.URI(c.str("url")).rawPath)
+            val bytes = Ids.downloadSigningBytes(c.str("path"), c.str("pa_time"))
+            assertEquals(c.str("signed_text"), String(bytes, Charsets.UTF_8))
+            assertArrayEquals(B64url.decode(c.str("signed_bytes")), bytes)
+            val keys = Golden.keysOf(c.str("signer"))
+            assertEquals(B64url.encode(keys.signPub), c.str("sign_pub"))
+            assertEquals(B64url.encode(keys.encPub), c.str("enc_pub"))
+            assertEquals(87, c.str("sign_pub").length)
+            assertEquals(86, c.str("sig").length)
+            val pub = B64url.decode(c.str("sign_pub"))
+            assertEquals(c.str("name"), c.bool("verifies"), P256.verify(pub, bytes, B64url.decode(c.str("sig"))))
+            if (c.bool("verifies")) assertTrue(P256.verify(pub, bytes, keys.sign(bytes)))
+        }
+    }
 }

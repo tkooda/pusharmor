@@ -34,7 +34,7 @@ data class UploadReply(val id: String, val expires: Long, val url: String, val s
 
 /**
  * File transfers: POST /v1/file (PA-FILE1, one PA-Send-ID per send, at most 2 automatic retries, each signed
- * again) and the file GET (Range resume into a private file).
+ * again) and the file GET (PA-DL1, each request signed again; Range resume into a private file).
  */
 class FileClient(
     private val keys: () -> KeyOps,
@@ -100,6 +100,23 @@ class FileClient(
             "Content-Length" to length.toString(),
             "PA-File-SHA256" to sha256,
             "PA-Send-ID" to sendId,
+            "PA-Sig" to B64url.encode(sig),
+        )
+    }
+
+    /**
+     * Headers of a file host GET, PA-Sig over the PA-DL1 string of [path] (the URL pathname). Range is added by
+     * the caller, unsigned. No keys or no peer id (logged out): the download fails.
+     */
+    fun downloadHeaders(paTime: String, path: String): Map<String, String> {
+        val k = try { keys() } catch (e: IllegalStateException) { throw FileError(FinalCode.FAILED, FileRules.DOWNLOAD_FAILED) }
+        val id = ownId() ?: throw FileError(FinalCode.FAILED, FileRules.DOWNLOAD_FAILED)
+        val sig = k.sign(Ids.downloadSigningBytes(path, paTime))
+        return linkedMapOf(
+            "PA-ID" to id,
+            "PA-Time" to paTime,
+            "PA-Sign-Pub" to B64url.encode(k.signPub),
+            "PA-Enc-Pub" to B64url.encode(k.encPub),
             "PA-Sig" to B64url.encode(sig),
         )
     }
@@ -210,8 +227,11 @@ class FileClient(
         if (have == want) return Fetch.Done
         var url = f.url.toHttpUrl()
         var hops = 0
+        var skewed = false
         while (true) {
             val rb = Request.Builder().url(url).header("PA-Client", paClient)
+            // each request is signed again with a fresh PA-Time
+            for ((k, v) in downloadHeaders(paTime(), url.encodedPath)) rb.header(k, v)
             if (have > 0) rb.header("Range", "bytes=$have-")
             val res = try { http.newCall(rb.get().build()).execute() } catch (e: IOException) { return retryOrFinal(Got(0, null), f) }
             res.use { r ->
@@ -227,7 +247,14 @@ class FileClient(
                     truncate(part, 0) // not the asked range: start again
                     return Fetch.Retry(null)
                 }
-                if (r.code != 200 && r.code != 206) return retryOrFinal(Got(r.code, jsonOf(r)), f)
+                if (r.code != 200 && r.code != 206) {
+                    val got = Got(r.code, jsonOf(r))
+                    if (got.status == 401 && got.error == "clock skew" && !skewed) {
+                        skewed = true // signed again with the new offset; not one of the tries
+                        return@use
+                    }
+                    return retryOrFinal(got, f)
+                }
                 if (r.code == 200 && have > 0) { truncate(part, 0); have = 0 }
                 return readInto(r, f, name, part, have, want, stop)
             }

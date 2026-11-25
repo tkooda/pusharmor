@@ -7,6 +7,7 @@ import com.pusharmor.crypto.Golden
 import com.pusharmor.crypto.Ids
 import com.pusharmor.crypto.P256
 import com.pusharmor.crypto.SoftwareKeyOps
+import com.pusharmor.crypto.bool
 import com.pusharmor.crypto.str
 import com.pusharmor.protocol.FileRules.FinalCode
 import com.pusharmor.protocol.FileValue
@@ -294,6 +295,94 @@ class FileClientTest {
 
     @Test fun downloadRefusesOverMaxFile() {
         assertEquals(FinalCode.TOO_LARGE, expectFileError { client.fetch(ref(size = FileCrypt.MAX_FILE + 1), "a.pdf", part) }.code)
+        assertEquals(0, server.requestCount)
+    }
+
+    /** The PA-DL1 headers match the download_sig vectors; PA-Sig verifies over the signed bytes. */
+    @Test fun downloadHeadersVector() {
+        for (v in FileVectors.cases("download_sig").filter { it.bool("verifies") }) {
+            val h = v["headers"]!!.jsonObject.mapValues { it.value.jsonPrimitive.content }
+            val signer = Golden.keysOf(v.str("signer"))
+            val c = FileClient({ signer }, { h["PA-ID"] }, offset)
+            val got = c.downloadHeaders(v.str("pa_time"), v.str("path"))
+            assertEquals(h.keys, got.keys)
+            for (k in h.keys - "PA-Sig") assertEquals(k, h[k], got[k])
+            assertEquals(86, got.getValue("PA-Sig").length)
+            val signed = Ids.downloadSigningBytes(v.str("path"), v.str("pa_time"))
+            assertArrayEquals(B64url.decode(v.str("signed_bytes")), signed)
+            assertTrue(P256.verify(B64url.decode(v.str("sign_pub")), signed, B64url.decode(got.getValue("PA-Sig"))))
+        }
+    }
+
+    /** Checks the PA-DL1 headers of one file GET; returns its PA-Time. */
+    private fun assertSigned(req: okhttp3.mockwebserver.RecordedRequest): String {
+        assertEquals("GET", req.method)
+        assertEquals(id, req.getHeader("PA-ID"))
+        assertEquals(B64url.encode(keys.signPub), req.getHeader("PA-Sign-Pub"))
+        assertEquals(B64url.encode(keys.encPub), req.getHeader("PA-Enc-Pub"))
+        val t = req.getHeader("PA-Time")!!
+        assertEquals(13, t.length)
+        assertTrue(P256.verify(keys.signPub, Ids.downloadSigningBytes(req.requestUrl!!.encodedPath, t), B64url.decode(req.getHeader("PA-Sig")!!)))
+        return t
+    }
+
+    /** Every GET is signed: the first try, a retry, and a resume with Range, each with a fresh PA-Time; Range is not signed. */
+    @Test fun everyDownloadRequestIsSignedAgain() {
+        server.enqueue(status(503))
+        assertEquals(FileClient.Fetch.Retry(null), client.fetch(ref(), "a.pdf", part))
+        clock += 1000
+        server.enqueue(MockResponse().setBody(Buffer().write(blobBytes)).setSocketPolicy(SocketPolicy.DISCONNECT_DURING_RESPONSE_BODY))
+        client.fetch(ref(), "a.pdf", part)
+        part.writeBytes(blobBytes.copyOf(300))
+        clock += 1000
+        server.enqueue(MockResponse().setResponseCode(206).setHeader("Content-Range", "bytes 300-999/1000").setBody(Buffer().write(blobBytes.copyOfRange(300, 1000))))
+        assertEquals(FileClient.Fetch.Done, client.fetch(ref(), "a.pdf", part))
+        val times = ArrayList<String>()
+        repeat(3) { times += assertSigned(server.takeRequest()) }
+        assertEquals(listOf(clock - 2000, clock - 1000, clock).map { it.toString() }, times)
+    }
+
+    @Test fun aRedirectIsSignedForItsOwnPath() {
+        server.enqueue(status(302).setHeader("Location", "https://b2file2.pusharmor.com/v1/k2"))
+        server.enqueue(MockResponse().setBody(Buffer().write(blobBytes)))
+        assertEquals(FileClient.Fetch.Done, client.fetch(ref(), "a.pdf", part))
+        assertSigned(server.takeRequest())
+        val second = server.takeRequest()
+        assertEquals("/v1/k2", second.path)
+        assertSigned(second)
+    }
+
+    /** One 401 clock skew is signed again with the new offset at once; a second one ends in Download failed. */
+    @Test fun downloadClockSkewIsSignedAgainOnce() {
+        server.enqueue(status(401, "{\"error\":\"clock skew\"}").setHeader("PA-Epoch", (clock / 1000 + 600).toString()))
+        server.enqueue(MockResponse().setBody(Buffer().write(blobBytes)))
+        assertEquals(FileClient.Fetch.Done, client.fetch(ref(), "a.pdf", part))
+        assertEquals(clock.toString(), assertSigned(server.takeRequest()))
+        assertEquals((clock + 600_000).toString(), assertSigned(server.takeRequest()))
+        part.delete()
+        repeat(2) { server.enqueue(status(401, "{\"error\":\"clock skew\"}")) }
+        val e = expectFileError { client.fetch(ref(), "a.pdf", part) }
+        assertEquals(FinalCode.FAILED, e.code)
+        assertEquals("Download failed", e.text)
+        assertEquals(4, server.requestCount)
+        assertTrue(slept.isEmpty())
+    }
+
+    @Test fun downloadRefusalsFail() {
+        for (body in listOf("{\"error\":\"wrong account\"}" to 403, "{\"error\":\"invalid client signature\"}" to 401, "{\"error\":\"unknown peer\"}" to 401)) {
+            server.enqueue(status(body.second, body.first))
+            val e = expectFileError { client.fetch(ref(), "a.pdf", part) }
+            assertEquals(FinalCode.FAILED, e.code)
+            assertEquals("Download failed", e.text)
+            assertEquals(body.second, e.status)
+        }
+        assertEquals(3, server.requestCount)
+    }
+
+    @Test fun noPeerIdFailsWithNoRequest() {
+        val c = FileClient({ keys }, { null }, offset, server.url("/"), http, { clock }, { })
+        val e = expectFileError { c.fetch(ref(), "a.pdf", part) }
+        assertEquals("Download failed", e.text)
         assertEquals(0, server.requestCount)
     }
 
