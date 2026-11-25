@@ -154,7 +154,9 @@ internal fun FileRowBody(vm: AppViewModel, h: HistoryEntity, f: FileValue, style
     val faded = status == FileUi.Status.Expired
     Column(Modifier.fillMaxWidth()) {
         MiddleEllipsisText(name, if (faded) style.copy(color = cs.onSurfaceVariant) else style, Modifier.fillMaxWidth())
-        Text(FileUi.detail(name, f.size), style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
+        // a file that never reached the relay server with no size known (it could not be read) shows no size
+        Text(if (f.url.isEmpty() && f.size == 0L) FileUi.typeLabel(name) else FileUi.detail(name, f.size),
+            style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
         // a sent file: its expiry, then the state of its copy as for a received file (the Download button carries the expiry);
         // a file that never reached the relay server (no URL) has no expiry
         if (sent && f.url.isNotEmpty() && !(status is FileUi.Status.Failed && status.download) && status !is FileUi.Status.Pending)

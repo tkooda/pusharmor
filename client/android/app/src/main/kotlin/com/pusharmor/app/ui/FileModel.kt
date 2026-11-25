@@ -87,14 +87,15 @@ class FileModel(private val g: Graph, private val scope: CoroutineScope, private
     /**
      * Seals and uploads [c] (or uses the last upload of it again), then sends the file message. [keepCopy]: the
      * sent copy is kept from the bytes read for the send (a shared file may not be readable once its share ends).
+     * [keepIn]: the scope that keeps the copy (else this model's).
      */
-    fun sendFile(recipients: List<String>, c: Chosen, onStep: (Int) -> Unit, keepCopy: Boolean = false): SendFlow.Outcome {
+    fun sendFile(recipients: List<String>, c: Chosen, onStep: (Int) -> Unit, keepCopy: Boolean = false, keepIn: CoroutineScope? = null): SendFlow.Outcome {
         val copy = if (keepCopy) try { File.createTempFile("sent", null, copyDir(g.app.cacheDir).also { it.mkdirs() }) } catch (e: IOException) { null } else null
         var handed = false
-        try { return sendFile(recipients, c, onStep, copy) { handed = true } } finally { if (!handed) copy?.delete() }
+        try { return sendFile(recipients, c, onStep, copy, keepIn ?: scope) { handed = true } } finally { if (!handed) copy?.delete() }
     }
 
-    private fun sendFile(recipients: List<String>, c: Chosen, onStep: (Int) -> Unit, copy: File?, handed: () -> Unit): SendFlow.Outcome {
+    private fun sendFile(recipients: List<String>, c: Chosen, onStep: (Int) -> Unit, copy: File?, keepIn: CoroutineScope, handed: () -> Unit): SendFlow.Outcome {
         val now = System.currentTimeMillis()
         val name = FileName.sanitize(c.name, now / 1000, FileUi.kind(c.name) == FileUi.Kind.IMAGE)
         val p = prior
@@ -108,7 +109,7 @@ class FileModel(private val g: Graph, private val scope: CoroutineScope, private
         val out = g.sender().sendFile(recipients, value, now, onStep)
         if (out.error == null) { prior = null; chosen.value = null }
         // the result goes back at once; the copy is kept after it
-        keptRow(out)?.let { handed(); keepLater(it, c, name, copy) }
+        keptRow(out)?.let { handed(); keepLater(it, c, name, copy, keepIn) }
         return out
     }
 
@@ -130,18 +131,23 @@ class FileModel(private val g: Graph, private val scope: CoroutineScope, private
      * state of a file that failed to go (no Download button).
      */
     internal fun failedRow(c: Chosen, text: String) {
-        val now = System.currentTimeMillis()
-        val name = FileName.sanitize(c.name, now / 1000, FileUi.kind(c.name) == FileUi.Kind.IMAGE)
-        val none = B64url.encode(ByteArray(32))
-        val v = FileValue("", 0, none, name, c.size, none)
-        val id = g.store.insertHistory(com.pusharmor.protocol.engine.HistoryRow(direction = com.pusharmor.protocol.engine.Direction.SENT, peerId = null,
-            type = com.pusharmor.protocol.engine.HistoryRow.FILE, content = v.toJson(), at = now, read = true, results = emptyMap()))
-        val k = ReceivedFiles.key(id)
-        g.fileStore.locked(k) { g.fileStore.put(k, FileState(code = FinalCode.FAILED, text = text)) }
+        insertFailedRow(g, c, text)
         refreshQuiet()
     }
 
     companion object {
+        /** The row of [failedRow], with no refresh of the screens (at app start there are none yet). */
+        fun insertFailedRow(g: Graph, c: Chosen, text: String) {
+            val now = System.currentTimeMillis()
+            val name = FileName.sanitize(c.name, now / 1000, FileUi.kind(c.name) == FileUi.Kind.IMAGE)
+            val none = B64url.encode(ByteArray(32))
+            val v = FileValue("", 0, none, name, c.size, none)
+            val id = g.store.insertHistory(com.pusharmor.protocol.engine.HistoryRow(direction = com.pusharmor.protocol.engine.Direction.SENT, peerId = null,
+                type = com.pusharmor.protocol.engine.HistoryRow.FILE, content = v.toJson(), at = now, read = true, results = emptyMap()))
+            val k = ReceivedFiles.key(id)
+            g.fileStore.locked(k) { g.fileStore.put(k, FileState(code = FinalCode.FAILED, text = text)) }
+        }
+
         /** The plaintext copies of Direct Share sends, in the app's private cache; any left by an app that closed mid-send go at its next start. */
         fun copyDir(cache: File) = File(cache, "sentcopy")
 
@@ -158,7 +164,7 @@ class FileModel(private val g: Graph, private val scope: CoroutineScope, private
     private val unsaved = java.util.concurrent.ConcurrentHashMap<String, FileState>()
 
     /** Keeps the copy of a sent file after the send result is given. */
-    internal fun keepLater(id: Long, c: Chosen, name: String, from: File? = null): Job = scope.launch(Dispatchers.IO) {
+    internal fun keepLater(id: Long, c: Chosen, name: String, from: File? = null, keepIn: CoroutineScope = scope): Job = keepIn.launch(Dispatchers.IO) {
         // the bytes the send read, when all of them were kept; else the picked file again
         try { keepSent(id, if (from != null && from.length() == c.size) c.copy(uri = Uri.fromFile(from).toString()) else c, name) } finally { from?.delete() }
     }

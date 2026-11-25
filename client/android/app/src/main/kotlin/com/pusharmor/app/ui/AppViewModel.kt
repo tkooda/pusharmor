@@ -11,6 +11,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.pusharmor.app.PaApp
 import com.pusharmor.app.data.Settings
+import com.pusharmor.app.files.DirectSendService
 import com.pusharmor.app.session.Session
 import com.pusharmor.net.ErrorText
 import com.pusharmor.net.WorkerClient
@@ -469,18 +470,26 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     /**
      * The Direct Share send (of [file] when given, else of [text]), started once per dialog: it runs to its end even when
-     * the dialog closes; [onStep] gets each new step, and [report] then shows its result.
+     * the dialog closes; [onStep] gets each new step, and [report] then shows its result. A file goes in
+     * [DirectSendService], with [caption] in its progress notification, and a mark that reports it at the next start
+     * if the app closes before its result.
      */
-    fun sendDirect(peerId: String, text: String, file: FileModel.Chosen? = null, onStep: (Int) -> Unit = {}, report: (SendResult) -> Unit) {
+    fun sendDirect(peerId: String, text: String, file: FileModel.Chosen? = null, caption: String = "", onStep: (Int) -> Unit = {}, report: (SendResult) -> Unit) {
         if (directStarted) return
         directStarted = true
-        directScope.launch {
+        val step = { s: Int -> if (s > sendStep) { sendStep = s; onStep(s) } }
+        suspend fun direct(send: suspend () -> SendResult) {
             g.client.onRetry = { a -> sendRetry = a }
-            val step = { s: Int -> if (s > sendStep) { sendStep = s; onStep(s) } }
-            val r = try { if (file != null) sendFile(listOf(peerId), file, direct = true, onStep = step) else send(listOf(peerId), text, onStep = step) } finally { g.client.onRetry = null }
+            val r = try { send() } finally { g.client.onRetry = null }
             report(r)
             directDone.value = true
         }
+        if (file == null) { directScope.launch { direct { send(listOf(peerId), text, onStep = step) } }; return }
+        DirectSendService.start(g.app, DirectSendService.Work(caption) {
+            val mark = DirectSendService.mark(g.app, file)
+            // the copy is kept in this scope: the service ends after it
+            direct { try { sendFile(listOf(peerId), file, direct = true, keepIn = this, onStep = step) } finally { mark?.delete() } }
+        })
     }
 
     /** History row to scroll to and flash once. */
@@ -508,10 +517,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      * [direct]: a Direct Share, whose sent copy comes from the bytes the send read, and whose failure before the
      * relay server took the message still gets a History row with the error.
      */
-    suspend fun sendFile(recipients: List<String>, c: FileModel.Chosen, direct: Boolean = false, onStep: (Int) -> Unit = {}): SendResult = withContext(Dispatchers.IO) {
+    suspend fun sendFile(recipients: List<String>, c: FileModel.Chosen, direct: Boolean = false, keepIn: CoroutineScope? = null,
+                         onStep: (Int) -> Unit = {}): SendResult = withContext(Dispatchers.IO) {
         val r = try {
             g.client.onProgress = onStep
-            val out = try { files.sendFile(recipients, c, onStep, keepCopy = direct) } finally { g.client.onProgress = null }
+            val out = try { files.sendFile(recipients, c, onStep, keepCopy = direct, keepIn = keepIn) } finally { g.client.onProgress = null }
             if (out.error != null) SendResult(ErrorText.of(UiText.UNABLE_SEND, out.error!!, UiText.pushHost(g.settings.get(Settings.K.UP_ENDPOINT))))
             else return@withContext sendResult(recipients.size, out, recipients.singleOrNull()) { id -> g.store.peer(id)?.let(::label) }
         } catch (e: CancellationException) { throw e } catch (e: Exception) {

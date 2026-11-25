@@ -59,6 +59,8 @@ open class PaApp : Application() {
         val started = System.currentTimeMillis()
         inBackground { try { graph.fileStore.reviewMarks({ FileWork.lowMemoryExits(this) }, started) } catch (e: Exception) { } }
         inBackground { try { com.pusharmor.app.ui.FileModel.sweepCopies(cacheDir, started) } catch (e: Exception) { } }
+        // a Direct Share file send the app closed during: its error notification and failed History row
+        inBackground { try { com.pusharmor.app.files.DirectSendService.reportLeft(graph, started) } catch (e: Exception) { } }
     }
 }
 

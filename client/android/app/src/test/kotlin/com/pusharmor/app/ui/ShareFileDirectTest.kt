@@ -10,6 +10,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.pusharmor.app.FakeAndroidKeyStore
 import com.pusharmor.app.PaApp
 import com.pusharmor.app.TestApp
+import com.pusharmor.app.files.DirectSendService
 import com.pusharmor.app.keys.KeystoreKeyOps
 import com.pusharmor.app.notify.Notifier
 import com.pusharmor.crypto.B64url
@@ -84,7 +85,7 @@ class ShareFileDirectTest {
                 shared?.delete()
                 // the request body is written first: the progress notification has shown
                 chain.request().body?.writeTo(okio.Buffer())
-                nm.activeNotifications.firstOrNull { it.tag == Notifier.TAG_NOTICE && it.id == Notifier.SENDING_ID }
+                nm.activeNotifications.firstOrNull { it.tag == null && it.id == Notifier.SENDING_ID }
                     ?.let { seen.add(it.notification.extras.getInt(Notification.EXTRA_PROGRESS)) }
             }
             val (code, body) = when (path) {
@@ -97,14 +98,35 @@ class ShareFileDirectTest {
         }
     }
 
+    /** The file send services started; Robolectric runs a started service only when told to. */
+    private val services = ArrayList<DirectSendService>()
+
+    /** Runs each service start asked for since the last call. */
+    private fun runServices() {
+        while (true) {
+            val i = shadowOf(app as android.app.Application).nextStartedService ?: return
+            if (i.component?.className == DirectSendService::class.java.name)
+                services.add(Robolectric.buildService(DirectSendService::class.java, i).create().startCommand(0, services.size + 1).get())
+        }
+    }
+
     private fun share(f: File, shortcut: String? = peerId): ShareActivity {
         val i = Intent(app, ShareActivity::class.java).setAction(Intent.ACTION_SEND).setType("application/octet-stream")
             .putExtra(Intent.EXTRA_STREAM, Uri.fromFile(f))
         if (shortcut != null) i.putExtra(ShortcutManagerCompat.EXTRA_SHORTCUT_ID, shortcut)
         val a = Robolectric.buildActivity(ShareActivity::class.java, i).create().get()
         val end = System.currentTimeMillis() + 10_000
-        while (!a.isFinishing && System.currentTimeMillis() < end) { Thread.sleep(20); shadowOf(Looper.getMainLooper()).idle() }
+        while (!a.isFinishing && System.currentTimeMillis() < end) { Thread.sleep(20); shadowOf(Looper.getMainLooper()).idle(); runServices() }
         return a
+    }
+
+    /** Waits for the file send service to stop, with its notification gone. */
+    private fun assertServiceStopped() {
+        val end = System.currentTimeMillis() + 5000
+        while (services.any { !shadowOf(it).isStoppedBySelf } && System.currentTimeMillis() < end) { Thread.sleep(20); shadowOf(Looper.getMainLooper()).idle() }
+        assertTrue(services.isNotEmpty())
+        assertTrue(services.all { shadowOf(it).isStoppedBySelf && shadowOf(it).isForegroundStopped })
+        assertEquals(null, nm.activeNotifications.firstOrNull { it.id == Notifier.SENDING_ID })
     }
 
     private fun file(size: Int) = File(app.cacheDir, "doc.pdf").apply { writeBytes(ByteArray(size) { it.toByte() }) }.also { shared = it }
@@ -127,7 +149,6 @@ class ShareFileDirectTest {
         // no tap on Send: the upload and the file message went at once
         assertEquals(listOf("/v1/file", "/v1/send"), calls.filter { it == "/v1/file" || it == "/v1/send" })
         assertTrue(seen.toString(), seen.isNotEmpty())
-        assertEquals(null, notice(Notifier.SENDING_ID))
         assertEquals("Message sent to \"Laptop\"", ShadowToast.getTextOfLatestToast())
         // the sent copy is kept from the bytes the send read, though the shared file was gone after that
         val (row, st) = keptState()
@@ -136,6 +157,30 @@ class ShareFileDirectTest {
         val kept = File(g.fileStore.outDir(k), st.plain!!)
         assertTrue(kept.readBytes().contentEquals(ByteArray(300_000) { it.toByte() }))
         assertTrue(FileModel.copyDir(app.cacheDir).listFiles().isNullOrEmpty())
+        // the send ran in the foreground service, which ends with its notification after the copy
+        assertEquals(android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC, services.single().foregroundServiceType)
+        assertServiceStopped()
+        assertTrue(DirectSendService.markDir(app).listFiles().isNullOrEmpty())
+    }
+
+    /** A send the app closed during: at the next start its mark gives an error notification and a failed row; a newer mark stays. */
+    @Test fun sendLeftByAClosedAppIsReported() {
+        val old = DirectSendService.mark(app, FileModel.Chosen("content://x/1", "doc.pdf", 1000))!!.apply { setLastModified(System.currentTimeMillis() - 60_000) }
+        val fresh = DirectSendService.mark(app, FileModel.Chosen("content://x/2", "new.pdf", 1000))!!
+        try {
+            io { DirectSendService.reportLeft(g, System.currentTimeMillis() - 1000) }
+            assertTrue(!old.exists() && fresh.exists())
+            val text = "Unable to send.\nThe app closed before \"doc.pdf\" was sent"
+            assertEquals(text, notice(Notifier.NOTICE_ID)?.notification?.extras?.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString())
+            val (row, st) = keptState()
+            assertEquals("SENT", row.direction)
+            assertEquals(com.pusharmor.protocol.FileRules.FinalCode.FAILED, st.code)
+            val f = com.pusharmor.app.files.ReceivedFiles.fileOf(row)!!
+            assertEquals("", f.url)
+            assertEquals(1000L, f.size)
+            assertEquals(com.pusharmor.app.files.FileUi.Status.Failed(text, false, null),
+                com.pusharmor.app.files.FileUi.status(st, false, 0, false, f.size, f.expires, System.currentTimeMillis() / 1000))
+        } finally { fresh.delete() }
     }
 
     @Test fun failedUploadIsANotification() {
@@ -143,7 +188,7 @@ class ShareFileDirectTest {
         assertTrue(share(file(1000)).isFinishing)
         assertTrue("/v1/file" in calls)
         assertTrue("/v1/send" !in calls)
-        assertEquals(null, notice(Notifier.SENDING_ID))
+        assertServiceStopped()
         val text = "Unable to send.\nThe relay server is not working right now. Try again later."
         assertEquals(text, notice(Notifier.NOTICE_ID)?.notification?.extras?.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString())
         // History has the sent row, in the failed state with the same text and no Download button

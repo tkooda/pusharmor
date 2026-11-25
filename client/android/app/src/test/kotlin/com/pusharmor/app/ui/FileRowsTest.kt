@@ -159,6 +159,25 @@ class FileRowsTest {
         close(c)
     }
 
+    /** A Direct Share file that could not be read has no size known: its row shows the type with no size. */
+    @Test fun unreadableFailedRowShowsNoSize() {
+        val app = ApplicationProvider.getApplicationContext<PaApp>()
+        val g = app.graph
+        val text = "Unable to read \"doc.pdf\""
+        runBlocking(Dispatchers.IO) {
+            app.graph.fileStore.root.deleteRecursively()
+            g.dao.deleteAllHistory()
+        }
+        val vm = AppViewModel(app)
+        runBlocking(Dispatchers.IO) { vm.files.failedRow(FileModel.Chosen("file:///x/doc.pdf", "doc.pdf", 0), text) }
+        val (c, v) = show({ HistoryScreen(vm) }) { t -> text in t }
+        val t = texts(v)
+        assertTrue(t.toString(), com.pusharmor.app.files.FileUi.typeLabel("doc.pdf") in t)
+        assertTrue(t.toString(), t.none { it.contains("bytes") })
+        vm.files.setShown(false)
+        close(c)
+    }
+
     @Test fun filesSettings() {
         val app = ApplicationProvider.getApplicationContext<PaApp>()
         runBlocking(Dispatchers.IO) { app.graph.settings.set(Settings.K.FILE_WIFI, null); app.graph.settings.set(Settings.K.FILE_MOBILE, null) }

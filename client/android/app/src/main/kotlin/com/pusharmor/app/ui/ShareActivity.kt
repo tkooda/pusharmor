@@ -30,7 +30,6 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.lifecycle.lifecycleScope
-import com.pusharmor.app.notify.Notifier
 import com.pusharmor.net.ErrorText
 import com.pusharmor.protocol.Detect
 import com.pusharmor.protocol.Peer
@@ -207,16 +206,14 @@ class ShareActivity : ComponentActivity() {
         // The send runs outside this activity: a rotation does not send it again, and a tap outside neither stops it nor hides its result.
         val app = applicationContext
         val notifier = vm.g.notifier
-        // The progress notification changes at most twice a second (the system drops faster changes) and goes when the send ends.
+        // The progress notification (the file send service's) changes at most twice a second (the system drops faster
+        // changes) and goes when the service ends.
         var shownAt = 0L
         val onStep = { st: Int ->
             val now = System.currentTimeMillis()
             if (file != null && now - shownAt >= PROGRESS_MS) { shownAt = now; notifier.sendingProgress(caption, st) }
         }
-        // a dialog recreated meanwhile (a rotation) leaves the notification to the send already running
-        if (file != null && !vm.directStarted) onStep(0)
-        vm.sendDirect(peer.id, text, file, onStep) { r ->
-            if (file != null) notifier.cancel(Notifier.TAG_NOTICE, Notifier.SENDING_ID)
+        vm.sendDirect(peer.id, text, file, caption, onStep) { r ->
             if (r.ok) Toast.makeText(app, UiText.brief(UiText.directShareSent(label(peer))), Toast.LENGTH_SHORT).show()
             else {
                 val n = notifier

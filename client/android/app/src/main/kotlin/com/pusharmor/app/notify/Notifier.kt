@@ -195,11 +195,18 @@ class Notifier(private val context: Context, private val settings: Settings, pri
         notice(text(total), DELETED_ID, android.os.Bundle().apply { putString(EXTRA_DELETED_PEER, peerId); putInt(EXTRA_DELETED_COUNT, total) })
     }
 
-    /** The progress of a Direct Share file send, [percent] of 0 to 100: it stays until cancelled, and alerts once only. */
+    /**
+     * The progress of a Direct Share file send, [percent] of 0 to 100: the notification of
+     * [com.pusharmor.app.files.DirectSendService], which goes with that service; it alerts once only.
+     */
+    fun sending(text: String, percent: Int): Notification = NotificationCompat.Builder(context, peersChannel)
+        .setSmallIcon(R.drawable.ic_notify).setColor(NAVY).setContentTitle("PushArmor").setContentText(text)
+        .setProgress(100, percent, false).setOngoing(true).setOnlyAlertOnce(true).setSilent(true).build()
+
+    /** A new percent for the service's [sending] notification (the same id, no tag). */
     fun sendingProgress(text: String, percent: Int) {
-        notify(TAG_NOTICE, SENDING_ID, NotificationCompat.Builder(context, peersChannel)
-            .setSmallIcon(R.drawable.ic_notify).setColor(NAVY).setContentTitle("PushArmor").setContentText(text)
-            .setProgress(100, percent, false).setOngoing(true).setOnlyAlertOnce(true).setSilent(true).build())
+        if (!enabled()) return
+        try { nm.notify(SENDING_ID, sending(text, percent)) } catch (e: SecurityException) { /* permission revoked */ }
     }
 
     fun peersNotice(text: String, id: Int = UNDELIVERED_ID) {
