@@ -9,7 +9,7 @@ IssueTracker: https://github.com/tkooda/pusharmor/issues
 Changelog: https://github.com/tkooda/pusharmor/releases
 
 Name: PushArmor
-Summary: Send URLs and text between your own devices, end-to-end encrypted
+Summary: Send URLs, text, and small files between your own devices, end-to-end encrypted
 Description: |-
   PushArmor sends URLs and short notes between your own devices.
 

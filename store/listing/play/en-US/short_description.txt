@@ -1,1 +1,1 @@
-Send URLs and text between your own devices. End-to-end encrypted.
+Send URLs, text, and small files between your own devices, end-to-end encrypted.

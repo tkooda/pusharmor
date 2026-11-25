@@ -1,4 +1,4 @@
-PushArmor sends links and text between a user's own devices.
+PushArmor sends URLs, text, and small files between a user's own devices.
 
 LOG IN
 1. Click the PushArmor toolbar button, enter the reviewer email address
@@ -17,8 +17,13 @@ SEND
    the other device.
 5. Right-click a link, a page or selected text and choose PushArmor. It
    appears on the other device.
+6. In the popup, click "Choose file...", pick a small file, and send it.
+   It appears in History on the other device, where it can be saved.
 
 NOTES
 - Content is end-to-end encrypted in the add-on before it is sent.
+- A file is end-to-end encrypted in the add-on before it is uploaded. The
+  relay server stores only the encrypted file and deletes it within 25
+  hours, or sooner when it is deleted on a device with Sync deletions on.
 - The source archive of this version is attached. Build steps are in its
   README (client/firefox/README.md).

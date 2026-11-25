@@ -1,1 +1,1 @@
-Send URLs/text between devices
+Send URLs, text, and files
