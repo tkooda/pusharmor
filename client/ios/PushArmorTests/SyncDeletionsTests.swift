@@ -29,7 +29,7 @@ final class SyncDeletionsTests: XCTestCase {
         let src = try source("App/AppModel.swift")
         XCTAssertEqual(try count(#"catch \{ toast = ErrorCopy\.deleteFailText\(\.deleteOnThisDevice, error\) \}"#, in: src), 1)
         XCTAssertEqual(try count(#"toast = ErrorCopy\.deleteFailText\(\.deleteOnThisDevice, error\)"#, in: src), 1)
-        XCTAssertEqual(try count(#"if let t = try await core\.deleteHistoryRows\(Array\(ids\), progress: \{ p in"#, in: src), 1)
+        XCTAssertEqual(try count(#"let t = try await core\.deleteHistoryRows\(Array\(ids\), progress: \{ p in"#, in: src), 1)
     }
 
     /// A row not deleted on every device is struck through with the devices under it; a

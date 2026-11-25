@@ -71,7 +71,7 @@ final class FileScreensTests: XCTestCase {
     func testRowDeleteRemovesTheFile() throws {
         let src = try source("App/AppModel.swift")
         let del = src.components(separatedBy: "func deleteRows(")[1].components(separatedBy: "func copy(")[0]
-        XCTAssertTrue(del.contains("try? core.pruneFiles(dir: filesDir)\n            reload()"))
+        XCTAssertTrue(del.contains("try? core.pruneFiles(dir: filesDir)\n        reload()"))
         // a row gone by a synced delete or the age limit too
         XCTAssertTrue(try source("App/FileModel.swift").contains("if let core = core, (try? store?.db.one(orphan)) != nil { try? core.pruneFiles(dir: filesDir) }"))
     }
