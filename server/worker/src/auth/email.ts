@@ -72,17 +72,30 @@ export function checkCliK(v: unknown): string {
   return v;
 }
 
+// True only for a TOTP address with its key set (the same match as the TOTP branch); false for any bad email.
+async function isTotpAddress(env: Ctx["env"], v: unknown): Promise<boolean> {
+  let email: string;
+  try {
+    email = normalizeEmail(v);
+  } catch {
+    return false;
+  }
+  return (await totpKeyFor(env, email)) !== null;
+}
+
 export async function start(c: Ctx): Promise<Response> {
   const b = parseJsonObject(c.body);
   // The /auth/cli page sends cli_k instead of sign_pub; verify then returns a cli code.
   const cli = "cli_k" in b;
-  keysExactly(b, ["email", cli ? "cli_k" : "sign_pub", "purpose", "turnstile"]);
+  keysExactly(b, ["email", cli ? "cli_k" : "sign_pub", "purpose"], ["turnstile"]);
   const k = cli ? checkCliK(b.cli_k) : await keyRef(await checkSignPub(b.sign_pub));
   const purpose = checkPurpose(b.purpose);
   if (cli) checkCliPurpose(purpose);
   checkSiteAction(c.req.headers.get("PA-Client"), cli ? "cli-login" : purpose === "delete-account" ? purpose : null);
-  if (typeof b.email !== "string" || typeof b.turnstile !== "string" || b.turnstile.length === 0 || b.turnstile.length > 4096) throw bad();
-  await verifyTurnstile(c.env, b.turnstile, c.req.headers.get("CF-Connecting-IP"));
+  // A TOTP address (auth/totp.ts) skips Turnstile; verify still needs its TOTP code.
+  const totp = await isTotpAddress(c.env, b.email);
+  if (typeof b.email !== "string" || (!totp && (typeof b.turnstile !== "string" || b.turnstile.length === 0 || b.turnstile.length > 4096))) throw bad();
+  if (!totp) await verifyTurnstile(c.env, b.turnstile as string, c.req.headers.get("CF-Connecting-IP"));
   const email = normalizeEmail(b.email);
   const eh = b64urlEncode(await emailHash(mailboxKey(email)));
   // Per IP (a limiter key only, never stored): address variants from one IP share this cap.
@@ -93,7 +106,6 @@ export async function start(c: Ctx): Promise<Response> {
   await enforce(c.env, "RL_MAIL_EMAIL", "mail:" + eh, c.log);
   await enforce(c.env, "RL_MAIL_GLOBAL", "mail:all", c.log);
   // A TOTP address (auth/totp.ts) gets no mail; its token asks verify for the TOTP code.
-  const totp = (await totpKeyFor(c.env, email)) !== null;
   const token = await makeToken(c.env.PA_TOKEN_SECRET, LABEL_REQUEST_TOKEN, { t: nowS(), e: eh, m: email, k, p: purpose, ...(cli ? { c: 1 } : {}), ...(totp ? { o: 1 } : {}) });
   if (totp) return json(200, { request_token: token });
   const code = await deriveCode(c.env.PA_CODE_SECRET, token);

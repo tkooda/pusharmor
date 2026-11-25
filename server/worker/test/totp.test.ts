@@ -100,6 +100,43 @@ describe("POST /auth/email with a TOTP address", () => {
     expect(v.body.email).toBe(ADDR_B);
   });
 
+  it("skips Turnstile; still needs a right TOTP code", async () => {
+    const e = await testEnv({ PA_TOTP_KEY_REVIEWER: KEY_A, RL_MAIL_EMAIL: countingLimit(2), RL_CODE: countingLimit(4) });
+    const k = await keys();
+    for (const extra of [{}, { turnstile: "" }]) {
+      const r = await call("POST", "/v1/auth/email", { email: ADDR_A, sign_pub: k.signPub, purpose: "register", ...extra }, { env: e });
+      expect(r.status).toBe(200);
+      const token = r.body.request_token as string;
+      let v = await call("POST", "/v1/auth/email/verify", { request_token: token, code: "000000" }, { env: e });
+      expect(v.status).toBe(401);
+      expect(v.body.error).toBe("wrong code");
+      v = await call("POST", "/v1/auth/email/verify", { request_token: token, code: await totp(base32Decode(KEY_A)!, Math.floor(Date.now() / 1000 / 30)) }, { env: e });
+      expect(v.status).toBe(200);
+      expect(v.body.email).toBe(ADDR_A);
+    }
+    expect(vendorRequests("challenges.cloudflare.com")).toHaveLength(0);
+    expect(vendorRequests(SES)).toHaveLength(0);
+    // The mail limits still apply without Turnstile.
+    const e1 = await testEnv({ PA_TOTP_KEY_REVIEWER: KEY_A, RL_MAIL_EMAIL: countingLimit(1) });
+    const body = { email: ADDR_A, sign_pub: k.signPub, purpose: "register" };
+    expect((await call("POST", "/v1/auth/email", body, { env: e1 })).status).toBe(200);
+    expect((await call("POST", "/v1/auth/email", body, { env: e1 })).status).toBe(429);
+  });
+
+  it("other addresses, and a TOTP address with no key set, still need Turnstile", async () => {
+    const e = await testEnv({ PA_TOTP_KEY_RELEASE_TEST: KEY_B });
+    const k = await keys();
+    for (const email of [randomEmail(), ADDR_A]) {
+      for (const extra of [{}, { turnstile: "" }]) {
+        const r = await call("POST", "/v1/auth/email", { email, sign_pub: k.signPub, purpose: "register", ...extra }, { env: e });
+        expect(r.status).toBe(400);
+        expect(r.body.error).toBe("bad request");
+      }
+    }
+    expect(vendorRequests("challenges.cloudflare.com")).toHaveLength(0);
+    expect(vendorRequests(SES)).toHaveLength(0);
+  });
+
   it("RL_MAIL_EMAIL and RL_CODE still apply", async () => {
     const e = await testEnv({ PA_TOTP_KEY_REVIEWER: KEY_A, RL_MAIL_EMAIL: countingLimit(1), RL_CODE: countingLimit(1) });
     const r = await start(ADDR_A, e);
