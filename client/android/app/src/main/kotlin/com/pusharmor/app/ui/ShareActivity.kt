@@ -30,6 +30,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.lifecycle.lifecycleScope
+import com.pusharmor.app.notify.Notifier
 import com.pusharmor.net.ErrorText
 import com.pusharmor.protocol.Detect
 import com.pusharmor.protocol.Peer
@@ -78,7 +79,9 @@ class ShareActivity : ComponentActivity() {
     }
 
     private fun show(text: String, all: List<Peer>, file: android.net.Uri? = null) {
-        // A Direct Share target (a device's shortcut) sends at once; the app icon opens the Send screen. A file always opens the Send screen.
+        // A Direct Share target (a device's shortcut) sends at once, a file too; the app icon opens the Send screen.
+        val fileShortcut = if (file != null) directFileShortcut(intent.getStringExtra(ShortcutManagerCompat.EXTRA_SHORTCUT_ID), all.map { it.id }) else null
+        if (file != null && fileShortcut != null) { sendDirectFile(all.first { it.id == fileShortcut }, file); return }
         val shortcut = if (file != null) null else directShortcut(intent.getStringExtra(ShortcutManagerCompat.EXTRA_SHORTCUT_ID), all.map { it.id }, text)
         if (shortcut != null) { sendDirect(all.first { it.id == shortcut }, text); return }
         // The app icon (no shortcut id) only preselects the target; the user must tap Send.
@@ -141,18 +144,36 @@ class ShareActivity : ComponentActivity() {
         fun directShortcut(shortcutId: String?, allIds: List<String>, text: String): String? =
             if (shortcutId != null && shortcutId in allIds && text.isNotBlank() && SizeCap.utf8Size(text) <= SizeCap.MAX_CONTENT_BYTES) shortcutId else null
 
+        /** A shortcut id in the All set for a shared file: that device gets the file with no Send screen. Else null. */
+        fun directFileShortcut(shortcutId: String?, allIds: List<String>): String? = shortcutId?.takeIf { it in allIds }
+
         /** Dialog width and largest height, as parts of the screen. */
         const val DIALOG_WIDTH = 0.94f
         const val DIALOG_MAX_HEIGHT = 0.9f
+        /** Least time between two changes of the file send progress notification. */
+        const val PROGRESS_MS = 500L
     }
 
     private fun showUpdate() {
         setContent { Frame { UpdateScreen(Modifier.padding(vertical = 24.dp)) } }
     }
 
-    /** The type is detected as on the Send screen. A send that reached the device shows a toast; a failure posts an error notification. */
-    private fun sendDirect(peer: Peer, text: String) {
-        val caption = UiText.directSending(Detect.type(text), label(peer))
+    /** A file over the cap or one that cannot be read: its toast, and the dialog closes. Else the file goes as [sendDirect] sends text. */
+    private fun sendDirectFile(peer: Peer, uri: android.net.Uri) {
+        lifecycleScope.launch {
+            var refused: String? = null
+            val c = withContext(Dispatchers.IO) { vm.files.inspect(uri) { refused = it } }
+            if (c == null) { Toast.makeText(this@ShareActivity, UiText.brief(refused!!), Toast.LENGTH_LONG).show(); finish() }
+            else sendDirect(peer, "", c)
+        }
+    }
+
+    /**
+     * The type is detected as on the Send screen. A send that reached the device shows a toast; a failure posts an error notification.
+     * A [file] also shows its progress in a notification while it is encrypted and sent.
+     */
+    private fun sendDirect(peer: Peer, text: String, file: FileModel.Chosen? = null) {
+        val caption = if (file != null) UiText.directSendingFile(file.name, listOf(label(peer))) else UiText.directSending(Detect.type(text), label(peer))
         // The step under the bar: encrypting, sending, or a retry of the relay server call.
         setContent {
             Frame {
@@ -173,7 +194,16 @@ class ShareActivity : ComponentActivity() {
         // The send runs outside this activity: a rotation does not send it again, and a tap outside neither stops it nor hides its result.
         val app = applicationContext
         val notifier = vm.g.notifier
-        vm.sendDirect(peer.id, text) { r ->
+        // The progress notification changes at most twice a second (the system drops faster changes) and goes when the send ends.
+        var shownAt = 0L
+        val onStep = { st: Int ->
+            val now = System.currentTimeMillis()
+            if (file != null && now - shownAt >= PROGRESS_MS) { shownAt = now; notifier.sendingProgress(caption, st) }
+        }
+        // a dialog recreated meanwhile (a rotation) leaves the notification to the send already running
+        if (file != null && !vm.directStarted) onStep(0)
+        vm.sendDirect(peer.id, text, file, onStep) { r ->
+            if (file != null) notifier.cancel(Notifier.TAG_NOTICE, Notifier.SENDING_ID)
             if (r.ok) Toast.makeText(app, UiText.brief(UiText.directShareSent(label(peer))), Toast.LENGTH_SHORT).show()
             else {
                 val n = notifier

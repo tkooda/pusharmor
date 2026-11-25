@@ -70,9 +70,11 @@ class ShareShortcutsTest {
 
         val target = xml("res/xml/shortcuts.xml").children("share-target").single()
         assertEquals(Session.SHARE_CATEGORY, target.children("category").single().getAttribute("android:name"))
-        val mime = target.children("data").single().getAttribute("android:mimeType")
+        // text and any file: a Direct Share target shows for both
+        val mimes = target.children("data").map { it.getAttribute("android:mimeType") }
+        assertEquals(listOf("text/plain", "*/*"), mimes)
         val share = appEl.children("activity").single { "com.pusharmor.app" + it.getAttribute("android:name") == target.getAttribute("android:targetClass") }
-        assertTrue(share.children("intent-filter").any { f ->
+        for (mime in mimes) assertTrue(mime, share.children("intent-filter").any { f ->
             f.children("action").any { it.getAttribute("android:name") == "android.intent.action.SEND" } &&
                 f.children("data").any { it.getAttribute("android:mimeType") == mime }
         })

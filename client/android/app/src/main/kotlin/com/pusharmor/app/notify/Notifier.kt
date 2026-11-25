@@ -37,6 +37,8 @@ class Notifier(private val context: Context, private val settings: Settings, pri
         const val UNDELIVERED_ID = 2
         /** Notices that devices deleted messages here; no other notice uses it. */
         const val DELETED_ID = 6
+        /** The progress of a Direct Share file send; no other notice uses it. */
+        const val SENDING_ID = 7
         /** Dels of one delete all arrive within this time; their counts add up in one notice. */
         const val DELETED_JOIN_MS = 60_000L
         private const val EXTRA_DELETED_PEER = "pa_deleted_peer"
@@ -191,6 +193,13 @@ class Notifier(private val context: Context, private val settings: Settings, pri
         val e = prev?.notification?.extras
         val total = count + if (e != null && e.getString(EXTRA_DELETED_PEER) == peerId && System.currentTimeMillis() - prev.notification.`when` <= DELETED_JOIN_MS) e.getInt(EXTRA_DELETED_COUNT) else 0
         notice(text(total), DELETED_ID, android.os.Bundle().apply { putString(EXTRA_DELETED_PEER, peerId); putInt(EXTRA_DELETED_COUNT, total) })
+    }
+
+    /** The progress of a Direct Share file send, [percent] of 0 to 100: it stays until cancelled, and alerts once only. */
+    fun sendingProgress(text: String, percent: Int) {
+        notify(TAG_NOTICE, SENDING_ID, NotificationCompat.Builder(context, peersChannel)
+            .setSmallIcon(R.drawable.ic_notify).setColor(NAVY).setContentTitle("PushArmor").setContentText(text)
+            .setProgress(100, percent, false).setOngoing(true).setOnlyAlertOnce(true).setSilent(true).build())
     }
 
     fun peersNotice(text: String, id: Int = UNDELIVERED_ID) {

@@ -38,6 +38,9 @@ open class PaApp : Application() {
     /** The HTTP client for the relay server; tests replace it. */
     open fun httpClient(): OkHttpClient = WorkerClient.defaultHttp()
 
+    /** The HTTP client for file uploads and downloads; tests replace it. */
+    open fun fileHttpClient(): OkHttpClient = FileClient.defaultHttp()
+
     /** The wait between retries of a relay server call; tests replace it, so they do not sleep. */
     open fun retrySleep(ms: Long) = Thread.sleep(ms)
 
@@ -55,6 +58,7 @@ open class PaApp : Application() {
         // a decrypt that the app did not finish: the memory error on a low-memory exit, else the mark is cleared (off the main thread)
         val started = System.currentTimeMillis()
         inBackground { try { graph.fileStore.reviewMarks({ FileWork.lowMemoryExits(this) }, started) } catch (e: Exception) { } }
+        inBackground { try { com.pusharmor.app.ui.FileModel.sweepCopies(cacheDir, started) } catch (e: Exception) { } }
     }
 }
 
@@ -107,7 +111,7 @@ class Graph(val app: PaApp) {
     /** File uploads and downloads: long timeouts, redirects checked by hand. */
     val fileClient by lazy {
         FileClient({ keysOrNull ?: error("no keys") }, { dao.self()?.id }, offset, BuildConfig.API_BASE.toHttpUrl(),
-            http = if (BuildConfig.SCREENSHOT_MODE) ScreenshotMode.guard(FileClient.defaultHttp()) else FileClient.defaultHttp(),
+            http = if (BuildConfig.SCREENSHOT_MODE) ScreenshotMode.guard(app.fileHttpClient()) else app.fileHttpClient(),
             sleep = app::retrySleep, paClient = "android/${BuildConfig.VERSION_NAME}",
             onAuthState = { onAuthState(it) }, onUpdateRequired = { settings.markUpdateRequired(BuildConfig.VERSION_NAME) })
     }

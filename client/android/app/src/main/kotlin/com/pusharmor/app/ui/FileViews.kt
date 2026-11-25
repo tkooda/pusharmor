@@ -155,8 +155,9 @@ internal fun FileRowBody(vm: AppViewModel, h: HistoryEntity, f: FileValue, style
     Column(Modifier.fillMaxWidth()) {
         MiddleEllipsisText(name, if (faded) style.copy(color = cs.onSurfaceVariant) else style, Modifier.fillMaxWidth())
         Text(FileUi.detail(name, f.size), style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
-        // a sent file: its expiry, then the state of its copy as for a received file (the Download button carries the expiry)
-        if (sent && !(status is FileUi.Status.Failed && status.download) && status !is FileUi.Status.Pending)
+        // a sent file: its expiry, then the state of its copy as for a received file (the Download button carries the expiry);
+        // a file that never reached the relay server (no URL) has no expiry
+        if (sent && f.url.isNotEmpty() && !(status is FileUi.Status.Failed && status.download) && status !is FileUi.Status.Pending)
             Text(FileUi.expiresText(f.expires, now / 1000), style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
         if (sent && status == null) return@Column
         @Composable fun line(icon: ImageVector, text: String, color: Color) = Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {

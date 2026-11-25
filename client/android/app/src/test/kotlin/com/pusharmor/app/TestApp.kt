@@ -20,6 +20,10 @@ class TestApp : PaApp() {
     override fun httpClient(): OkHttpClient =
         WorkerClient.defaultHttp().newBuilder().addInterceptor { chain -> fakeHttp?.intercept(chain) ?: chain.proceed(chain.request()) }.build()
 
+    /** File uploads and downloads: [fakeHttp] answers them too. */
+    override fun fileHttpClient(): OkHttpClient =
+        com.pusharmor.net.FileClient.defaultHttp().newBuilder().addInterceptor { chain -> fakeHttp?.intercept(chain) ?: chain.proceed(chain.request()) }.build()
+
     /** Every wait between retries of a relay server call, in ms; none is slept. */
     val retrySleeps: MutableList<Long> = java.util.Collections.synchronizedList(ArrayList())
 

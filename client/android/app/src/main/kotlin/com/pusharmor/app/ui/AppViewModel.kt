@@ -467,13 +467,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** The Direct Share send, started once per dialog: it runs to its end even when the dialog closes; [report] then shows its result. */
-    fun sendDirect(peerId: String, text: String, report: (SendResult) -> Unit) {
+    /**
+     * The Direct Share send (of [file] when given, else of [text]), started once per dialog: it runs to its end even when
+     * the dialog closes; [onStep] gets each new step, and [report] then shows its result.
+     */
+    fun sendDirect(peerId: String, text: String, file: FileModel.Chosen? = null, onStep: (Int) -> Unit = {}, report: (SendResult) -> Unit) {
         if (directStarted) return
         directStarted = true
         directScope.launch {
             g.client.onRetry = { a -> sendRetry = a }
-            val r = try { send(listOf(peerId), text) { s -> if (s > sendStep) sendStep = s } } finally { g.client.onRetry = null }
+            val step = { s: Int -> if (s > sendStep) { sendStep = s; onStep(s) } }
+            val r = try { if (file != null) sendFile(listOf(peerId), file, direct = true, onStep = step) else send(listOf(peerId), text, onStep = step) } finally { g.client.onRetry = null }
             report(r)
             directDone.value = true
         }
@@ -499,17 +503,23 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** The send of a chosen file: seal, upload, then the file message; errors as for [send], plus the file errors. */
-    suspend fun sendFile(recipients: List<String>, c: FileModel.Chosen, onStep: (Int) -> Unit = {}): SendResult = withContext(Dispatchers.IO) {
-        try {
+    /**
+     * The send of a chosen file: seal, upload, then the file message; errors as for [send], plus the file errors.
+     * [direct]: a Direct Share, whose sent copy comes from the bytes the send read, and whose failure before the
+     * relay server took the message still gets a History row with the error.
+     */
+    suspend fun sendFile(recipients: List<String>, c: FileModel.Chosen, direct: Boolean = false, onStep: (Int) -> Unit = {}): SendResult = withContext(Dispatchers.IO) {
+        val r = try {
             g.client.onProgress = onStep
-            val out = try { files.sendFile(recipients, c, onStep) } finally { g.client.onProgress = null }
-            if (out.error != null) return@withContext SendResult(ErrorText.of(UiText.UNABLE_SEND, out.error!!, UiText.pushHost(g.settings.get(Settings.K.UP_ENDPOINT))))
-            sendResult(recipients.size, out, recipients.singleOrNull()) { id -> g.store.peer(id)?.let(::label) }
+            val out = try { files.sendFile(recipients, c, onStep, keepCopy = direct) } finally { g.client.onProgress = null }
+            if (out.error != null) SendResult(ErrorText.of(UiText.UNABLE_SEND, out.error!!, UiText.pushHost(g.settings.get(Settings.K.UP_ENDPOINT))))
+            else return@withContext sendResult(recipients.size, out, recipients.singleOrNull()) { id -> g.store.peer(id)?.let(::label) }
         } catch (e: CancellationException) { throw e } catch (e: Exception) {
             Log.w("PushArmor", "file send failed", e)
             SendResult(files.sendError(e, c) ?: ErrorText.text(UiText.UNABLE_SEND, localReason(e)))
         }
+        if (direct) try { files.failedRow(c, r.text) } catch (e: Exception) { Log.w("PushArmor", "failed file row", e) }
+        r
     }
 
     /**

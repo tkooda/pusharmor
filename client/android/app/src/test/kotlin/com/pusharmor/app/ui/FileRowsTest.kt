@@ -140,6 +140,25 @@ class FileRowsTest {
         close(c)
     }
 
+    /** A Direct Share file that never reached the relay server: its error only, with no expiry and no Download. */
+    @Test fun failedSendRowHasNoExpiry() {
+        val app = ApplicationProvider.getApplicationContext<PaApp>()
+        val g = app.graph
+        val text = "Unable to send.\nThe relay server is not working right now. Try again later."
+        runBlocking(Dispatchers.IO) {
+            app.graph.fileStore.root.deleteRecursively()
+            g.dao.deleteAllHistory()
+        }
+        val vm = AppViewModel(app)
+        runBlocking(Dispatchers.IO) { vm.files.failedRow(FileModel.Chosen("file:///x/doc.pdf", "doc.pdf", 1000), text) }
+        val (c, v) = show({ HistoryScreen(vm) }) { t -> text in t }
+        val t = texts(v)
+        assertTrue(t.toString(), text in t)
+        assertTrue(t.toString(), t.none { it == "Expired" || it.startsWith("expires in") || it == "Download" })
+        vm.files.setShown(false)
+        close(c)
+    }
+
     @Test fun filesSettings() {
         val app = ApplicationProvider.getApplicationContext<PaApp>()
         runBlocking(Dispatchers.IO) { app.graph.settings.set(Settings.K.FILE_WIFI, null); app.graph.settings.set(Settings.K.FILE_MOBILE, null) }

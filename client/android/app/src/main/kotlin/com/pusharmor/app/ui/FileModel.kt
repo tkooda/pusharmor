@@ -48,7 +48,10 @@ class FileModel(private val g: Graph, private val scope: CoroutineScope, private
     val chosen = MutableStateFlow<Chosen?>(null)
 
     /** Reads the name and size of a picked or shared file; a file over the cap or one that cannot be read gives a toast instead. */
-    fun choose(uri: Uri): Job = scope.launch(Dispatchers.IO) {
+    fun choose(uri: Uri): Job = scope.launch(Dispatchers.IO) { inspect(uri, toast)?.let { chosen.value = it } }
+
+    /** The name and size of [uri] (off the main thread); a file over the cap or one that cannot be read gives [refuse] its text and null. */
+    fun inspect(uri: Uri, refuse: (String) -> Unit): Chosen? {
         val cr = g.app.contentResolver
         var name = "file"
         var size = -1L
@@ -67,24 +70,34 @@ class FileModel(private val g: Graph, private val scope: CoroutineScope, private
             size = -1
         }
         when {
-            size < 0 -> toast(FileUi.unreadable(name))
-            size > FileCrypt.MAX_FILE -> toast(FileUi.tooLarge(name))
-            else -> chosen.value = Chosen(uri.toString(), name, size)
+            size < 0 -> refuse(FileUi.unreadable(name))
+            size > FileCrypt.MAX_FILE -> refuse(FileUi.tooLarge(name))
+            else -> return Chosen(uri.toString(), name, size)
         }
+        return null
     }
 
     /** The 201 of the last upload that was not sent on: a new tap on Send for the same file uses it again while it has not expired. */
     private class Prior(val uri: String, val size: Long, val value: FileValue)
     @Volatile private var prior: Prior? = null
 
-    /** Seals and uploads [c] (or uses the last upload of it again), then sends the file message. */
-    fun sendFile(recipients: List<String>, c: Chosen, onStep: (Int) -> Unit): SendFlow.Outcome {
+    /**
+     * Seals and uploads [c] (or uses the last upload of it again), then sends the file message. [keepCopy]: the
+     * sent copy is kept from the bytes read for the send (a shared file may not be readable once its share ends).
+     */
+    fun sendFile(recipients: List<String>, c: Chosen, onStep: (Int) -> Unit, keepCopy: Boolean = false): SendFlow.Outcome {
+        val copy = if (keepCopy) try { File.createTempFile("sent", null, copyDir(g.app.cacheDir).also { it.mkdirs() }) } catch (e: IOException) { null } else null
+        var handed = false
+        try { return sendFile(recipients, c, onStep, copy) { handed = true } } finally { if (!handed) copy?.delete() }
+    }
+
+    private fun sendFile(recipients: List<String>, c: Chosen, onStep: (Int) -> Unit, copy: File?, handed: () -> Unit): SendFlow.Outcome {
         val now = System.currentTimeMillis()
         val name = FileName.sanitize(c.name, now / 1000, FileUi.kind(c.name) == FileUi.Kind.IMAGE)
         val p = prior
         val value = if (p != null && p.uri == c.uri && p.size == c.size && g.fileClient.nowSec() < p.value.expires) p.value else {
             val input = g.app.contentResolver.openInputStream(Uri.parse(c.uri)) ?: throw FileChangedException()
-            val sealed = input.use { g.fileStore.seal(File(g.app.cacheDir, "send"), Counted(it) { n -> onStep(FileUi.encryptStep(n, c.size)) }, c.size, name) }
+            val sealed = Tee(input, copy).use { g.fileStore.seal(File(g.app.cacheDir, "send"), Counted(it) { n -> onStep(FileUi.encryptStep(n, c.size)) }, c.size, name) }
             val length = sealed.blob.length()
             val reply = try { g.fileClient.upload(sealed.blob, sealed.sha256, FileClient.newSendId()) { onStep(FileUi.uploadStep(it, length)) } } finally { sealed.blob.delete() }
             FileValue(reply.url, reply.expires, B64url.encode(sealed.key), name, c.size, sealed.sha256).also { prior = Prior(c.uri, c.size, it) }
@@ -92,11 +105,46 @@ class FileModel(private val g: Graph, private val scope: CoroutineScope, private
         val out = g.sender().sendFile(recipients, value, now, onStep)
         if (out.error == null) { prior = null; chosen.value = null }
         // the result goes back at once; the copy is kept after it
-        keptRow(out)?.let { keepLater(it, c, name) }
+        keptRow(out)?.let { handed(); keepLater(it, c, name, copy) }
         return out
     }
 
+    /** The file being sealed, also written to [file] when given; a write that fails drops the copy, never the send. */
+    private class Tee(input: java.io.InputStream, private val file: File?) : java.io.FilterInputStream(input) {
+        private var out: java.io.OutputStream? = file?.let { try { java.io.FileOutputStream(it) } catch (e: IOException) { null } }
+        private fun keep(b: ByteArray, off: Int, n: Int) {
+            val o = out ?: return
+            try { o.write(b, off, n) } catch (e: IOException) { drop() }
+        }
+        private fun drop() { try { out?.close() } catch (e: IOException) { }; out = null; file?.delete() }
+        override fun read(): Int = super.read().also { if (it >= 0) keep(byteArrayOf(it.toByte()), 0, 1) }
+        override fun read(b: ByteArray, off: Int, len: Int): Int = super.read(b, off, len).also { if (it > 0) keep(b, off, it) }
+        override fun close() { try { out?.close() } catch (e: IOException) { drop() }; super.close() }
+    }
+
+    /**
+     * A Direct Share file that did not reach the relay server: a sent row in History with [text] as its error, the
+     * state of a file that failed to go (no Download button).
+     */
+    internal fun failedRow(c: Chosen, text: String) {
+        val now = System.currentTimeMillis()
+        val name = FileName.sanitize(c.name, now / 1000, FileUi.kind(c.name) == FileUi.Kind.IMAGE)
+        val none = B64url.encode(ByteArray(32))
+        val v = FileValue("", 0, none, name, c.size, none)
+        val id = g.store.insertHistory(com.pusharmor.protocol.engine.HistoryRow(direction = com.pusharmor.protocol.engine.Direction.SENT, peerId = null,
+            type = com.pusharmor.protocol.engine.HistoryRow.FILE, content = v.toJson(), at = now, read = true, results = emptyMap()))
+        val k = ReceivedFiles.key(id)
+        g.fileStore.locked(k) { g.fileStore.put(k, FileState(code = FinalCode.FAILED, text = text)) }
+        refreshQuiet()
+    }
+
     companion object {
+        /** The plaintext copies of Direct Share sends, in the app's private cache; any left by an app that closed mid-send go at its next start. */
+        fun copyDir(cache: File) = File(cache, "sentcopy")
+
+        /** Deletes the copies older than [before] (ms): none of them is in use by this process. */
+        fun sweepCopies(cache: File, before: Long) { copyDir(cache).listFiles()?.filter { it.lastModified() < before }?.forEach { it.delete() } }
+
         /** The History row of a send that reached at least one device (its file keeps a copy); null keeps nothing. */
         internal fun keptRow(out: SendFlow.Outcome): Long? = out.historyId?.takeIf { out.error == null && out.sent > 0 }
     }
@@ -107,7 +155,10 @@ class FileModel(private val g: Graph, private val scope: CoroutineScope, private
     private val unsaved = java.util.concurrent.ConcurrentHashMap<String, FileState>()
 
     /** Keeps the copy of a sent file after the send result is given. */
-    internal fun keepLater(id: Long, c: Chosen, name: String): Job = scope.launch(Dispatchers.IO) { keepSent(id, c, name) }
+    internal fun keepLater(id: Long, c: Chosen, name: String, from: File? = null): Job = scope.launch(Dispatchers.IO) {
+        // the bytes the send read, when all of them were kept; else the picked file again
+        try { keepSent(id, if (from != null && from.length() == c.size) c.copy(uri = Uri.fromFile(from).toString()) else c, name) } finally { from?.delete() }
+    }
 
     /**
      * A sent file keeps a copy, streamed from the picked file, as a downloaded received file does. A failure is the

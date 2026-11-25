@@ -2,6 +2,7 @@
 <shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
     <share-target android:targetClass="com.pusharmor.app.ui.ShareActivity">
         <data android:mimeType="text/plain" />
+        <data android:mimeType="*/*" />
         <category android:name="com.pusharmor.category.SHARE_TARGET" />
     </share-target>
 </shortcuts>
