@@ -2991,6 +2991,31 @@ final class StateMachineTests: XCTestCase {
         XCTAssertNil(try n.core.store.historyRow(b))
     }
 
+    /// the local delete is reported before any relay server file delete starts, so the list
+    /// updates at once; a later file delete failure is still the result.
+    func testSyncDeletionsLocalDoneBeforeFileDeletes() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        let row = try fileRow(n, peer: x.id, dir: .outgoing, fileId: Self.fileIdA)
+        w.script("DELETE", "/v1/file/", 403, "{\"error\":\"unapproved\"}")
+        final class Seen: @unchecked Sendable {
+            let lock = NSLock()
+            var calls: [Int] = [], gone: [Bool] = [], notices: [String?] = []
+        }
+        let seen = Seen()
+        let w: FakeWorker = self.w
+        let notice = try await n.core.deleteHistoryRows([row], localDone: { local in
+            let gone = (try? n.core.store.historyRow(row)) == nil
+            let calls = w.calls.filter { $0.0 == "DELETE" && $0.1.hasPrefix("/v1/file/") }.count
+            seen.lock.lock(); seen.calls.append(calls); seen.gone.append(gone); seen.notices.append(local); seen.lock.unlock()
+        })
+        XCTAssertEqual(seen.calls, [0])
+        XCTAssertEqual(seen.gone, [true])
+        XCTAssertEqual(seen.notices, [nil])
+        XCTAssertEqual(fileDeletes().count, 1)
+        XCTAssertNotNil(notice)
+        XCTAssertTrue(notice!.hasPrefix("Unable to delete on the relay server.\n"))
+    }
+
     /// the del notice is kept when the file delete fails too.
     func testSyncDeletionsDelNoticeWinsOverFileNotice() async throws {
         let n = try dev("Ndev"), x = try dev("Xdev")

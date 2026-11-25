@@ -1085,17 +1085,32 @@ final class AppModel: ObservableObject {
             reload()
             return
         }
+        final class Local: @unchecked Sendable { var done = false, notice: String? }
+        let local = Local()
         Task {
             do {
-                if let t = try await core.deleteHistoryRows(Array(ids), progress: { p in
+                // the list updates right after the local delete; the relay server file deletes go on after it
+                let t = try await core.deleteHistoryRows(Array(ids), progress: { p in
                     await MainActor.run { self.deleteProgress = p }
-                }) { toast = t }
+                }, localDone: { notice in
+                    await MainActor.run {
+                        local.done = true
+                        local.notice = notice
+                        if let notice { self.toast = notice }
+                        self.deleteDone(core)
+                    }
+                })
+                if let t, local.notice == nil { toast = t }
             } catch { toast = ErrorCopy.deleteFailText(.deleteOnThisDevice, error) }
-            deleteProgress = nil
-            // a deleted file row takes its file off this device
-            try? core.pruneFiles(dir: filesDir)
-            reload()
+            if !local.done { deleteDone(core) }
         }
+    }
+
+    private func deleteDone(_ core: Core) {
+        deleteProgress = nil
+        // a deleted file row takes its file off this device
+        try? core.pruneFiles(dir: filesDir)
+        reload()
     }
 
     /// Copy from a screen: the value goes on the pasteboard and the banner says "Copied", or

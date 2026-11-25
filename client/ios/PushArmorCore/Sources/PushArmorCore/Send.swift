@@ -99,9 +99,12 @@ extension Core {
     /// a message id go at once (this device only). With Sync deletions on, the file of each
     /// file row also goes from the relay server, after the local delete. The result is the
     /// notice naming the devices that did not take it, else the relay server file notice, nil
-    /// when none. `progress` gets each step.
+    /// when none. `progress` gets each step. `localDone` gets the notice naming the devices
+    /// right after the local delete, before the relay server file deletes, so the list can
+    /// update at once.
     @discardableResult
-    public func deleteHistoryRows(_ rowids: [Int64], progress: (@Sendable (DeleteProgress) async -> Void)? = nil) async throws -> String? {
+    public func deleteHistoryRows(_ rowids: [Int64], progress: (@Sendable (DeleteProgress) async -> Void)? = nil,
+                                  localDone: (@Sendable (String?) async -> Void)? = nil) async throws -> String? {
         var rows: [HistoryRow] = []
         for rowid in rowids { if let r = try store.historyRow(rowid) { rows.append(r) } }
         let sync = (try? store.boolSetting(SettingKey.syncDeletions, default: true)) ?? true
@@ -210,6 +213,7 @@ extension Core {
         let names = targets.filter { pending.contains($0.text) }
             .map { (name: PeerLabel.label(try? store.peer($0)), word: failed[$0.text] ?? "failed:") }
         let notice = ErrorCopy.deleteResultText(names, error: callError)
+        await localDone?(notice)
         let fileNotice = await deleteFilesOnServer(fileIds)
         return notice ?? fileNotice
     }
