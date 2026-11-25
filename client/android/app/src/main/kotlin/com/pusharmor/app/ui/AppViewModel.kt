@@ -585,7 +585,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val id = ReceivedFiles.fileOf(h)?.let(ReceivedFiles::serverId) ?: continue
             val r = try { g.client.deleteFile(id) } catch (e: Exception) { null }
             if (r is ApiResult.Ok || (r is ApiResult.Http && r.status == 404)) continue
-            if (notice == null) notice = if (r == null) ErrorText.text(UiText.UNABLE_DELETE_FILE_SERVER, ErrorText.TRY_AGAIN) else ErrorText.of(UiText.UNABLE_DELETE_FILE_SERVER, r)
+            if (notice == null) notice = (if (r == null) ErrorText.text(UiText.UNABLE_DELETE_FILE_SERVER, ErrorText.TRY_AGAIN) else ErrorText.of(UiText.UNABLE_DELETE_FILE_SERVER, r)) + "\nIt will be deleted from the relay server when it expires"
         }
         return notice
     }

@@ -265,7 +265,7 @@ class SyncDeletionsTest {
         val ids = listOf(fileRow("SENT", "aaaa"), fileRow("RECEIVED", null))
         run(vm) { vm.deleteHistory(ids) }
         assertEquals(0, count()) // the rows go here whatever the relay server says
-        assertEquals("Unable to delete on the relay server.\nThe relay server is not working right now. Try again later.", vm.message.value)
+        assertEquals("Unable to delete on the relay server.\nThe relay server is not working right now. Try again later.\nIt will be deleted from the relay server when it expires", vm.message.value)
     }
 
     @Test fun settingOffDeletesNoFileOnTheRelayServer() {
