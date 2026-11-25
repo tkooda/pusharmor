@@ -1751,6 +1751,14 @@ def test_choose_evict_takes_up_to_24_devices(monkeypatch, capsys):
         pa.choose_evict(rows)
 
 
+def test_choose_evict_lists_fewest_pairings_then_oldest(monkeypatch, capsys):
+    def row(c, approves, approved_by, created):
+        return {"id": c * 40, "platform": "ios", "created": created, "approves": approves, "approved_by": approved_by}
+    rows = [row("A", 2, 1, 100), row("B", 0, 1, 300), row("C", 1, 0, 200), row("D", 0, 0, 400), row("E", 3, 0, 50)]
+    monkeypatch.setattr(pa, "ask", lambda prompt="": "1 2 3 4 5")
+    assert pa.choose_evict(rows) == [c * 40 for c in "DCBEA"]
+
+
 def test_choose_evict_ignores_unicode_digits(monkeypatch, capsys):
     rows = [{"id": "A" * 40, "platform": "ios", "created": 10}]
     monkeypatch.setattr(pa, "ask", lambda prompt="": "\u00b2 \u0663")

@@ -3222,6 +3222,8 @@ def undo_register(cx):
 def choose_evict(peers):
     rows = [p for p in (peers if isinstance(peers, list) else [])
             if isinstance(p, dict) and isinstance(p.get("id"), str) and len(p["id"]) == 40 and b64ok(p["id"])]
+    n = lambda v: v if type(v) is int else 0
+    rows.sort(key=lambda p: (n(p.get("approves")) + n(p.get("approved_by")), n(p.get("created"))))  # fewest pairings, then oldest
     print("This account already has %d devices, the most it can have. To add this device, remove one or more."
           " A removed device must log in again and pair with every device again." % len(rows))
     for i, p in enumerate(rows, 1):
