@@ -427,9 +427,10 @@ final class FileTransfers: NSObject, URLSessionDownloadDelegate, URLSessionDataD
         onChange?()
     }
 
-    /// App launch: decrypts the app did not finish show the memory error, sends a process left
-    /// mid-way fail (never sent twice), records whose History row is gone lose their files, and an
-    /// app-wide watch starts catch-up on a change to an unmetered network.
+    /// App launch: decrypts the app did not finish show the memory error if a low-memory warning
+    /// came during them, else that they were interrupted; sends a process left mid-way fail (never
+    /// sent twice), records whose History row is gone lose their files, and an app-wide watch
+    /// starts catch-up on a change to an unmetered network.
     func launch(core: Core) {
         ensureDir()
         // held completions first, so pruning never meets one
