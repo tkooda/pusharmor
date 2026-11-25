@@ -289,6 +289,8 @@ enum Schema {
         WHERE type = 'unknown' AND content = 'file'
           AND EXISTS (SELECT 1 FROM files f WHERE f.history_rowid = history.rowid)
         """,
+        // the unused version column goes; no index or trigger uses it
+        "ALTER TABLE peers DROP COLUMN version",
     ]
 
     /// Reads user_version first with no transaction; takes the write lock only when a
