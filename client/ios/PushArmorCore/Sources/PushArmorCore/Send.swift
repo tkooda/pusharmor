@@ -230,7 +230,7 @@ extension Core {
                 if out.isClockSkew { out = await api.call("DELETE", path, auth: .fileDelete(keys.signer, me, id)) }
             }
             if let s = out.reply?.status, s == 200 || s == 404 { continue }
-            if notice == nil { notice = ErrorCopy.text(.deleteOnRelayServer, ErrorCopy.reason(from: out)) }
+            if notice == nil { notice = ErrorCopy.text(.deleteOnRelayServer, ErrorCopy.reason(from: out)) + "\nIt will be deleted from the relay server when it expires" }
         }
         return notice
     }

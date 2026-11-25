@@ -2985,7 +2985,7 @@ final class StateMachineTests: XCTestCase {
         for _ in 0 ..< 3 { w.script("DELETE", "/v1/file/", 503, "{\"error\":\"storage error\"}") }
         w.script("DELETE", "/v1/file/", 403, "{\"error\":\"unapproved\"}")
         let notice = try await n.core.deleteHistoryRows([a, b])
-        XCTAssertEqual(notice, "Unable to delete on the relay server.\nThe relay server is not working right now. Try again later.")
+        XCTAssertEqual(notice, "Unable to delete on the relay server.\nThe relay server is not working right now. Try again later.\nIt will be deleted from the relay server when it expires")
         XCTAssertEqual(fileDeletes(), Array(repeating: "/v1/file/" + Self.fileIdA, count: 3) + ["/v1/file/" + Self.fileIdB])
         XCTAssertNil(try n.core.store.historyRow(a))
         XCTAssertNil(try n.core.store.historyRow(b))
