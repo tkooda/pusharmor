@@ -778,6 +778,6 @@ describe("no app versions", () => {
     const g = await call("GET", "/v1/peers", undefined, { peer: a, ...ua("android/0.0.54") });
     expect(g.status).toBe(200);
     for (const r of [reg, g]) expect((r.body.peers as Record<string, unknown>[]).every((x) => !("version" in x))).toBe(true);
-    expect((await row(a.id))!.version).toBeNull();
+    expect(await row(a.id)).not.toHaveProperty("version");
   });
 });

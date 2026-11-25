@@ -161,7 +161,7 @@ describe("migration 0005 on existing rows", () => {
     await expect(env.DB.prepare("UPDATE peers SET platform = 'iphone' WHERE id = ?1").bind(a.id).run()).rejects.toThrow();
     await expect(env.DB.prepare("UPDATE peers SET name = ?1 WHERE id = ?2").bind(JSON.stringify({ x: message(NAME_JSON_MAX) }), a.id).run())
       .rejects.toThrow(/pa-json-cap/);
-    for (const s of [...q("0006"), ...q("0007"), ...q("0008"), ...q("0009")]) await env.DB.prepare(s).run();
+    for (const s of [...q("0006"), ...q("0007"), ...q("0008"), ...q("0009"), ...q("0011")]) await env.DB.prepare(s).run();
   });
 });
 
@@ -171,7 +171,7 @@ describe("migration 0006 on existing rows", () => {
     await env.DB.prepare("UPDATE peers SET logged_out = 1 WHERE id = ?1").bind(b.id).run();
     const before = await env.DB.prepare("SELECT * FROM peers ORDER BY id").all();
     const q = (prefix: string) => env.TEST_MIGRATIONS.find((m) => m.name.startsWith(prefix))!.queries;
-    for (const s of [...q("0006"), ...q("0007"), ...q("0008"), ...q("0009")]) await env.DB.prepare(s).run();
+    for (const s of [...q("0006"), ...q("0007"), ...q("0008"), ...q("0009"), ...q("0011")]) await env.DB.prepare(s).run();
     expect((await env.DB.prepare("SELECT * FROM peers ORDER BY id").all()).results).toEqual(before.results);
     expect(await row(b.id)).toMatchObject({ logged_out: 1 });
     await env.DB.prepare("UPDATE peers SET platform = 'cli' WHERE id = ?1").bind(a.id).run();
@@ -196,19 +196,42 @@ describe("migration 0009 on existing rows", () => {
     await env.DB.prepare("UPDATE peers SET version = '999999.999999.999999' WHERE id = ?1").bind(a.id).run();
     await expect(env.DB.prepare("UPDATE peers SET version = ?1 WHERE id = ?2").bind("1".repeat(21), a.id).run()).rejects.toThrow();
     await expect(env.DB.prepare("UPDATE peers SET version = '' WHERE id = ?1").bind(a.id).run()).rejects.toThrow();
+    for (const s of q("0011")) await env.DB.prepare(s).run();
   });
 });
 
 describe("migration 0010 on existing rows", () => {
   it("clears every stored version, other columns kept", async () => {
     const [a, b] = await family(2);
+    const q = (prefix: string) => env.TEST_MIGRATIONS.find((m) => m.name.startsWith(prefix))!.queries;
+    // Back to the table before 0011 (0009 adds the column again), then 0010.
+    for (const s of q("0009")) await env.DB.prepare(s).run();
     await env.DB.prepare("UPDATE peers SET version = '0.0.54' WHERE id = ?1").bind(a.id).run();
     const before = (await env.DB.prepare("SELECT * FROM peers ORDER BY id").all()).results;
-    const q = (prefix: string) => env.TEST_MIGRATIONS.find((m) => m.name.startsWith(prefix))!.queries;
     for (const s of q("0010")) await env.DB.prepare(s).run();
     const after = (await env.DB.prepare("SELECT * FROM peers ORDER BY id").all()).results;
     expect(after).toEqual(before.map((r) => ({ ...r, version: null })));
     expect(await row(b.id)).toMatchObject({ version: null });
+    for (const s of q("0011")) await env.DB.prepare(s).run();
+  });
+});
+
+describe("migration 0011 on existing rows", () => {
+  it("drops version, rows and other columns kept, cap trigger kept", async () => {
+    const [a, b] = await family(2);
+    await env.DB.prepare("UPDATE peers SET logged_out = 1 WHERE id = ?1").bind(b.id).run();
+    const q = (prefix: string) => env.TEST_MIGRATIONS.find((m) => m.name.startsWith(prefix))!.queries;
+    // Back to the table before 0011 (0009 adds the column again), with a stored value.
+    for (const s of q("0009")) await env.DB.prepare(s).run();
+    await env.DB.prepare("UPDATE peers SET version = '0.0.54' WHERE id = ?1").bind(a.id).run();
+    const before = (await env.DB.prepare("SELECT * FROM peers ORDER BY id").all()).results;
+    for (const s of q("0011")) await env.DB.prepare(s).run();
+    const after = (await env.DB.prepare("SELECT * FROM peers ORDER BY id").all()).results;
+    expect(after).toEqual(before.map(({ version: _, ...r }) => r));
+    expect(Object.keys(after[0])).not.toContain("version");
+    await expect(env.DB.prepare("UPDATE peers SET version = NULL WHERE id = ?1").bind(a.id).run()).rejects.toThrow();
+    await expect(env.DB.prepare("UPDATE peers SET name = ?1 WHERE id = ?2").bind(JSON.stringify({ x: message(NAME_JSON_MAX) }), a.id).run())
+      .rejects.toThrow(/pa-json-cap/);
   });
 });
 

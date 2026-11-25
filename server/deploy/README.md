@@ -70,7 +70,8 @@ empty or a PLACEHOLDER.
    Access-Control-Expose-Headers containing PA-Epoch.
 7. If step 5 or 6 fails, run `(cd server/worker && npx wrangler rollback)`.
    The previous version must work with the current migrations (N-1 rule).
-   Never roll back to a Worker below 0.0.19 (it cannot read the peers table);
+   Never roll back to a Worker below 0.0.55 (older ones write the peers.version
+   column that migration 0011 drops; below 0.0.19 cannot read the peers table);
    roll forward instead: fix and release a new Worker tag.
 8. Done: the script prints the tag. It creates no tag (the worker/v tag came
    first).
