@@ -372,10 +372,17 @@ describe("file host", () => {
     expect((env.RL_DL_PEER_KEY as ReturnType<typeof countingLimit>).seen).toEqual([]);
   });
 
-  it("a stale or future PA-Time -> 401 clock skew; none -> 400", async () => {
+  it("a PA-Time 24 h old is served", async () => {
     const key = newKey();
     store.objects.set(key, randBytes(5));
-    for (const t of [Date.now() - 301_000, Date.now() + 301_000]) {
+    const res = await get("/" + key, { time: String(Date.now() - 86400_000) });
+    expect(res.status).toBe(200);
+  });
+
+  it("a PA-Time over 25 h old or over 5 min ahead -> 401 clock skew; none -> 400", async () => {
+    const key = newKey();
+    store.objects.set(key, randBytes(5));
+    for (const t of [Date.now() - 90_001_000, Date.now() + 301_000]) {
       const res = await get("/" + key, { time: String(t) });
       expect(res.status).toBe(401);
       expect(await res.json()).toEqual({ error: "clock skew" });

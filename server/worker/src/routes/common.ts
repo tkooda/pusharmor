@@ -21,8 +21,8 @@ export interface Signed {
 }
 
 // Steps a, b, c.
-export async function signedStart(c: Ctx): Promise<Signed> {
-  const paTime = checkTime(c.req.headers, Date.now());
+export async function signedStart(c: Ctx, behindMs?: number): Promise<Signed> {
+  const paTime = checkTime(c.req.headers, Date.now(), behindMs);
   const me = await checkPaId(c.env.PA_ID_SECRET, c.req.headers);
   c.log.peer = me;
   c.log.account = me.slice(0, 12);

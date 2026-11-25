@@ -7,11 +7,13 @@ import { ApiError } from "../errors";
 
 export const SKEW_MS = 300_000;
 
-// Step a. Returns the PA-Time header string as received.
-export function checkTime(headers: Headers, nowMs: number): string {
+// Step a. Returns the PA-Time header string as received. PA-Time may be at most SKEW_MS ahead
+// and at most behindMs behind (SKEW_MS, except for file downloads: see download.ts).
+export function checkTime(headers: Headers, nowMs: number, behindMs = SKEW_MS): string {
   const t = headers.get("PA-Time");
   if (t === null || !/^[1-9][0-9]{12}$/.test(t)) throw new ApiError(400, "bad request");
-  if (Math.abs(nowMs - Number(t)) > SKEW_MS) throw new ApiError(401, "clock skew");
+  const d = nowMs - Number(t);
+  if (d > behindMs || d < -SKEW_MS) throw new ApiError(401, "clock skew");
   return t;
 }
 

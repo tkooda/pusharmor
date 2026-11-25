@@ -34,6 +34,10 @@ function oneRange(v: string | null): string | null {
 // A key minute this far behind now cannot hold a live file (24 h + the deletion grace): 404.
 export const BEHIND_MAX = 86400 + 300;
 
+// PA-Time may be up to 25 h behind (the file lifetime plus a margin): iOS resumes a broken
+// background download with its original signed request. It may be at most 5 min ahead.
+export const DL_TIME_BEHIND_MS = 25 * 3600_000;
+
 const FIXED: Record<string, string> = {
   "Content-Type": "application/octet-stream",
   "X-Content-Type-Options": "nosniff",
@@ -82,7 +86,7 @@ async function serve(c: Ctx): Promise<Response> {
   const key = "v1/" + m[1] + "/" + m[2] + "/" + m[3] + "-" + m[4];
   await enforce(c.env, "RL_DL_IP", ipKey(c.req.headers.get("CF-Connecting-IP") ?? ""), c.log);
   // Signed by a device (no D1): keys match the PA-ID keyhash, PA-Sig over PA-DL1.
-  const s = await signedStart(c);
+  const s = await signedStart(c, DL_TIME_BEHIND_MS);
   const signPub = c.req.headers.get("PA-Sign-Pub") ?? "";
   await checkKeyhash(s.me, signPub, c.req.headers.get("PA-Enc-Pub") ?? "");
   await checkSig(signPub, c.req.headers, c.method, c.path, s.paTime, c.body, downloadSignedBytes(c.path, s.paTime));
