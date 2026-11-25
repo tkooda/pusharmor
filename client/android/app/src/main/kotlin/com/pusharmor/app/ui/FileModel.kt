@@ -8,6 +8,7 @@ import android.webkit.MimeTypeMap
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import com.pusharmor.app.Graph
+import com.pusharmor.app.files.FileState
 import com.pusharmor.app.files.FileStore
 import com.pusharmor.app.files.FileUi
 import com.pusharmor.app.files.FileWork
@@ -19,6 +20,7 @@ import com.pusharmor.net.ErrorText
 import com.pusharmor.net.FileClient
 import com.pusharmor.net.FileError
 import com.pusharmor.protocol.FileName
+import com.pusharmor.protocol.FileRules
 import com.pusharmor.protocol.FileRules.FinalCode
 import com.pusharmor.protocol.FileValue
 import com.pusharmor.protocol.engine.SendFlow
@@ -33,6 +35,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.io.File
+import java.io.IOException
 
 /**
  * The file parts of the app screens: the file chosen on the Send screen and its send, and the received file rows
@@ -88,7 +91,8 @@ class FileModel(private val g: Graph, private val scope: CoroutineScope, private
         }
         val out = g.sender().sendFile(recipients, value, now, onStep)
         if (out.error == null) { prior = null; chosen.value = null }
-        keptRow(out)?.let { keepSent(it, c, name) }
+        // the result goes back at once; the copy is kept after it
+        keptRow(out)?.let { keepLater(it, c, name) }
         return out
     }
 
@@ -97,16 +101,31 @@ class FileModel(private val g: Graph, private val scope: CoroutineScope, private
         internal fun keptRow(out: SendFlow.Outcome): Long? = out.historyId?.takeIf { out.error == null && out.sent > 0 }
     }
 
-    /** A sent file keeps a copy, streamed from the picked file, as a downloaded received file does; a failure is the row error. */
-    internal fun keepSent(id: Long, c: Chosen, name: String) {
+    /** Keys of the sent copies being kept now: their rows show no file state until the copy is done. */
+    private val copying: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
+    /** The row error of a sent copy that storage could not hold even as a state file: shown for this run of the app. */
+    private val unsaved = java.util.concurrent.ConcurrentHashMap<String, FileState>()
+
+    /** Keeps the copy of a sent file after the send result is given. */
+    internal fun keepLater(id: Long, c: Chosen, name: String): Job = scope.launch(Dispatchers.IO) { keepSent(id, c, name) }
+
+    /**
+     * A sent file keeps a copy, streamed from the picked file, as a downloaded received file does. A failure is the
+     * row error of a received download (storage full, else the file could not be read); it never throws.
+     */
+    internal fun keepSent(id: Long, c: Chosen, name: String, store: FileStore = g.fileStore) {
         val k = ReceivedFiles.key(id)
+        copying += k
         try {
             val input = g.app.contentResolver.openInputStream(Uri.parse(c.uri)) ?: throw FileChangedException()
-            if (input.use { g.fileStore.keepSent(k, it, c.size, name) }) g.files.enforceLimit()
+            if (input.use { store.keepSent(k, it, c.size, name) }) g.files.enforceLimit()
         } catch (e: Exception) {
             Log.w("PushArmor", "sent copy", e)
-            g.fileStore.locked(k) { g.fileStore.put(k, com.pusharmor.app.files.FileState(code = FinalCode.FAILED, text = FileUi.unreadable(name))) }
-        }
+            val free = store.freeBytes()
+            val full = !FileRules.enoughStorage(free, c.size) || (e is IOException && e !is FileChangedException && (free ?: Long.MAX_VALUE) < c.size)
+            val s = if (full) FileState(code = FinalCode.STORAGE, text = FileRules.storageFullText(false, name)) else FileState(code = FinalCode.FAILED, text = FileUi.unreadable(name))
+            try { store.locked(k) { store.put(k, s) } } catch (e2: Exception) { Log.w("PushArmor", "sent copy state", e2); unsaved[k] = s }
+        } finally { copying -= k }
         refreshQuiet()
     }
 
@@ -163,9 +182,9 @@ class FileModel(private val g: Graph, private val scope: CoroutineScope, private
         for (h in g.dao.fileRows()) {
             val f = ReceivedFiles.fileOf(h) ?: continue
             val k = ReceivedFiles.key(h.id)
-            // a sent file with nothing stored (sent before sent files kept a copy) has no file row state
-            if (h.direction != "RECEIVED" && !g.fileStore.dir(k).exists()) continue
-            val s = g.fileStore.state(k)
+            // a sent file with nothing stored (sent before sent files kept a copy) or its copy being kept has no file row state
+            if (h.direction != "RECEIVED" && (k in copying || (!unsaved.containsKey(k) && !g.fileStore.dir(k).exists()))) continue
+            val s = unsaved[k] ?: g.fileStore.state(k)
             val plain = s.plain?.let { File(g.fileStore.outDir(k), it) }?.takeIf { it.isFile }
             val st = FileUi.status(s, k in runningKeys, g.fileStore.blob(k).length(), plain != null, f.size, f.expires, now)
             val image = plain != null && synchronized(images) { images.getOrPut(k) { decodes(plain) } }
@@ -257,6 +276,7 @@ class FileModel(private val g: Graph, private val scope: CoroutineScope, private
 
     /** A tap on Download. */
     fun download(id: Long): Job = scope.launch(Dispatchers.IO) {
+        unsaved.remove(ReceivedFiles.key(id))
         g.dao.history(id)?.let { g.files.download(it) }
         refresh()
     }

@@ -145,4 +145,32 @@ class SentFilesTest {
         assertEquals("n.bin", g.fileStore.state(ReceivedFiles.key(next)).plain)
         c.delete()
     }
+
+    /** Storage full while keeping the copy, even for the state file: no throw (the send stays sent), and the row shows storage full. */
+    @Test fun aFullDiskWhileKeepingTheCopyIsTheRowErrorNotASendError() = io {
+        val id = sentRow("a.pdf")
+        val k = ReceivedFiles.key(id)
+        val root = Files.createTempDirectory("pa-full").toFile()
+        try {
+            val store = FileStore(root, usableSpace = { 6000 })
+            // the state file cannot be written either
+            File(store.dir(k), "state.tmp").mkdirs()
+            m.keepSent(id, picked("a.pdf"), "a.pdf", store)
+            val r = row(id)!!
+            assertEquals(FileUi.Status.Failed("Not enough storage to download \"a.pdf\"", true, FileUi.expiresText(nowSec + 3600, nowSec)), r.status)
+        } finally { root.deleteRecursively() }
+    }
+
+    /** The copy is kept after the send result: holding the file lock does not hold up the call that starts it. */
+    @Test fun theSendResultDoesNotWaitForTheCopy() = io {
+        val id = sentRow("a.pdf")
+        val k = ReceivedFiles.key(id)
+        val job = g.fileStore.locked(k) {
+            val j = m.keepLater(id, picked("a.pdf"), "a.pdf")
+            assertNull(g.fileStore.state(k).plain)
+            j
+        }
+        runBlocking { job.join() }
+        assertEquals("a.pdf", g.fileStore.state(k).plain)
+    }
 }
