@@ -1262,13 +1262,17 @@ function collisionSection() {
     ['ten', 'a.pdf', ten],
     ['case_differs', 'Photo.jpg', ['photo.jpg']],
     ['case_differs_numbered', 'Photo.jpg', ['PHOTO.JPG', 'photo (1).jpg']],
+    ['case_same_numbered_differs', 'Photo.jpg', ['Photo.jpg', 'PHOTO (1).jpg']],
   ];
   return {
     description:
       'CLI listen --files DIR: when the sanitized name exists in DIR, use "base (N).ext" with the smallest N >= 1 that ' +
-      'is free; names match ignoring case (ASCII, as names are sanitized); base and ext split as names step 5 (no ext -> "base (N)"). existing = names already in DIR. Assert ' +
-      'collide(name, existing) == output.',
-    cases: cs.map(([name, n, existing]) => ({ name, input: n, existing, output: collisionName(n, existing) })),
+      'is free; base and ext split as names step 5 (no ext -> "base (N)"). existing = names already in DIR. mode ' +
+      '"ignore_case" when DIR is on a case-insensitive file system (detected per DIR at run time): names match ' +
+      'ignoring case (ASCII, as names are sanitized); mode "exact" elsewhere: names match exactly. Every case is ' +
+      'given in both modes. Assert collide(name, existing, mode) == output.',
+    cases: ['ignore_case', 'exact'].flatMap((mode) =>
+      cs.map(([name, n, existing]) => ({ name, mode, input: n, existing, output: collisionName(n, existing, mode) }))),
   };
 }
 

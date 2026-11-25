@@ -91,14 +91,17 @@ export function sanitizeName(raw, timeSec, image) {
   return out;
 }
 
-// CLI listen --files DIR: "base (N).ext", N from 1; names match ignoring case.
-export function collisionName(name, existing) {
-  const have = new Set(existing.map((e) => e.toLowerCase()));
-  if (!have.has(name.toLowerCase())) return name;
+// CLI listen --files DIR: "base (N).ext", N from 1. mode "ignore_case" (DIR is on a case-insensitive file
+// system): names match ignoring ASCII case; mode "exact": names match exactly.
+export function collisionName(name, existing, mode) {
+  if (mode !== 'ignore_case' && mode !== 'exact') throw new Error('collision mode: ' + mode);
+  const key = mode === 'ignore_case' ? (s) => s.toLowerCase() : (s) => s;
+  const have = new Set(existing.map(key));
+  if (!have.has(key(name))) return name;
   const [base, ext] = splitExt(name);
   for (let n = 1; ; n++) {
     const c = base + ' (' + n + ')' + (ext ? '.' + ext : '');
-    if (!have.has(c.toLowerCase())) return c;
+    if (!have.has(key(c))) return c;
   }
 }
 

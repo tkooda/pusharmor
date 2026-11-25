@@ -114,7 +114,8 @@ test("file-v1 upload_request: headers from the body", async () => {
 
 test("file-v1 names and collisions", () => {
   for (const c of V.names.cases) assert.equal(sanitizeName(c.input, V.names.time, c.image), c.output, JSON.stringify(c.input));
-  for (const c of V.collision.cases) assert.equal(collide(c.input, c.existing), c.output, c.name);
+  // the browser picks the saved name and settles conflicts; collide is the ignore_case mode
+  for (const c of V.collision.cases.filter((c: { mode: string }) => c.mode === "ignore_case")) assert.equal(collide(c.input, c.existing), c.output, c.name);
 });
 
 test("file-v1 auto_download: browser and cli rows", () => {

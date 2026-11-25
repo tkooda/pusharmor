@@ -2096,6 +2096,7 @@
       {
         "existing": [],
         "input": "report.pdf",
+        "mode": "ignore_case",
         "name": "free",
         "output": "report.pdf"
       },
@@ -2104,6 +2105,7 @@
           "report.pdf"
         ],
         "input": "report.pdf",
+        "mode": "ignore_case",
         "name": "taken",
         "output": "report (1).pdf"
       },
@@ -2113,6 +2115,7 @@
           "report (1).pdf"
         ],
         "input": "report.pdf",
+        "mode": "ignore_case",
         "name": "next_free",
         "output": "report (2).pdf"
       },
@@ -2123,6 +2126,7 @@
           "report (3).pdf"
         ],
         "input": "report.pdf",
+        "mode": "ignore_case",
         "name": "gap",
         "output": "report (2).pdf"
       },
@@ -2131,6 +2135,7 @@
           "report (1).pdf"
         ],
         "input": "report.pdf",
+        "mode": "ignore_case",
         "name": "only_numbered_taken",
         "output": "report.pdf"
       },
@@ -2139,6 +2144,7 @@
           "README"
         ],
         "input": "README",
+        "mode": "ignore_case",
         "name": "no_ext",
         "output": "README (1)"
       },
@@ -2147,6 +2153,7 @@
           "archive.tar.gz"
         ],
         "input": "archive.tar.gz",
+        "mode": "ignore_case",
         "name": "last_dot_ext",
         "output": "archive.tar (1).gz"
       },
@@ -2155,6 +2162,7 @@
           "report (1).pdf"
         ],
         "input": "report (1).pdf",
+        "mode": "ignore_case",
         "name": "already_numbered",
         "output": "report (1) (1).pdf"
       },
@@ -2163,6 +2171,7 @@
           "x.abcdefghijk"
         ],
         "input": "x.abcdefghijk",
+        "mode": "ignore_case",
         "name": "long_ext_is_base",
         "output": "x.abcdefghijk (1)"
       },
@@ -2180,6 +2189,7 @@
           "a (9).pdf"
         ],
         "input": "a.pdf",
+        "mode": "ignore_case",
         "name": "ten",
         "output": "a (10).pdf"
       },
@@ -2188,6 +2198,7 @@
           "photo.jpg"
         ],
         "input": "Photo.jpg",
+        "mode": "ignore_case",
         "name": "case_differs",
         "output": "Photo (1).jpg"
       },
@@ -2197,11 +2208,151 @@
           "photo (1).jpg"
         ],
         "input": "Photo.jpg",
+        "mode": "ignore_case",
         "name": "case_differs_numbered",
         "output": "Photo (2).jpg"
+      },
+      {
+        "existing": [
+          "Photo.jpg",
+          "PHOTO (1).jpg"
+        ],
+        "input": "Photo.jpg",
+        "mode": "ignore_case",
+        "name": "case_same_numbered_differs",
+        "output": "Photo (2).jpg"
+      },
+      {
+        "existing": [],
+        "input": "report.pdf",
+        "mode": "exact",
+        "name": "free",
+        "output": "report.pdf"
+      },
+      {
+        "existing": [
+          "report.pdf"
+        ],
+        "input": "report.pdf",
+        "mode": "exact",
+        "name": "taken",
+        "output": "report (1).pdf"
+      },
+      {
+        "existing": [
+          "report.pdf",
+          "report (1).pdf"
+        ],
+        "input": "report.pdf",
+        "mode": "exact",
+        "name": "next_free",
+        "output": "report (2).pdf"
+      },
+      {
+        "existing": [
+          "report.pdf",
+          "report (1).pdf",
+          "report (3).pdf"
+        ],
+        "input": "report.pdf",
+        "mode": "exact",
+        "name": "gap",
+        "output": "report (2).pdf"
+      },
+      {
+        "existing": [
+          "report (1).pdf"
+        ],
+        "input": "report.pdf",
+        "mode": "exact",
+        "name": "only_numbered_taken",
+        "output": "report.pdf"
+      },
+      {
+        "existing": [
+          "README"
+        ],
+        "input": "README",
+        "mode": "exact",
+        "name": "no_ext",
+        "output": "README (1)"
+      },
+      {
+        "existing": [
+          "archive.tar.gz"
+        ],
+        "input": "archive.tar.gz",
+        "mode": "exact",
+        "name": "last_dot_ext",
+        "output": "archive.tar (1).gz"
+      },
+      {
+        "existing": [
+          "report (1).pdf"
+        ],
+        "input": "report (1).pdf",
+        "mode": "exact",
+        "name": "already_numbered",
+        "output": "report (1) (1).pdf"
+      },
+      {
+        "existing": [
+          "x.abcdefghijk"
+        ],
+        "input": "x.abcdefghijk",
+        "mode": "exact",
+        "name": "long_ext_is_base",
+        "output": "x.abcdefghijk (1)"
+      },
+      {
+        "existing": [
+          "a.pdf",
+          "a (1).pdf",
+          "a (2).pdf",
+          "a (3).pdf",
+          "a (4).pdf",
+          "a (5).pdf",
+          "a (6).pdf",
+          "a (7).pdf",
+          "a (8).pdf",
+          "a (9).pdf"
+        ],
+        "input": "a.pdf",
+        "mode": "exact",
+        "name": "ten",
+        "output": "a (10).pdf"
+      },
+      {
+        "existing": [
+          "photo.jpg"
+        ],
+        "input": "Photo.jpg",
+        "mode": "exact",
+        "name": "case_differs",
+        "output": "Photo.jpg"
+      },
+      {
+        "existing": [
+          "PHOTO.JPG",
+          "photo (1).jpg"
+        ],
+        "input": "Photo.jpg",
+        "mode": "exact",
+        "name": "case_differs_numbered",
+        "output": "Photo.jpg"
+      },
+      {
+        "existing": [
+          "Photo.jpg",
+          "PHOTO (1).jpg"
+        ],
+        "input": "Photo.jpg",
+        "mode": "exact",
+        "name": "case_same_numbered_differs",
+        "output": "Photo (1).jpg"
       }
     ],
-    "description": "CLI listen --files DIR: when the sanitized name exists in DIR, use \"base (N).ext\" with the smallest N >= 1 that is free; names match ignoring case (ASCII, as names are sanitized); base and ext split as names step 5 (no ext -> \"base (N)\"). existing = names already in DIR. Assert collide(name, existing) == output."
+    "description": "CLI listen --files DIR: when the sanitized name exists in DIR, use \"base (N).ext\" with the smallest N >= 1 that is free; base and ext split as names step 5 (no ext -> \"base (N)\"). existing = names already in DIR. mode \"ignore_case\" when DIR is on a case-insensitive file system (detected per DIR at run time): names match ignoring case (ASCII, as names are sanitized); mode \"exact\" elsewhere: names match exactly. Every case is given in both modes. Assert collide(name, existing, mode) == output."
   },
   "constants": {
     "BLOB_OVERHEAD": 28,

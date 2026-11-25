@@ -28,7 +28,8 @@ class FileTest {
     }
 
     @Test fun collisionVectors() {
-        for (c in FileVectors.cases("collision")) {
+        // the app saves through the system picker and matches no names itself; FileName.collide is the ignore_case mode
+        for (c in FileVectors.cases("collision").filter { it.str("mode") == "ignore_case" }) {
             assertEquals(c.str("name"), c.str("output"), FileName.collide(c.str("input"), c["existing"]!!.jsonArray.map { it.jsonPrimitive.content }))
         }
     }

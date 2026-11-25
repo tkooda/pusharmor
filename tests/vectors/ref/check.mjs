@@ -497,8 +497,11 @@ test('file-v1: names', () => {
 });
 
 test('file-v1: collision', () => {
-  for (const c of F.collision.cases) assert.equal(collisionName(c.input, c.existing), c.output, c.name);
-  assert.equal(collisionName('Photo.jpg', ['photo.jpg']), 'Photo (1).jpg');
+  for (const c of F.collision.cases) assert.equal(collisionName(c.input, c.existing, c.mode), c.output, c.name + ' ' + c.mode);
+  assert.equal(collisionName('Photo.jpg', ['photo.jpg'], 'ignore_case'), 'Photo (1).jpg');
+  assert.equal(collisionName('Photo.jpg', ['photo.jpg'], 'exact'), 'Photo.jpg');
+  assert.equal(collisionName('Photo.jpg', ['Photo.jpg', 'PHOTO (1).jpg'], 'exact'), 'Photo (1).jpg');
+  for (const mode of ['ignore_case', 'exact']) assert.ok(F.collision.cases.some((c) => c.mode === mode), mode);
 });
 
 test('file-v1: auto_download', () => {
