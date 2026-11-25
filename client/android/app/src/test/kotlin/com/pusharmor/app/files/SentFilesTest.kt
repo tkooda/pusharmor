@@ -37,6 +37,8 @@ class SentFilesTest {
     private val g get() = app.graph
     private val bytes = ByteArray(5000) { (it * 7).toByte() }
     private val nowSec = System.currentTimeMillis() / 1000
+    /** Two hours, not one: "1 h" turns into "60 min" when a second passes between nowSec and the row read. */
+    private val expires = nowSec + 7200
     private val key43 = com.pusharmor.crypto.B64url.encode(ByteArray(32) { it.toByte() })
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val m = FileModel(g, scope) {}
@@ -47,7 +49,7 @@ class SentFilesTest {
     private fun io(b: () -> Unit) = runBlocking(Dispatchers.IO) { b() }
 
     private fun sentRow(name: String, size: Long = bytes.size.toLong(), at: Long = System.currentTimeMillis()): Long =
-        g.dao.insertHistory(HistoryEntity(direction = "SENT", peerId = null, type = "file", content = FileValue("https://b2file.pusharmor.com/v1/x", nowSec + 3600, key43, name, size, key43).toJson(),
+        g.dao.insertHistory(HistoryEntity(direction = "SENT", peerId = null, type = "file", content = FileValue("https://b2file.pusharmor.com/v1/x", expires, key43, name, size, key43).toJson(),
             n = null, pairingId = null, at = at, read = true, results = "", count = 1))
 
     private fun picked(name: String): FileModel.Chosen {
@@ -86,7 +88,7 @@ class SentFilesTest {
         val k = ReceivedFiles.key(id)
         assertFalse(g.fileStore.outDir(k).exists())
         val r = row(id)!!
-        assertEquals(FileUi.Status.Failed(FileUi.unreadable("a.pdf"), true, FileUi.expiresText(nowSec + 3600, nowSec)), r.status)
+        assertEquals(FileUi.Status.Failed(FileUi.unreadable("a.pdf"), true, FileUi.expiresText(expires, nowSec)), r.status)
     }
 
     @Test fun rowDeleteAndHistoryAutoDeleteRemoveTheCopy() = io {
@@ -122,7 +124,7 @@ class SentFilesTest {
         m.keepSent(id, picked("a.pdf"), "a.pdf")
         g.files.wipe()
         val r = row(id)!!
-        assertEquals(FileUi.Status.Failed(FileUi.REMOVED, true, FileUi.expiresText(nowSec + 3600, nowSec)), r.status)
+        assertEquals(FileUi.Status.Failed(FileUi.REMOVED, true, FileUi.expiresText(expires, nowSec)), r.status)
         assertFalse(File(g.fileStore.outDir(ReceivedFiles.key(id)), "a.pdf").exists())
         val queued = ArrayList<String>()
         val files = ReceivedFiles(app, g.settings, g.dao, g.fileStore, { key, f, name, _, manual -> queued += "$key:$name:$manual:${f.size}" }, {}, { nowSec })
@@ -157,7 +159,7 @@ class SentFilesTest {
             File(store.dir(k), "state.tmp").mkdirs()
             m.keepSent(id, picked("a.pdf"), "a.pdf", store)
             val r = row(id)!!
-            assertEquals(FileUi.Status.Failed("Not enough storage to download \"a.pdf\"", true, FileUi.expiresText(nowSec + 3600, nowSec)), r.status)
+            assertEquals(FileUi.Status.Failed("Not enough storage to download \"a.pdf\"", true, FileUi.expiresText(expires, nowSec)), r.status)
         } finally { root.deleteRecursively() }
     }
 
