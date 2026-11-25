@@ -54,9 +54,14 @@
     // RL_FILE: POST /v1/file attempts per device (key "file:" + peer id).
     { "name": "RL_FILE", "namespace_id": "1014", "simple": { "limit": 5, "period": 60 } },
     // RL_DL_IP and RL_DL_KEY: file downloads on the file host, per IP (key "ip:" + IP or IPv6 /64)
-    // and per object key (key "dl:" + key).
-    { "name": "RL_DL_IP", "namespace_id": "1015", "simple": { "limit": 20, "period": 60 } },
-    { "name": "RL_DL_KEY", "namespace_id": "1016", "simple": { "limit": 10, "period": 60 } }
+    // and per object key (key "dl:" + key). RL_DL_PEER_KEY, RL_DL_PEER and RL_DL_ACCT: signed
+    // downloads per device and object key (key "dl:" + peer id + ":" + key), per device (key
+    // "id:" + peer id) and per account (key "acct:" + account id).
+    { "name": "RL_DL_IP", "namespace_id": "1015", "simple": { "limit": 60, "period": 60 } },
+    { "name": "RL_DL_KEY", "namespace_id": "1016", "simple": { "limit": 30, "period": 60 } },
+    { "name": "RL_DL_PEER_KEY", "namespace_id": "1017", "simple": { "limit": 5, "period": 60 } },
+    { "name": "RL_DL_PEER", "namespace_id": "1018", "simple": { "limit": 30, "period": 60 } },
+    { "name": "RL_DL_ACCT", "namespace_id": "1019", "simple": { "limit": 120, "period": 60 } }
   ],
   // FILE_QUOTA: one object per account (named by the account id) holding the file upload counts.
   "durable_objects": { "bindings": [{ "name": "FILE_QUOTA", "class_name": "FileQuota" }] },

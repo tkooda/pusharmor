@@ -17,6 +17,9 @@ export interface Env {
   RL_FILE: RateLimit;
   RL_DL_IP: RateLimit;
   RL_DL_KEY: RateLimit;
+  RL_DL_PEER_KEY: RateLimit;
+  RL_DL_PEER: RateLimit;
+  RL_DL_ACCT: RateLimit;
   FILE_QUOTA: DurableObjectNamespace<import("./file/quota").FileQuota>;
 
   PA_ALLOWED_PUSH_ENDPOINTS: string;

@@ -161,7 +161,7 @@ describe("crons", () => {
     expect(got).toEqual({
       RL_IP: [100, 60], RL_PEER: [30, 60], RL_MAIL_EMAIL: [2, 60], RL_MAIL_IP: [10, 60], RL_MAIL_GLOBAL: [600, 60],
       RL_CODE: [5, 60], RL_PAIR: [1, 60], RL_PROBE: [2, 60], RL_ACCT: [60, 60], RL_FILE: [5, 60],
-      RL_DL_IP: [20, 60], RL_DL_KEY: [10, 60],
+      RL_DL_IP: [60, 60], RL_DL_KEY: [30, 60], RL_DL_PEER_KEY: [5, 60], RL_DL_PEER: [30, 60], RL_DL_ACCT: [120, 60],
     });
     const union = /export type Binding = ([^;]+);/.exec(limitsSrc)![1].match(/RL_[A-Z_]+/g)!;
     expect([...union].sort()).toEqual(Object.keys(got).sort());

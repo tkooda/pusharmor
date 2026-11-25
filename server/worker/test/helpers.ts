@@ -6,7 +6,7 @@ import { b64urlEncode } from "../src/codec/b64url";
 import { utf8 } from "../src/crypto/hash";
 import { accountId, emailHash, peerId } from "../src/crypto/ids";
 import { CLI_WINDOW_S, keyRef, keyRef16, makeCliCode, makeTicket, type CliPurpose, type Purpose } from "../src/crypto/tokens";
-import { signedBytes } from "../src/pipeline/signed";
+import { downloadSignedBytes, signedBytes } from "../src/pipeline/signed";
 import { deps } from "../src/push/deps";
 import { TEST_SECRETS as S } from "./secrets";
 
@@ -215,6 +215,12 @@ export interface CallResult {
 export async function signReq(key: CryptoKey, method: string, path: string, time: string, body: Uint8Array): Promise<string> {
   const sig = await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, key, signedBytes(method, path, time, body));
   return b64urlEncode(new Uint8Array(sig));
+}
+
+// Headers of a signed file host GET (PA-DL1) by device p.
+export async function dlHeaders(p: { id: string; sign: CryptoKeyPair; signPub: string; encPub: string }, path: string, time = String(Date.now())): Promise<Record<string, string>> {
+  const sig = await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, p.sign.privateKey, downloadSignedBytes(path, time));
+  return { "PA-ID": p.id, "PA-Time": time, "PA-Sig": b64urlEncode(new Uint8Array(sig)), "PA-Sign-Pub": p.signPub, "PA-Enc-Pub": p.encPub };
 }
 
 export async function call(method: string, path: string, body?: unknown, o: CallOpts = {}): Promise<CallResult> {

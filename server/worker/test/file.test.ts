@@ -12,7 +12,7 @@ import { BLOB_OVERHEAD, MAX_FILE, acctHash, fileName, hex, minuteOf, testing, tt
 import { chargeRow, dayOf, MAX_SLOTS, refundRow, type QuotaRow } from "../src/file/quota";
 import { testing as logTesting } from "../src/log";
 import { storeDeps, type FileStore, type GetResult, type PutResult, type RemoveResult, type Version } from "../src/file/store";
-import { captured, countingLimit, freshIp, initP256, newPeer, randBytes, randomEmail, setAllow, testEnv, type Peer } from "./helpers";
+import { captured, countingLimit, dlHeaders, freshIp, initP256, newPeer, randBytes, randomEmail, setAllow, testEnv, type Peer } from "./helpers";
 import { TEST_SECRETS as S } from "./secrets";
 
 beforeAll(initP256);
@@ -652,7 +652,9 @@ describe("caps per kind", () => {
     expect((await upload({ peer: a })).status).toBe(503);
     expect((await upload({ peer: a })).status).toBe(503);
     const ctx = createExecutionContext();
-    const res = await handle(new Request(up.body.url as string, { headers: { "CF-Connecting-IP": freshIp() } }), await looseEnv({ RL_DL_IP: countingLimit(1e6), RL_DL_KEY: countingLimit(1e6) }), ctx);
+    const url = up.body.url as string;
+    const headers = { "CF-Connecting-IP": freshIp(), ...(await dlHeaders(a, new URL(url).pathname)) };
+    const res = await handle(new Request(url, { headers }), await looseEnv({ RL_DL_IP: countingLimit(1e6), RL_DL_KEY: countingLimit(1e6), RL_DL_PEER_KEY: countingLimit(1e6), RL_DL_PEER: countingLimit(1e6), RL_DL_ACCT: countingLimit(1e6) }), ctx);
     await waitOnExecutionContext(ctx);
     expect(res.status).toBe(200);
   });

@@ -4,14 +4,18 @@
 // as long as it exists in storage (it is deleted a few minutes after it expires); a key minute
 // more than 24 h + 1 min ahead, or more than 24 h + 5 min behind, is 404 with no storage call. Every reply carries a fixed header
 // set; nothing comes from storage metadata except the length, Content-Range and ETag.
+// Every GET is signed by a device of the account in the key (PA-DL1), checked with no D1 read:
+// PA-ID carries the account and the keyhash, PA-Sign-Pub and PA-Enc-Pub carry the device keys.
 import type { Ctx } from "../context";
 import type { Env } from "../env";
 import { ApiError } from "../errors";
 import { errorResponse } from "../http";
 import type { Log } from "../log";
 import { enforce, ipKey } from "../pipeline/limits";
+import { checkKeyhash, checkSig, downloadSignedBytes } from "../pipeline/signed";
 import { storeDeps } from "../file/store";
-import { AHEAD_MAX, capHit, capLeft, minuteStart, paused, storageError } from "./file";
+import { signedStart } from "./common";
+import { AHEAD_MAX, acctHash, capHit, capLeft, minuteStart, paused, storageError } from "./file";
 
 export const FILE_HOSTNAME = "b2file.pusharmor.com";
 
@@ -40,6 +44,19 @@ const FIXED: Record<string, string> = {
   "Referrer-Policy": "no-referrer",
 };
 
+// Preflight for the browser extensions (they have no host permission for the file host).
+function preflight(): Response {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET",
+      "Access-Control-Allow-Headers": "PA-ID, PA-Time, PA-Sig, PA-Sign-Pub, PA-Enc-Pub, Range",
+      "Cache-Control": "no-store",
+    },
+  });
+}
+
 // Error replies: JSON body, readable from any origin, never sniffed or cached.
 export function errorReply(e: ApiError): Response {
   const res = errorResponse(e);
@@ -51,6 +68,7 @@ export function errorReply(e: ApiError): Response {
 }
 
 async function serve(c: Ctx): Promise<Response> {
+  if (c.method === "OPTIONS" && c.req.headers.has("Access-Control-Request-Method")) return preflight();
   if (c.method !== "GET") throw new ApiError(405, "method not allowed");
   if (c.req.url.includes("?")) throw new ApiError(404, "not found");
   const m = KEY.exec(c.path);
@@ -60,6 +78,24 @@ async function serve(c: Ctx): Promise<Response> {
   if (m[1] !== m[3] || start === null || start > now + AHEAD_MAX || start < now - BEHIND_MAX) throw new ApiError(404, "not found");
   const key = "v1/" + m[1] + "/" + m[2] + "/" + m[3] + "-" + m[4];
   await enforce(c.env, "RL_DL_IP", ipKey(c.req.headers.get("CF-Connecting-IP") ?? ""), c.log);
+  // Signed by a device (no D1): keys match the PA-ID keyhash, PA-Sig over PA-DL1.
+  const s = await signedStart(c);
+  const signPub = c.req.headers.get("PA-Sign-Pub") ?? "";
+  await checkKeyhash(s.me, signPub, c.req.headers.get("PA-Enc-Pub") ?? "");
+  await checkSig(signPub, c.req.headers, c.method, c.path, s.paTime, c.body, downloadSignedBytes(c.path, s.paTime));
+  // Device and account limits are charged only after the signature passes (see callerCheck).
+  await enforce(c.env, "RL_DL_PEER", "id:" + s.me, c.log);
+  await enforce(c.env, "RL_DL_ACCT", "acct:" + s.acct, c.log);
+  let hash: string;
+  try {
+    hash = await acctHash(c.env.FILE_ACCT_SECRET, s.acct);
+  } catch {
+    throw paused(c, "config");
+  }
+  // A device of another account: 403, before any per-file limit, so it cannot use up the
+  // file's budget.
+  if (hash !== m[2]) throw new ApiError(403, "wrong account");
+  await enforce(c.env, "RL_DL_PEER_KEY", "dl:" + s.me + ":" + key, c.log);
   await enforce(c.env, "RL_DL_KEY", "dl:" + key, c.log);
   if (capLeft(now, "download") > 0) throw paused(c, "cap", capLeft(now, "download"));
   const store = storeDeps.store(c.env);

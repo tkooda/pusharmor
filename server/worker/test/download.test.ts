@@ -1,12 +1,35 @@
-// File host b2file.pusharmor.com: key pattern, fixed headers, Range, limits, storage errors.
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+// File host b2file.pusharmor.com: key pattern, signed GET, fixed headers, Range, limits, storage errors.
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
 import { handle } from "../src/index";
 import type { Env } from "../src/env";
-import { minuteOf, testing } from "../src/routes/file";
+import { b64urlEncode } from "../src/codec/b64url";
+import { peerId } from "../src/crypto/ids";
+import { acctHash, minuteOf, testing } from "../src/routes/file";
 import { storeDeps, type FileStore, type GetResult } from "../src/file/store";
 import { testing as logTesting } from "../src/log";
-import { captured, countingLimit, freshIp, randBytes, testEnv } from "./helpers";
+import { captured, countingLimit, dlHeaders, freshIp, keys, randBytes, testEnv } from "./helpers";
+import { TEST_SECRETS as S } from "./secrets";
+
+interface Device {
+  id: string;
+  acct: string;
+  hash: string;
+  sign: CryptoKeyPair;
+  signPub: string;
+  encPub: string;
+}
+
+// A device of a fresh account (no D1 row: the file host never reads one).
+async function device(acct = b64urlEncode(randBytes(9))): Promise<Device> {
+  const k = await keys();
+  return { id: await peerId(S.PA_ID_SECRET, acct, k.signRaw, k.encRaw), acct, hash: await acctHash(S.FILE_ACCT_SECRET, acct), sign: k.sign, signPub: k.signPub, encPub: k.encPub };
+}
+
+let dev: Device;
+beforeAll(async () => {
+  dev = await device();
+});
 
 class GetStore {
   objects = new Map<string, Uint8Array>();
@@ -43,18 +66,29 @@ afterEach(() => testing.reset());
 
 const hex = (n: number) => Array.from(randBytes(n), (x) => x.toString(16).padStart(2, "0")).join("");
 
-function newKey(offsetS = 600): string {
+function newKey(offsetS = 600, hash = dev.hash): string {
   const m = minuteOf(Math.floor(Date.now() / 1000) + offsetS);
-  return "v1/" + m + "/" + hex(8) + "/" + m + "-" + hex(16);
+  return "v1/" + m + "/" + hash + "/" + m + "-" + hex(16);
 }
+
+// D1 is never touched on the file host: any use of the DB binding throws.
+const noDb = new Proxy({} as D1Database, {
+  get() {
+    throw new Error("DB used on the file host");
+  },
+});
 
 function looseEnv(over: Partial<Env> = {}): Promise<Env> {
-  return testEnv({ RL_IP: countingLimit(0), RL_DL_IP: countingLimit(1e6), RL_DL_KEY: countingLimit(1e6), ...over });
+  const n = () => countingLimit(1e6);
+  return testEnv({ DB: noDb, RL_IP: countingLimit(0), RL_DL_IP: n(), RL_DL_KEY: n(), RL_DL_PEER_KEY: n(), RL_DL_PEER: n(), RL_DL_ACCT: n(), ...over });
 }
 
-async function get(path: string, o: { env?: Env; method?: string; headers?: Record<string, string>; ip?: string } = {}): Promise<Response> {
+// Signed by `signer` (default: dev) unless `signer` is null.
+async function get(path: string, o: { env?: Env; method?: string; headers?: Record<string, string>; ip?: string; signer?: Device | null; time?: string } = {}): Promise<Response> {
   const ctx = createExecutionContext();
-  const req = new Request("https://b2file.pusharmor.com" + path, { method: o.method ?? "GET", headers: { "CF-Connecting-IP": o.ip ?? freshIp(), ...o.headers } });
+  const signer = o.signer === undefined ? dev : o.signer;
+  const sig = signer ? await dlHeaders(signer, path, o.time) : {};
+  const req = new Request("https://b2file.pusharmor.com" + path, { method: o.method ?? "GET", headers: { "CF-Connecting-IP": o.ip ?? freshIp(), ...sig, ...o.headers } });
   const res = await handle(req, o.env ?? (await looseEnv()), ctx);
   await waitOnExecutionContext(ctx);
   return res;
@@ -145,7 +179,7 @@ describe("file host", () => {
     expect(res.status).toBe(404);
     expect(store.gets).toEqual([]);
     const recent = minuteOf(now - 86400 + 120);
-    expect((await get(`/v1/${recent}/${hex(8)}/${recent}-${hex(16)}`)).status).toBe(404);
+    expect((await get(`/v1/${recent}/${dev.hash}/${recent}-${hex(16)}`)).status).toBe(404);
     expect(store.gets).toHaveLength(1);
   });
 
@@ -195,6 +229,15 @@ describe("file host", () => {
     expect(store.gets).toEqual([]);
   });
 
+  it("a CORS preflight -> 204 allowing GET with the signed download headers, no storage call", async () => {
+    const res = await get("/" + newKey(), { method: "OPTIONS", signer: null, headers: { Origin: "chrome-extension://abc", "Access-Control-Request-Method": "GET", "Access-Control-Request-Headers": "pa-id,pa-time,pa-sig,pa-sign-pub,pa-enc-pub" } });
+    expect(res.status).toBe(204);
+    expect(res.headers.get("Access-Control-Allow-Origin")).toBe("*");
+    expect(res.headers.get("Access-Control-Allow-Methods")).toBe("GET");
+    expect(res.headers.get("Access-Control-Allow-Headers")).toBe("PA-ID, PA-Time, PA-Sig, PA-Sign-Pub, PA-Enc-Pub, Range");
+    expect(store.gets).toEqual([]);
+  });
+
   it("GET only: other methods -> 405", async () => {
     const key = newKey();
     for (const method of ["POST", "PUT", "DELETE", "HEAD", "OPTIONS"]) {
@@ -205,20 +248,51 @@ describe("file host", () => {
     expect(store.gets).toEqual([]);
   });
 
-  it("per IP 20/min and per key 10/min -> 429 rate limited", async () => {
+  it("per IP 60/min and per key 30/min -> 429 rate limited", async () => {
     const key = newKey();
     store.objects.set(key, randBytes(5));
-    const env = await looseEnv({ RL_DL_IP: countingLimit(20), RL_DL_KEY: countingLimit(10) });
-    for (let i = 0; i < 10; i++) expect((await get("/" + key, { env })).status).toBe(200);
-    const r = await get("/" + key, { env });
+    const env = await looseEnv({ RL_DL_IP: countingLimit(60), RL_DL_KEY: countingLimit(30) });
+    for (let i = 0; i < 30; i++) expect((await get("/" + key, { env, signer: await device(dev.acct) })).status).toBe(200);
+    const r = await get("/" + key, { env, signer: await device(dev.acct) });
     expect(r.status).toBe(429);
     expect(await r.json()).toMatchObject({ error: "rate limited" });
     const ip = freshIp();
-    const env2 = await looseEnv({ RL_DL_IP: countingLimit(20), RL_DL_KEY: countingLimit(10) });
-    for (let i = 0; i < 20; i++) expect((await get("/" + newKey(), { env: env2, ip })).status).toBe(404);
+    const env2 = await looseEnv({ RL_DL_IP: countingLimit(60), RL_DL_KEY: countingLimit(30) });
+    for (let i = 0; i < 60; i++) expect((await get("/" + newKey(), { env: env2, ip })).status).toBe(404);
     expect((await get("/" + newKey(), { env: env2, ip })).status).toBe(429);
     expect((env2.RL_DL_IP as ReturnType<typeof countingLimit>).seen[0]).toBe("ip:" + ip);
     expect((env.RL_DL_KEY as ReturnType<typeof countingLimit>).seen[0]).toBe("dl:" + key);
+  });
+
+  it("per device per key 5/min, per device 30/min, per account 120/min -> 429 with retry_after", async () => {
+    const key = newKey();
+    store.objects.set(key, randBytes(5));
+    const env = await looseEnv({ RL_DL_PEER_KEY: countingLimit(5) });
+    for (let i = 0; i < 5; i++) expect((await get("/" + key, { env })).status).toBe(200);
+    const r1 = await get("/" + key, { env });
+    expect(r1.status).toBe(429);
+    expect(await r1.json()).toMatchObject({ error: "rate limited", retry_after: expect.any(Number) });
+    expect((env.RL_DL_PEER_KEY as ReturnType<typeof countingLimit>).seen[0]).toBe("dl:" + dev.id + ":" + key);
+    expect((await get("/" + key, { env, signer: await device(dev.acct) })).status).toBe(200);
+
+    const env2 = await looseEnv({ RL_DL_PEER: countingLimit(30) });
+    for (let i = 0; i < 30; i++) expect((await get("/" + newKey(), { env: env2 })).status).toBe(404);
+    const r2 = await get("/" + key, { env: env2 });
+    expect(r2.status).toBe(429);
+    expect(await r2.json()).toMatchObject({ error: "rate limited", retry_after: expect.any(Number) });
+    expect((env2.RL_DL_PEER as ReturnType<typeof countingLimit>).seen[0]).toBe("id:" + dev.id);
+    expect((await get("/" + key, { env: env2, signer: await device(dev.acct) })).status).toBe(200);
+
+    const env3 = await looseEnv({ RL_DL_ACCT: countingLimit(120) });
+    for (let i = 0; i < 120; i++) expect((await get("/" + newKey(), { env: env3, signer: await device(dev.acct) })).status).toBe(404);
+    const r3 = await get("/" + key, { env: env3, signer: await device(dev.acct) });
+    expect(r3.status).toBe(429);
+    expect(await r3.json()).toMatchObject({ error: "rate limited", retry_after: expect.any(Number) });
+    expect((env3.RL_DL_ACCT as ReturnType<typeof countingLimit>).seen[0]).toBe("acct:" + dev.acct);
+    const other = await device();
+    store.objects.set(newKey(600, other.hash), randBytes(1));
+    const okey = [...store.objects.keys()].pop()!;
+    expect((await get("/" + okey, { env: env3, signer: other })).status).toBe(200);
   });
 
   it("a storage error -> 502", async () => {
@@ -246,5 +320,77 @@ describe("file host", () => {
     const res = await get("/" + newKey());
     expect(res.status).toBe(503);
     expect(await res.json()).toEqual({ error: "files paused" });
+  });
+
+  it("unsigned, a missing or bad PA-Sig, or a missing PA-ID -> 401 with no storage call and no limit charged", async () => {
+    const key = newKey();
+    store.objects.set(key, randBytes(5));
+    const env = await looseEnv();
+    const h = await dlHeaders(dev, "/" + key);
+    const bad = await dlHeaders(dev, "/" + newKey());
+    const cases: [Device | null, Record<string, string>][] = [
+      [dev, { "PA-Sig": bad["PA-Sig"] }],
+      [dev, { "PA-Sig": "x".repeat(86) }],
+      [null, { "PA-ID": h["PA-ID"], "PA-Time": h["PA-Time"], "PA-Sign-Pub": dev.signPub, "PA-Enc-Pub": dev.encPub }],
+      [null, { "PA-Time": h["PA-Time"], "PA-Sig": h["PA-Sig"], "PA-Sign-Pub": dev.signPub, "PA-Enc-Pub": dev.encPub }],
+    ];
+    for (const [signer, headers] of cases) {
+      const res = await get("/" + key, { env, signer, headers });
+      expect(res.status, JSON.stringify(Object.keys(headers))).toBe(401);
+      expect(res.headers.get("Access-Control-Allow-Origin")).toBe("*");
+    }
+    expect(store.gets).toEqual([]);
+    for (const b of ["RL_DL_PEER", "RL_DL_ACCT", "RL_DL_PEER_KEY", "RL_DL_KEY"] as const) expect((env[b] as ReturnType<typeof countingLimit>).seen, b).toEqual([]);
+  });
+
+  it("keys that do not match the PA-ID keyhash -> 401 invalid client signature", async () => {
+    const key = newKey();
+    store.objects.set(key, randBytes(5));
+    const other = await device(dev.acct);
+    // Signed by `other` and sending its keys, but with dev's PA-ID.
+    const h = await dlHeaders(other, "/" + key);
+    const swaps: Record<string, string>[] = [{ "PA-ID": dev.id }, { "PA-ID": dev.id, "PA-Enc-Pub": dev.encPub }, { "PA-Sign-Pub": "" }, { "PA-Enc-Pub": "x" }];
+    for (const headers of swaps) {
+      const res = await get("/" + key, { signer: null, headers: { ...h, ...headers } });
+      expect(res.status).toBe(401);
+      expect(await res.json()).toEqual({ error: "invalid client signature" });
+    }
+    expect(store.gets).toEqual([]);
+  });
+
+  it("a device of another account -> 403 wrong account, before the per-file limits, no storage call", async () => {
+    const key = newKey();
+    store.objects.set(key, randBytes(5));
+    const env = await looseEnv();
+    const res = await get("/" + key, { env, signer: await device() });
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ error: "wrong account" });
+    expect(store.gets).toEqual([]);
+    expect((env.RL_DL_KEY as ReturnType<typeof countingLimit>).seen).toEqual([]);
+    expect((env.RL_DL_PEER_KEY as ReturnType<typeof countingLimit>).seen).toEqual([]);
+  });
+
+  it("a stale or future PA-Time -> 401 clock skew; none -> 400", async () => {
+    const key = newKey();
+    store.objects.set(key, randBytes(5));
+    for (const t of [Date.now() - 301_000, Date.now() + 301_000]) {
+      const res = await get("/" + key, { time: String(t) });
+      expect(res.status).toBe(401);
+      expect(await res.json()).toEqual({ error: "clock skew" });
+    }
+    const h = await dlHeaders(dev, "/" + key);
+    delete h["PA-Time"];
+    expect((await get("/" + key, { signer: null, headers: h })).status).toBe(400);
+    expect(store.gets).toEqual([]);
+  });
+
+  it("a signature over another path or time does not serve; a valid one does with no D1 access", async () => {
+    const key = newKey();
+    store.objects.set(key, randBytes(5));
+    const t = String(Date.now());
+    const h = await dlHeaders(dev, "/" + key, t);
+    expect((await get("/" + key, { signer: null, headers: { ...h, "PA-Time": String(Number(t) + 1) } })).status).toBe(401);
+    const res = await get("/" + key, { env: await looseEnv(), signer: null, headers: { ...h, Range: "bytes=0-1" } });
+    expect(res.status).toBe(206);
   });
 });

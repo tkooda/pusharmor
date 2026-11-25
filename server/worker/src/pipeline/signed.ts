@@ -37,8 +37,13 @@ export function fileDeleteSignedBytes(id: string, paTime: string): Uint8Array {
   return utf8("PA-FILE1\nDELETE\n/v1/file/" + id + "\n" + paTime);
 }
 
+// "PA-DL1\nGET\n" + path + "\n" + PA-Time (file host downloads; Range is not signed)
+export function downloadSignedBytes(path: string, paTime: string): Uint8Array {
+  return utf8("PA-DL1\nGET\n" + path + "\n" + paTime);
+}
+
 // Step e. Verifies PA-Sig with sign_pub (stored b64url text) over PA-REQ1, or over `signed`
-// when given (PA-FILE1).
+// when given (PA-FILE1, PA-DL1).
 export async function checkSig(signPub: string, headers: Headers, method: string, path: string, paTime: string, body: Uint8Array, signed?: Uint8Array): Promise<void> {
   const fail = () => new ApiError(401, "invalid client signature");
   const sigHdr = headers.get("PA-Sig");
