@@ -514,6 +514,11 @@ export function limitLine(p: LimitPeer): string {
     .join(" ");
 }
 
+/** Device limit order: fewest pairings (trusts + trusted by) first, then oldest added first. */
+export function sortLimitPeers(peers: LimitPeer[]): LimitPeer[] {
+  return [...peers].sort((a, b) => a.approves + a.approved_by - (b.approves + b.approved_by) || a.created - b.created);
+}
+
 /** The login result card; focus goes to its heading (the old controls are gone: read the result). */
 function doneCard(env: UiEnv, card: HTMLElement, deleted: boolean): void {
   const heading = h("h1", { tabindex: "-1" }, deleted ? "Account deleted" : "You are logged in");
@@ -534,7 +539,7 @@ function doneCard(env: UiEnv, card: HTMLElement, deleted: boolean): void {
 function limitView(env: UiEnv, root: HTMLElement, body: Record<string, unknown>, ticket: string): void {
   clear(root);
   document.body.classList.remove("signin-bg");
-  const peers = (Array.isArray(body.peers) ? body.peers : []) as LimitPeer[];
+  const peers = sortLimitPeers((Array.isArray(body.peers) ? body.peers : []) as LimitPeer[]);
   const boxes: { id: string; box: HTMLInputElement }[] = [];
   const list = group();
   const heading = h("h1", { tabindex: "-1" }, "Device limit reached");

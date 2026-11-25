@@ -323,6 +323,13 @@ test("copy: device limit rows read as sentences; desktop says Click; status line
   assert.equal(T.newerVersion, "A device uses a newer version. Update PushArmor");
 });
 
+test("Device limit: rows sort by fewest pairings, then oldest added", async () => {
+  const { sortLimitPeers } = await import("../src/ui/page.ts");
+  const p = (id: string, approves: number, approved_by: number, created: number) => ({ id, platform: "android", created, approves, approved_by, reachable: true, logged_out: false });
+  const sorted = sortLimitPeers([p("a", 2, 1, 100), p("b", 0, 1, 300), p("c", 1, 0, 200), p("d", 0, 0, 400), p("e", 3, 0, 50)]);
+  assert.deepEqual(sorted.map((x) => x.id), ["d", "c", "b", "e", "a"]);
+});
+
 test("Send: no cut offer; a text over 2000 bytes only greys out Send", async () => {
   const { readFileSync } = await import("node:fs");
   const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
