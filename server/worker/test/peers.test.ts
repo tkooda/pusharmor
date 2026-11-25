@@ -544,11 +544,14 @@ describe("pipeline", () => {
     expect(r.body.error).toBe("invalid client signature");
   });
 
-  it("body cap 48000 -> 413; a max-size PATCH rename passes the cap", async () => {
+  it("body cap 121740 -> 413; a max-size 24-entry PATCH rename passes the cap", async () => {
     const p = await newPeer(randomEmail());
-    let r = await call("PATCH", "/v1/peers/" + p.id, undefined, { peer: p, rawBody: "x".repeat(48001) });
+    let r = await call("PATCH", "/v1/peers/" + p.id, undefined, { peer: p, rawBody: "x".repeat(121741) });
     expect(r.status).toBe(413);
-    const ids = Array.from({ length: 9 }, () => p.acct + b64urlEncode(crypto.getRandomValues(new Uint8Array(21))));
+    expect(r.body).toEqual({ error: "too large" });
+    r = await call("PATCH", "/v1/peers/" + p.id, undefined, { peer: p, rawBody: "x".repeat(121740) });
+    expect(r.status).toBe(400);
+    const ids = Array.from({ length: 24 }, () => p.acct + b64urlEncode(crypto.getRandomValues(new Uint8Array(21))));
     const name: Record<string, string> = {};
     const m: Record<string, string> = {};
     for (const id of ids) {
@@ -556,7 +559,7 @@ describe("pipeline", () => {
       m[id] = message(3800);
     }
     const body = JSON.stringify({ name, m });
-    expect(body.length).toBeLessThanOrEqual(48000);
+    expect(body.length).toBe(118000);
     r = await call("PATCH", "/v1/peers/" + p.id, { name, m }, { peer: p });
     expect(r.status).toBe(200);
   });

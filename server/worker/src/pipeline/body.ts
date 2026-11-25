@@ -1,7 +1,9 @@
 // Capped body read (raw bytes kept for PA-Sig) and strict JSON parse.
 import { ApiError } from "../errors";
 
-export const BODY_CAP = 48000;
+// Largest valid body: PATCH /peers/$id with 24 name entries (1024 chars) and 24 messages
+// (3800 chars), 118000 bytes as JSON, plus a 3740-byte margin. One cap for every route.
+export const BODY_CAP = 121740;
 
 export async function readBody(req: Request): Promise<Uint8Array> {
   const cl = req.headers.get("Content-Length");

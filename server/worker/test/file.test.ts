@@ -160,15 +160,15 @@ describe("route", () => {
     expect(q.month).toMatchObject({ used: 1, limit: 100 });
   });
 
-  it("has no 48 KB body cap", async () => {
+  it("has no BODY_CAP limit", async () => {
     const a = await approvedSender();
     const r = await upload({ peer: a, body: new Uint8Array(200_000).fill(7) });
     expect(r.status).toBe(201);
   });
 
-  it("other routes keep the 48 KB cap", async () => {
+  it("other routes keep the BODY_CAP limit", async () => {
     const r = await handle(
-      new Request("https://api.pusharmor.com/v1/send", { method: "POST", headers: { "Content-Length": "48001", "CF-Connecting-IP": freshIp() }, body: randBytes(48001) }),
+      new Request("https://api.pusharmor.com/v1/send", { method: "POST", headers: { "Content-Length": "121741", "CF-Connecting-IP": freshIp() }, body: new Uint8Array(121741).fill(7) }),
       await looseEnv(),
       createExecutionContext(),
     );
