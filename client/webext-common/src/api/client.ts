@@ -1,7 +1,9 @@
 // Worker client (catalog General): PA-Sig signing, PA-Epoch offset (seconds),
 // retries on 429 (server wait) and on 5xx / network errors (3 tries, 1 s then 3 s), clock-skew rebuild.
+import { b64urlEncode } from "../crypto/b64url.ts";
 import { utf8 } from "../crypto/bytes.ts";
-import { paSig } from "../crypto/pasig.ts";
+import { sign } from "../crypto/keys.ts";
+import { fileSignedBytes, paSig } from "../crypto/pasig.ts";
 
 export const API_BASE = "https://api.pusharmor.com";
 const RETRY_DELAYS_MS = [500, 1500, 3000];
@@ -54,6 +56,8 @@ export interface CallOpts {
   noRetry?: boolean;
   /** Called before each retry after a network or 5xx failure, with the attempt about to run (2, 3, ...). */
   onRetry?: (attempt: number) => Promise<void>;
+  /** Sign with PA-FILE1 (DELETE /v1/file/<id>) instead of PA-REQ1. */
+  fileSig?: boolean;
 }
 
 export interface ApiReply {
@@ -136,7 +140,9 @@ export class Api {
       const t = paTime(this.d.now() + (await this.d.getOffset()) * 1000);
       if (opts.signer.id !== null) headers["PA-ID"] = opts.signer.id;
       headers["PA-Time"] = t;
-      headers["PA-Sig"] = await paSig(opts.signer.key, method, fullPath, t, bodyBytes);
+      headers["PA-Sig"] = opts.fileSig
+        ? b64urlEncode(await sign(opts.signer.key, fileSignedBytes("DELETE", fullPath, t)))
+        : await paSig(opts.signer.key, method, fullPath, t, bodyBytes);
     }
     let res: Response;
     let t = "";

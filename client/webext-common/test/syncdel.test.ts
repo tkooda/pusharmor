@@ -358,3 +358,61 @@ test("log out writes no step of its own; account delete shows only Deleting your
   assert.deepEqual(await caps((a) => new Rpc(a.e).handle({ op: "signout" })), []);
   assert.deepEqual(await caps((a) => a.e.deleteAccount("T")), ["Deleting your account"]);
 });
+
+const FID = "000000012345-0123456789abcdef0123456789abcdef";
+const FID2 = "000000012346-fedcba9876543210fedcba9876543210";
+const fileRow = (d: Awaited<ReturnType<typeof setup>>["a"], dir: "in" | "out", id: string) =>
+  d.db.addHistory({
+    dir,
+    peer: null,
+    type: "file",
+    content: "cat.png",
+    n: null,
+    pairing_id: null,
+    received: 1,
+    read: true,
+    file: { url: "https://b2file.pusharmor.com/v1/29000000/" + "ab".repeat(16) + "/" + id, expires: 2e9, key: "k", name: "cat.png", size: 3, sha256: "s" },
+  });
+
+test("Sync deletions on: each deleted file row, sent or received, deletes its file on the relay server", async () => {
+  const { w, a } = await setup();
+  const ids = [await fileRow(a, "out", FID), await fileRow(a, "in", FID2)];
+  const text = await a.db.addHistory({ dir: "out", peer: null, type: "text", content: "t", n: null, pairing_id: null, received: 1, read: true });
+  assert.equal(await a.e.deleteHistory([...ids, text]), null);
+  assert.deepEqual(w.fileDeletes, [FID, FID2]); // each signed with PA-FILE1, checked by the mock
+  assert.equal(w.calls.filter((c) => c.method === "DELETE" && c.path.startsWith("/v1/file/")).length, 2);
+  assert.equal((await rows(a)).length, 0);
+});
+
+test("Sync deletions off, a non-file row, or a bad file id: no file delete call", async () => {
+  const { w, a } = await setup();
+  await a.e.setSettings({ syncDeletions: false });
+  await a.e.deleteHistory([await fileRow(a, "out", FID)]);
+  await a.e.setSettings({ syncDeletions: true });
+  await a.e.deleteHistory([await a.db.addHistory({ dir: "out", peer: null, type: "text", content: "t", n: null, pairing_id: null, received: 1, read: true })]);
+  await a.e.deleteHistory([await fileRow(a, "out", "not-an-id")]);
+  assert.equal(w.calls.filter((c) => c.path.startsWith("/v1/file")).length, 0);
+  assert.equal((await rows(a)).length, 0);
+});
+
+test("file delete: 404 is done; a failure shows one notice after the retries", async () => {
+  const { w, a } = await setup();
+  w.inject.push({ match: /DELETE \/v1\/file\//, status: 404, body: { error: "not found" }, times: 1 });
+  assert.equal(await a.e.deleteHistory([await fileRow(a, "out", FID)]), null);
+  w.inject.push({ match: /DELETE \/v1\/file\//, status: 500, body: { error: "internal" }, times: 99 });
+  const n0 = w.calls.length;
+  const notice = await a.e.deleteHistory([await fileRow(a, "out", FID), await fileRow(a, "in", FID2)]);
+  assert.equal(notice, "Unable to delete on the relay server.\nThe relay server is not working right now. Try again later.");
+  assert.equal(w.calls.length - n0, 2 * (1 + SERVER_RETRY_DELAYS_MS.length));
+  assert.equal((await rows(a)).length, 0);
+});
+
+test("file delete failure does not replace the Sync deletions notice", async () => {
+  const { w, a } = await setup();
+  w.inject.push({ match: /POST \/v1\/send$/, status: 200, body: { r: {} }, times: 99 });
+  w.inject.push({ match: /DELETE \/v1\/file\//, status: 500, body: { error: "internal" }, times: 99 });
+  await a.e.send("one", "auto", "all");
+  const out = (await rows(a)).map((r) => r.id!);
+  const notice = await a.e.deleteHistory([...out, await fileRow(a, "out", FID)]);
+  assert.match(notice!, /^Unable to delete on "/);
+});

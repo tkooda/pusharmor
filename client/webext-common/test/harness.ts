@@ -9,7 +9,7 @@ import { b64urlDecode, b64urlEncode } from "../src/crypto/b64url.ts";
 import { ascii, concat } from "../src/crypto/bytes.ts";
 import { verify } from "../src/crypto/keys.ts";
 import { type PushFields } from "../src/crypto/labels.ts";
-import { reqSignedBytes } from "../src/crypto/pasig.ts";
+import { fileSignedBytes, reqSignedBytes } from "../src/crypto/pasig.ts";
 import { Engine } from "../src/core/engine.ts";
 import type { MenuMode } from "../src/core/actions.ts";
 import type { KV, MenuPeer, Platform } from "../src/platform.ts";
@@ -155,6 +155,8 @@ export class MockWorker {
   floor: string | null = null;
   /** my_relay_fault in GET /v1/peers (undefined: the field is left out, as an older relay server does). */
   relayFault: boolean | undefined;
+  /** File ids of DELETE /v1/file/<id> calls whose PA-FILE1 signature checked out. */
+  fileDeletes: string[] = [];
   /** The account a POST /v1/peers registers into. */
   account = ACCOUNT;
   readonly clock: Clock;
@@ -236,6 +238,11 @@ export class MockWorker {
     }
     const me = pid ? this.rows.get(pid) : undefined;
     if (!me) return this.reply(401, { error: "unknown peer" });
+    if (method === "DELETE" && /^\/v1\/file\/[0-9]{12}-[0-9a-f]{32}$/.test(path)) {
+      if (!t || !sig || !(await verify(me.sign_pub, b64urlDecode(sig), fileSignedBytes("DELETE", path, t)))) return this.reply(401, { error: "invalid client signature" });
+      this.fileDeletes.push(path.slice("/v1/file/".length));
+      return this.reply(200, {});
+    }
     if (!t || !sig || !(await verify(me.sign_pub, b64urlDecode(sig), reqSignedBytes(method, path, t, ascii(text))))) return this.reply(401, { error: "invalid client signature" });
     if (Math.abs(Number(t) - wnow) > 300_000) return this.reply(401, { error: "clock skew" });
     const withdraw = /^\/v1\/deny\//.test(path) && body.withdraw === 1;

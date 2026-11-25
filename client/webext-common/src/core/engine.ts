@@ -1755,7 +1755,8 @@ export class Engine {
       const row = await this.db.get<HistoryRow>("history", id);
       if (row) rows.push(row);
     }
-    const peers = (await this.settings()).syncDeletions ? await this.delTargets() : [];
+    const syncOn = (await this.settings()).syncDeletions;
+    const peers = syncOn ? await this.delTargets() : [];
     const byId = new Map(peers.map((p) => [p.id, p]));
     const targets = new Set(byId.keys());
     // rows grouped by the devices they still wait on
@@ -1856,15 +1857,42 @@ export class Engine {
         }
       }
       await this.updateBadge();
-      if (!failed.size) return null;
-      const names: string[] = [];
-      for (const id of failed.keys()) names.push(await this.peerName(id));
-      const word = [...failed.values()][0]!;
-      if (names.length === 1 && word === "error") return syncDeleteResultText(names, null) + "\n" + reasonOf(err);
-      return syncDeleteResultText(names, word === "error" ? null : word);
+      let notice: string | null = null;
+      if (failed.size) {
+        const names: string[] = [];
+        for (const id of failed.keys()) names.push(await this.peerName(id));
+        const word = [...failed.values()][0]!;
+        if (names.length === 1 && word === "error") notice = syncDeleteResultText(names, null) + "\n" + reasonOf(err);
+        else notice = syncDeleteResultText(names, word === "error" ? null : word);
+      }
+      const fileErr = syncOn ? await this.deleteServerFiles(rows) : null;
+      if (notice === null && fileErr !== null) notice = "Unable to delete on the relay server.\n" + reasonOf(fileErr);
+      return notice;
     } finally {
       if (multi) await this.p.storageSession.remove([BUSY]);
     }
+  }
+
+  /**
+   * Deletes the stored file of each file row on the relay server, one call per row, in order.
+   * 404 (already gone) counts as done. Returns the first failure, else null.
+   */
+  private async deleteServerFiles(rows: HistoryRow[]): Promise<unknown> {
+    let first: unknown = null;
+    const self = rows.some((r) => r.type === "file") ? await this.self() : null;
+    if (!self || (await this.regState()) !== "registered") return null;
+    for (const r of rows) {
+      const id = r.type === "file" ? (r.file?.url ?? "").split("/").pop()! : "";
+      if (!/^[0-9]{12}-[0-9a-f]{32}$/.test(id)) continue;
+      try {
+        await this.api.call("DELETE", "/file/" + id, { signer: this.signerOf(self), fileSig: true });
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 404) continue;
+        await this.callFailure(e);
+        first ??= e; // the API client already tried it again
+      }
+    }
+    return first;
   }
 
   // -------------------------------------------- allow-list m (logout etc.)
