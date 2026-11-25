@@ -502,7 +502,9 @@ test("FAQ texts and fixed lines", () => {
   assert.ok(read("how-to.html").includes("If they differ, tap <strong>Codes differ</strong>."));
   assert.ok(!how.includes("10 min"));
   const both = how + " " + sup;
-  for (const m of ["14 days", "10 tries", "24 hours", "15 minutes"]) assert.ok(!both.includes(m), "mechanics: " + m);
+  // The file expiry range "2 to 24 hours" is user-facing; other uses stay banned.
+  const bothNoFileExpiry = both.split("2 to 24 hours").join("");
+  for (const m of ["14 days", "10 tries", "24 hours", "15 minutes"]) assert.ok(!bothNoFileExpiry.includes(m), "mechanics: " + m);
   assert.ok(both.includes("wants to pair"));
   assert.ok(both.includes("an earlier pairing did not finish. Tap Pair again on its row."));
   assert.ok(!both.includes("Remove it on this device first"));
@@ -520,8 +522,8 @@ test("FAQ texts and fixed lines", () => {
   assert.ok(sec.includes("The push service sees the size of a message (padded to a few standard sizes), not its content."));
   const del = text("delete-account.html");
   for (const s of ["You can also delete your account from the apps.",
-    "Deleted right away: all your devices, with their keys, names, and notification addresses.",
-    "Not deleted: messages already on your other devices, and messages still waiting to be delivered, which expire within 7 days.",
+    "Deleted right away: all your devices, with their keys, names, notification addresses, and all associated files you've sent.",
+    "Not deleted: messages and files already on your other devices, and messages still waiting to be delivered, which expire within 7 days.",
     "If the address was banned for abuse, we store its account ID so it stays banned."]) {
     assert.ok(del.includes(s), "delete-account lacks: " + s);
   }

@@ -37,9 +37,10 @@ token or endpoint), and pass along the encrypted message, which they cannot read
 messages for up to 7 days (pairing requests for up to 4 weeks).</li>
 <li><strong>Cloudflare</strong>: runs our relay server and its database, so it can technically see
 everything our relay server sees: your email address briefly at login (to send the code), your IP address, device public
-keys, push tokens, and encrypted messages it cannot read. Cloudflare keeps our delivery logs for up to 7 days.
+keys, push tokens, and encrypted messages and files it cannot read. Cloudflare keeps our delivery logs for up to 7 days.
 They hold the anonymous account ID, anonymous device IDs, and send results. They hold no content, no IP address, and no email. Cloudflare's bot check (Turnstile) runs on the email
 login page, on the command line login page (/auth/cli), and on the delete-account page only.</li>
+<li><strong>Backblaze (B2 Cloud Storage, US East region)</strong>: stores the files you send, only in encrypted form (ciphertext), until they are deleted within 25 hours, or sooner when you delete them on a device with Sync deletions on. It sees each encrypted file, its size, the times it was stored and deleted, and an anonymous account code (a keyed hash of your account ID) in the file's storage name. It never sees file content, file names, the keys to decrypt files, your email address, or your IP address: all file transfers go through our relay server.</li>
 <li><strong>Google and Apple login</strong> (if you choose them): used to prove the account.
 We keep only a one-way hash of your email address, which is your account ID (see below).</li>
 <li><strong>AWS SES</strong>: used for email login only, to send the login code. It sees
@@ -55,12 +56,12 @@ address, the hash puts that device in the same account. If an address is banned 
 store its account ID so it stays banned, even after the account is deleted.</p>
 
 <h2>End-to-end encryption</h2>
-<p>All messages between devices are end-to-end encrypted and signed by the sending device. Only
+<p>All messages and files between devices are end-to-end encrypted and signed by the sending device. Only
 the devices you send to can ever decrypt them, and each one checks that the message really came
 from the device it claims to be from. Each device makes its own keys, and the private keys never
 leave the devices. A message is encrypted on the sending device for the receiving device, so our
 relay server only passes along encrypted data it cannot read (ciphertext). We never see your message
-content or pairing codes, and we cannot ever see them.</p>
+content, files, or pairing codes, and we cannot ever see them. Messages and files are encrypted with 256-bit AES, and only your devices hold the private keys needed to decrypt them. Pairing codes never leave your devices.</p>
 
 <h2>What our relay server stores</h2>
 <p>Our relay server keeps, until removal:</p>
@@ -70,6 +71,7 @@ last-active month.</li>
 <li>Per device: public keys, push token or endpoint, allow and deny lists, names you give devices (stored only encrypted, so we cannot read them),
 created time, platform, logged-out flag, and pending pairing confirmation messages (end-to-end encrypted, kept
 until the other device is removed, rejected, or withdrawn, or 14 days pass).</li>
+<li>Per file you send: the encrypted file, stored at Backblaze and deleted within 25 hours, or sooner when deleted on a device with Sync deletions on.</li>
 </ul>
 <p>An account with no send and no added device for about 3 years is deleted with its devices
 (banned accounts are kept). This also removes an account that has no devices left.</p>
@@ -80,6 +82,7 @@ until the other device is removed, rejected, or withdrawn, or 14 days pass).</li
 chose one), so you can see which address to use on your other devices.</li>
 <li>Your history, deleted automatically after the number of days you set (default 30). History is
 device-local and not backed up.</li>
+<li>Files you send and receive. The PushArmor app keeps its own copy of each file you send and receive, until either you delete them from its History, or they are deleted based on your maximum message size/age settings.</li>
 <li>Your keys.</li>
 </ul>
 <p>Lock screen: message content follows the platform setting (Android sensitive notification
@@ -102,7 +105,7 @@ them to the add-on inside the browser. Both carry encrypted data only.</p>
 <p>You can delete your account from the apps, or with the web flow at
 <a href="/delete-account">PushArmor.com/delete-account</a>. Deletion removes the account and all
 its devices at once. Kept: undelivered messages at the push services, up to 7 days (pairing
-requests up to 4 weeks); copies on your other devices; and the account ID of an address banned
+requests up to 4 weeks); copies of messages and files on your other devices; and the account ID of an address banned
 for abuse, so it stays banned.</p>
 <p>Remove on a device deletes that one device only. The account (the one-way hash, creation
 date, and last-active month) stays until you delete the account, or until the 3-year purge
