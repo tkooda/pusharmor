@@ -88,7 +88,26 @@ class FileModel(private val g: Graph, private val scope: CoroutineScope, private
         }
         val out = g.sender().sendFile(recipients, value, now, onStep)
         if (out.error == null) { prior = null; chosen.value = null }
+        keptRow(out)?.let { keepSent(it, c, name) }
         return out
+    }
+
+    companion object {
+        /** The History row of a send that reached at least one device (its file keeps a copy); null keeps nothing. */
+        internal fun keptRow(out: SendFlow.Outcome): Long? = out.historyId?.takeIf { out.error == null && out.sent > 0 }
+    }
+
+    /** A sent file keeps a copy, streamed from the picked file, as a downloaded received file does; a failure is the row error. */
+    internal fun keepSent(id: Long, c: Chosen, name: String) {
+        val k = ReceivedFiles.key(id)
+        try {
+            val input = g.app.contentResolver.openInputStream(Uri.parse(c.uri)) ?: throw FileChangedException()
+            if (input.use { g.fileStore.keepSent(k, it, c.size, name) }) g.files.enforceLimit()
+        } catch (e: Exception) {
+            Log.w("PushArmor", "sent copy", e)
+            g.fileStore.locked(k) { g.fileStore.put(k, com.pusharmor.app.files.FileState(code = FinalCode.FAILED, text = FileUi.unreadable(name))) }
+        }
+        refreshQuiet()
     }
 
     /** The file being sealed: reports the bytes read so far after each read. */
@@ -142,9 +161,10 @@ class FileModel(private val g: Graph, private val scope: CoroutineScope, private
         val now = System.currentTimeMillis() / 1000
         val out = HashMap<Long, Row>()
         for (h in g.dao.fileRows()) {
-            if (h.direction != "RECEIVED") continue
             val f = ReceivedFiles.fileOf(h) ?: continue
             val k = ReceivedFiles.key(h.id)
+            // a sent file with nothing stored (sent before sent files kept a copy) has no file row state
+            if (h.direction != "RECEIVED" && !g.fileStore.dir(k).exists()) continue
             val s = g.fileStore.state(k)
             val plain = s.plain?.let { File(g.fileStore.outDir(k), it) }?.takeIf { it.isFile }
             val st = FileUi.status(s, k in runningKeys, g.fileStore.blob(k).length(), plain != null, f.size, f.expires, now)
@@ -190,7 +210,6 @@ class FileModel(private val g: Graph, private val scope: CoroutineScope, private
         decrypting.withLock {
             for (h in g.dao.fileRows()) {
                 if (!shown) break
-                if (h.direction != "RECEIVED") continue
                 val s = g.fileStore.state(ReceivedFiles.key(h.id))
                 if (!s.downloaded || s.plain != null || s.code != null || s.memoryError || s.decryptError || s.markAt != 0L) continue
                 decryptOne(h, manual = false)

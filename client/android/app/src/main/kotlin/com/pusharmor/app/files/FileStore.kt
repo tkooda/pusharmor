@@ -196,6 +196,29 @@ class FileStore(
         return Decrypted.Ok(out)
     }
 
+    /**
+     * Keeps the copy of a sent file for History row [key] as a finished download leaves it: [size] bytes of
+     * [input] are streamed into the temp file and moved into place under [name]. The storage check and the
+     * storage-full row error are those of a download (false); any other failure keeps nothing and throws.
+     */
+    fun keepSent(key: String, input: InputStream, size: Long, name: String): Boolean = locked(key) {
+        val full = { put(key, FileState(code = FinalCode.STORAGE, text = FileRules.storageFullText(false, name))); false }
+        if (!FileRules.enoughStorage(freeBytes(), size)) return@locked full()
+        val tmp = File(dir(key).also { it.mkdirs() }, TMP)
+        try {
+            FileOutputStream(tmp).use { out -> if (input.copyTo(out) != size) throw FileChangedException(); out.fd.sync() }
+            val outDir = outDir(key).also { it.mkdirs() }
+            val out = File(outDir, name)
+            if (out.canonicalFile.parentFile != outDir.canonicalFile || !tmp.renameTo(out)) throw IOException("rename")
+            put(key, FileState(downloaded = true, plain = name))
+            true
+        } catch (e: Throwable) {
+            delete(key)
+            if (e is IOException && e !is FileChangedException && (freeBytes() ?: Long.MAX_VALUE) < size) return@locked full()
+            throw e
+        }
+    }
+
     private fun final(key: String, code: FinalCode, text: String): Decrypted.Final {
         put(key, state(key).copy(markAt = 0, code = code, text = text))
         return Decrypted.Final(code, text)
