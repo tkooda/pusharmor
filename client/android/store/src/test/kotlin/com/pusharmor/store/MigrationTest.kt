@@ -63,4 +63,21 @@ class MigrationTest {
         val db = helper.runMigrationsAndValidate("m11.db", 11, true, PaDatabase.MIGRATION_10_11)
         db.query("SELECT name, version FROM peers").use { c -> c.moveToFirst(); assertEquals("Phone", c.getString(0)); assertTrue(c.isNull(1)) }
     }
+
+    @Test fun migrate11To12KeepsPeersAndDropsVersion() {
+        helper.createDatabase("m12.db", 11).apply {
+            execSQL("INSERT INTO peers (id, platform, created, approved, denied_by_me, approve_verified, approves_me, denies_me, list_after_verify, declined, " +
+                "reachable, logged_out, logout_n, hidden, name, name_n, removed, missing, last_n, last_send_at, note, pair_again, lock_screen, watch, hide_content, " +
+                "listening, show_content, version) " +
+                "VALUES ('p', 'ios', 1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 'Phone', 0, 0, 0, 0, 9, 'n', 1, 0, 1, 0, 0, 0, '0.0.54')")
+            close()
+        }
+        val db = helper.runMigrationsAndValidate("m12.db", 12, true, PaDatabase.MIGRATION_11_12)
+        db.query("SELECT COUNT(*) FROM peers").use { c -> c.moveToFirst(); assertEquals(1, c.getInt(0)) }
+        db.query("SELECT name, last_send_at, note, pair_again, lock_screen, listening, show_content FROM peers").use { c ->
+            c.moveToFirst(); assertEquals("Phone", c.getString(0)); assertEquals(9, c.getLong(1)); assertEquals("n", c.getString(2))
+            assertEquals(1, c.getInt(3)); assertEquals(0, c.getInt(4)); assertEquals(0, c.getInt(5)); assertEquals(0, c.getInt(6))
+        }
+        db.query("SELECT * FROM peers").use { c -> assertEquals(-1, c.getColumnIndex("version")) }
+    }
 }

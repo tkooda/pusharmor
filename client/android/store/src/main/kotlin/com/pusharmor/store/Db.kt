@@ -71,8 +71,6 @@ data class PeerEntity(
     @ColumnInfo(defaultValue = "1") val listening: Boolean = true,
     /** "Allow message content in notifications" for this peer; the inverse of the old hide_content. */
     @ColumnInfo(name = "show_content", defaultValue = "1") val showContent: Boolean = true,
-    /** Unused: always null (kept so the schema stays at version 11). */
-    val version: String? = null,
 )
 
 @Entity(tableName = "pairing")
@@ -215,7 +213,7 @@ interface PaDao {
 
 @Database(
     entities = [SelfEntity::class, PeerEntity::class, PairingEntity::class, CapEntity::class, ReplayEntity::class, AllowEntity::class, HistoryEntity::class, StateEntity::class],
-    version = 11,
+    version = 12,
     exportSchema = true,
 )
 abstract class PaDatabase : RoomDatabase() {
@@ -261,13 +259,26 @@ abstract class PaDatabase : RoomDatabase() {
         }
 
         /**
+         * 11 -> 12: drops the unused peers.version. SQLite before 3.35 (Android 13 and older) has no DROP COLUMN,
+         * so the table is rebuilt with the other columns as they were; peers has no index or foreign key.
+         */
+        val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS `peers_new` (`id` TEXT NOT NULL, `platform` TEXT NOT NULL, `created` INTEGER NOT NULL, `list_sign_pub` TEXT, `list_enc_pub` TEXT, `sign_pub` TEXT, `enc_pub` TEXT, `pairing_id` BLOB, `approved` INTEGER NOT NULL, `denied_by_me` INTEGER NOT NULL, `approve_verified` INTEGER NOT NULL, `approves_me` INTEGER NOT NULL, `denies_me` INTEGER NOT NULL, `list_after_verify` INTEGER NOT NULL, `declined` INTEGER NOT NULL, `reachable` INTEGER NOT NULL, `logged_out` INTEGER NOT NULL, `logout_n` INTEGER NOT NULL, `hidden` INTEGER NOT NULL, `name` TEXT, `name_n` INTEGER NOT NULL, `removed` INTEGER NOT NULL, `missing` INTEGER NOT NULL, `last_n` INTEGER NOT NULL, `channel_id` TEXT, `stored_approve` TEXT, `stored_approve_name` TEXT, `last_approve_result` TEXT, `last_send_at` INTEGER NOT NULL, `note` TEXT, `pair_again` INTEGER NOT NULL DEFAULT 0, `lock_screen` INTEGER NOT NULL, `watch` INTEGER NOT NULL, `hide_content` INTEGER NOT NULL, `listening` INTEGER NOT NULL DEFAULT 1, `show_content` INTEGER NOT NULL DEFAULT 1, PRIMARY KEY(`id`))")
+                db.execSQL("INSERT INTO `peers_new` (`id`, `platform`, `created`, `list_sign_pub`, `list_enc_pub`, `sign_pub`, `enc_pub`, `pairing_id`, `approved`, `denied_by_me`, `approve_verified`, `approves_me`, `denies_me`, `list_after_verify`, `declined`, `reachable`, `logged_out`, `logout_n`, `hidden`, `name`, `name_n`, `removed`, `missing`, `last_n`, `channel_id`, `stored_approve`, `stored_approve_name`, `last_approve_result`, `last_send_at`, `note`, `pair_again`, `lock_screen`, `watch`, `hide_content`, `listening`, `show_content`) SELECT `id`, `platform`, `created`, `list_sign_pub`, `list_enc_pub`, `sign_pub`, `enc_pub`, `pairing_id`, `approved`, `denied_by_me`, `approve_verified`, `approves_me`, `denies_me`, `list_after_verify`, `declined`, `reachable`, `logged_out`, `logout_n`, `hidden`, `name`, `name_n`, `removed`, `missing`, `last_n`, `channel_id`, `stored_approve`, `stored_approve_name`, `last_approve_result`, `last_send_at`, `note`, `pair_again`, `lock_screen`, `watch`, `hide_content`, `listening`, `show_content` FROM `peers`")
+                db.execSQL("DROP TABLE `peers`")
+                db.execSQL("ALTER TABLE `peers_new` RENAME TO `peers`")
+            }
+        }
+
+        /**
          * [onCreate] runs when the file is made new: first start, or after a confirmed [deleteCorrupt]. A corrupt
          * file is kept: SQLite hands it to [onCorrupt] instead of deleting it, and the call that met it throws.
          */
         fun open(context: Context, name: String? = NAME, multiInstance: Boolean = true, onCorrupt: (SupportSQLiteDatabase) -> Unit = {}, onCreate: () -> Unit = {}): PaDatabase {
             val b = if (name == null) Room.inMemoryDatabaseBuilder(context, PaDatabase::class.java)
             else Room.databaseBuilder(context, PaDatabase::class.java, name).let { if (multiInstance) it.enableMultiInstanceInvalidation() else it }
-            return b.addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
+            return b.addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
                 .openHelperFactory(KeepCorruptFactory(onCorrupt))
                 .addCallback(object : RoomDatabase.Callback() { override fun onCreate(db: SupportSQLiteDatabase) = onCreate() }).build()
         }
