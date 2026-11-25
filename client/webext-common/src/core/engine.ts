@@ -1869,7 +1869,7 @@ export class Engine {
       }
       localDone?.(notice);
       const fileErr = syncOn ? await this.deleteServerFiles(rows) : null;
-      if (notice === null && fileErr !== null) notice = "Unable to delete on the relay server.\n" + reasonOf(fileErr);
+      if (notice === null && fileErr !== null) notice = "Unable to delete on the relay server.\n" + reasonOf(fileErr) + "\nIt will be deleted from the relay server when it expires";
       return notice;
     } finally {
       if (multi) await this.p.storageSession.remove([BUSY]);

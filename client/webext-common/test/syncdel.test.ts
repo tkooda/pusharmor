@@ -402,7 +402,7 @@ test("file delete: 404 is done; a failure shows one notice after the retries", a
   w.inject.push({ match: /DELETE \/v1\/file\//, status: 500, body: { error: "internal" }, times: 99 });
   const n0 = w.calls.length;
   const notice = await a.e.deleteHistory([await fileRow(a, "out", FID), await fileRow(a, "in", FID2)]);
-  assert.equal(notice, "Unable to delete on the relay server.\nThe relay server is not working right now. Try again later.");
+  assert.equal(notice, "Unable to delete on the relay server.\nThe relay server is not working right now. Try again later.\nIt will be deleted from the relay server when it expires");
   assert.equal(w.calls.length - n0, 2 * (1 + SERVER_RETRY_DELAYS_MS.length));
   assert.equal((await rows(a)).length, 0);
 });
