@@ -7,7 +7,7 @@ live in the local Swift package `PushArmorCore`, linked by all three targets.
     PushArmorCore/   Swift package (no UIKit): crypto, codec, rules, store, API
     App/             PushArmor app (SwiftUI)
     NSE/             PushArmorNSE (decrypts every push, sets the banner)
-    Share/           PushArmorShare (send a shared URL, text or phone number)
+    Share/           PushArmorShare (send a shared URL, text, phone number, or file)
     Shared/          App Group store, Keychain group and platform hooks (all targets)
     project.yml      XcodeGen spec for the Xcode project
 
