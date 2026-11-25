@@ -92,6 +92,9 @@ interface PairPost {
 export const FETCH_WINDOW_MS = 60_000;
 export const SEND_AGAIN_MS = 60_000;
 const AUTO_OPEN_MAX = 10;
+/** Relay server limits: devices listed per account, and message map entries per call. */
+const MAX_PEERS = 25;
+const MAX_MAP = 24;
 const AUTO_OPEN_WINDOW_MS = 60_000;
 
 export interface Settings {
@@ -1352,9 +1355,9 @@ export class Engine {
   /** GET /peers merge (section 4.2, catalog Removal rules). */
   async mergePeers(json: Record<string, unknown>, self: SelfKeys): Promise<void> {
     const acct = accountOf(b64urlDecode(self.id));
-    // the literals track the relay server limits: 10 listed devices, 9 allow entries, 8 remove messages
-    const list = Array.isArray(json.peers) ? (json.peers as Record<string, unknown>[]).slice(0, 10) : [];
-    const myAllow = Array.isArray(json.my_allow) ? (json.my_allow as unknown[]).slice(0, 9).filter((v): v is string => typeof v === "string") : [];
+    // these track the relay server limits: 25 listed devices, 24 allow entries, 8 remove messages
+    const list = Array.isArray(json.peers) ? (json.peers as Record<string, unknown>[]).slice(0, MAX_PEERS) : [];
+    const myAllow = Array.isArray(json.my_allow) ? (json.my_allow as unknown[]).slice(0, MAX_MAP).filter((v): v is string => typeof v === "string") : [];
     await this.p.storageLocal.set({ [ALLOW_SET]: myAllow });
     // stored remove messages (optional "removed"): opened with the pre-merge pins, quiet, like a live push
     if (json.removed && typeof json.removed === "object" && !Array.isArray(json.removed)) {
@@ -1790,11 +1793,11 @@ export class Engine {
     let err: unknown = null;
     try {
       const self = tasks.length ? await this.self() : null;
-      // sends the task to the devices it still waits on, at most 9 per call
+      // sends the task to the devices it still waits on, at most MAX_MAP per call
       const post = async (t: (typeof tasks)[number]) => {
         const to = t.to.filter((id) => !t.ok.has(id) && (!t.word.has(id) || t.word.get(id)!.startsWith("failed:")));
-        for (let i = 0; i < to.length; i += 9) {
-          const batch = to.slice(i, i + 9).map((id) => byId.get(id)!);
+        for (let i = 0; i < to.length; i += MAX_MAP) {
+          const batch = to.slice(i, i + MAX_MAP).map((id) => byId.get(id)!);
           const build = async () => {
             const m: Record<string, string> = {};
             for (const p of batch) {

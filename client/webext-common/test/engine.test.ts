@@ -1874,12 +1874,12 @@ test("a peer list is cut to the relay server limits before it is checked", async
   const self = (await a.e.self())!;
   const j = w.listFor(a.id);
   const junk = Array.from({ length: 1000 }, (_, i) => "id" + i);
-  const filler = Array.from({ length: 10 }, () => ({ id: 5 }));
+  const filler = Array.from({ length: 25 }, () => ({ id: 5 }));
   await a.e.mergePeers({ ...j, my_allow: junk, peers: [...filler, ...j.peers] }, self);
-  assert.equal(((await a.p.storageLocal.get([ALLOW_SET]))[ALLOW_SET] as string[]).length, 9);
-  assert.equal(await a.db.peer(b.id), undefined); // listed after the tenth entry
-  await a.e.mergePeers({ ...j, peers: [...filler.slice(0, 8), ...j.peers] }, self);
-  assert.ok(await a.db.peer(b.id)); // the tenth entry is still read
+  assert.equal(((await a.p.storageLocal.get([ALLOW_SET]))[ALLOW_SET] as string[]).length, 24);
+  assert.equal(await a.db.peer(b.id), undefined); // listed after the 25th entry
+  await a.e.mergePeers({ ...j, peers: [...filler.slice(0, 23), ...j.peers] }, self);
+  assert.ok(await a.db.peer(b.id)); // the 25th entry is still read
 });
 
 test("an open that arrives while the automatic reply is still marked unsent moves the entry to shown", async () => {
