@@ -390,16 +390,17 @@ fun LimitScreen(vm: AppViewModel, onDone: () -> Unit) {
     val limit by vm.limit.collectAsState()
     val ticked = remember { mutableStateListOf<String>() }
     val l = limit ?: return
+    val peers = remember(l) { UiText.limitOrder(l.peers) }
     // Back is Cancel, not an app exit.
     androidx.activity.compose.BackHandler { vm.cancelLimit() }
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
         Text("This account has too many devices. Choose the ones to remove.", Modifier.padding(start = 16.dp, end = 16.dp, top = 24.dp, bottom = 16.dp),
             style = MaterialTheme.typography.titleMedium)
         LazyColumn(Modifier.weight(1f)) {
-            itemsIndexed(l.peers, key = { _, p -> p.id }) { i, p ->
+            itemsIndexed(peers, key = { _, p -> p.id }) { i, p ->
                 val on = p.id in ticked
                 ListItem(
-                    modifier = Modifier.padding(top = if (i > 0) 2.dp else 0.dp).groupItem(i, l.peers.size)
+                    modifier = Modifier.padding(top = if (i > 0) 2.dp else 0.dp).groupItem(i, peers.size)
                         .toggleable(on, role = Role.Checkbox) { if (it) ticked.add(p.id) else ticked.remove(p.id) },
                     colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                     leadingContent = { Checkbox(on, null) },

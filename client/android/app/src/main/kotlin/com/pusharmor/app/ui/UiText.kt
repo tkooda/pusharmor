@@ -198,6 +198,10 @@ object UiText {
         "Trusts $approves ${if (approves == 1) "device" else "devices"}. Trusted by $approvedBy." +
             (if (!reachable) " Unreachable." else "") + (if (loggedOut) " Logged out." else "")
 
+    /** Device-limit order: fewest pairings (trusts + trusted by) first, then oldest added first. */
+    fun limitOrder(peers: List<com.pusharmor.protocol.engine.ListedPeer>): List<com.pusharmor.protocol.engine.ListedPeer> =
+        peers.sortedWith(compareBy({ it.approves + it.approvedBy }, { it.created }))
+
     /** "(39 / 2000)"; over the cap "Too long (N / 2000)". */
     fun counter(bytes: Int): String =
         if (bytes > SizeCap.MAX_CONTENT_BYTES) "Too long ($bytes / 2000)" else "($bytes / 2000)"

@@ -270,6 +270,14 @@ class UiTextTest {
         assertEquals("30 days", UiText.days(30))
     }
 
+    @Test fun limitOrderFewestPairingsThenOldest() {
+        fun p(id: String, approves: Int, approvedBy: Int, created: Long) = com.pusharmor.protocol.engine.ListedPeer(
+            id = id, signPub = "", encPub = "", platform = "android", created = created, loggedOut = false, approves = approves,
+            approvedBy = approvedBy, approvesMe = false, deniesMe = false, reachable = true, nameForMe = null)
+        val sorted = UiText.limitOrder(listOf(p("a", 2, 1, 100), p("b", 0, 1, 300), p("c", 1, 0, 200), p("d", 0, 0, 400), p("e", 3, 0, 50)))
+        assertEquals(listOf("d", "c", "b", "e", "a"), sorted.map { it.id })
+    }
+
     @Test fun limitRowText() {
         assertEquals("Trusts 0 devices. Trusted by 0.", UiText.limitRow(0, 0, reachable = true, loggedOut = false))
         assertEquals("Trusts 1 device. Trusted by 1.", UiText.limitRow(1, 1, reachable = true, loggedOut = false))
