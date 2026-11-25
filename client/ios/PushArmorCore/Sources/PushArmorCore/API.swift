@@ -230,6 +230,8 @@ public final class APIClient: @unchecked Sendable {
         case none
         /// PA-Time + PA-Sig; PA-ID when the id is given.
         case signed(PASigner, PeerId?)
+        /// DELETE /v1/file/<id>: PA-ID, PA-Time, PA-Sig over the PA-FILE1 bytes of this file id.
+        case fileDelete(PASigner, PeerId, String)
     }
 
     /// One call. `path` is the full signed path, starting with /v1. `retry` false = one try.
@@ -243,6 +245,12 @@ public final class APIClient: @unchecked Sendable {
                 // a signing fault sends nothing: an unsigned request would only be refused
                 guard let h = try? RequestSigning.headers(signer: signer, peerId: id, method: method, path: path,
                                                           timeMs: workerNowMs, body: body) else { return .keysUnusable }
+                headers.merge(h) { $1 }
+            }
+            if case .fileDelete(let signer, let id, let fileId) = auth {
+                guard let h = try? FileSig.deleteHeaders(signer: signer, peerId: id, timeMs: workerNowMs, id: fileId) else {
+                    return .keysUnusable
+                }
                 headers.merge(h) { $1 }
             }
             var status: Int? = nil

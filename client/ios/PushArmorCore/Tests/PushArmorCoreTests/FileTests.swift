@@ -250,6 +250,17 @@ final class FileTests: XCTestCase {
         XCTAssertFalse(FileRules.fileURLOK("https://example.com/v1/a"))
     }
 
+    /// The file id of a file URL for DELETE /v1/file/<id>: 12 digits, "-", 32 lowercase hex.
+    func testFileDeleteId() {
+        XCTAssertEqual(FileSig.deleteId(url: Self.ref.url), "202611230347-0123456789abcdef0123456789abcdef")
+        XCTAssertNil(FileSig.deleteId(url: "https://b2file.pusharmor.com/v1/m/h/202611230347-0123456789ABCDEF0123456789abcdef"))
+        XCTAssertNil(FileSig.deleteId(url: "https://b2file.pusharmor.com/v1/m/h/20261123034-70123456789abcdef0123456789abcdef"))
+        XCTAssertNil(FileSig.deleteId(url: "https://b2file.pusharmor.com/v1/m/h/202611230347-0123456789abcdef0123456789abcde"))
+        XCTAssertNil(FileSig.deleteId(url: "https://b2file.pusharmor.com/v1/m/h/202611230347-0123456789abcdef0123456789abcdeg"))
+        XCTAssertNil(FileSig.deleteId(url: Self.ref.url + "/"))
+        XCTAssertNil(FileSig.deleteId(url: ""))
+    }
+
     // MARK: the file message
 
     /// The b64url of the 32 ASCII bytes "0123456789abcdef0123456789abcdef" (the plan example).

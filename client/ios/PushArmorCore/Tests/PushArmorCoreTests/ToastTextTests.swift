@@ -31,6 +31,7 @@ final class ToastTextTests: XCTestCase {
                                            .reject("X"), .remove("X"), .evict, .logout, .sendCode, .checkCode, .login,
                                            .loginGoogle, .loginApple, .prepareLogin, .deleteAccount,
                                            .changeSetting, .turnOnNotifications, .deleteOnOtherDevices, .deleteOnThisDevice,
+                                           .deleteOnRelayServer,
                                            .cancelPairing("X"), .saveMessage]
         let reasons: [ErrorCopy.Reason] = [.unreachable, .serverDown, .rateLimited(waitMs: 60_000), .tooOld, .removed,
                                            .loggedOut, .loginExpired, .badLink, .clockOff, .blocked, .wrongCode,

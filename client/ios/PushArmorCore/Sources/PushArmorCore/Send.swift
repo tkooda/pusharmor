@@ -96,8 +96,10 @@ extension Core {
     /// the devices that did not take it yet and still exist). A device whose push failed
     /// ("failed:...") gets its ids again after each server retry delay. A row goes once every
     /// device it was for took the del; else it stays with those devices pending. Rows without
-    /// a message id go at once (this device only). The result is the notice naming the
-    /// devices that did not take it, nil when none. `progress` gets each step.
+    /// a message id go at once (this device only). With Sync deletions on, the file of each
+    /// file row also goes from the relay server, after the local delete. The result is the
+    /// notice naming the devices that did not take it, else the relay server file notice, nil
+    /// when none. `progress` gets each step.
     @discardableResult
     public func deleteHistoryRows(_ rowids: [Int64], progress: (@Sendable (DeleteProgress) async -> Void)? = nil) async throws -> String? {
         var rows: [HistoryRow] = []
@@ -105,6 +107,12 @@ extension Core {
         let sync = (try? store.boolSetting(SettingKey.syncDeletions, default: true)) ?? true
         let targets = try sync ? syncTargets() : []
         let live = Set(targets.map { $0.text })
+        var fileIds: [String] = []
+        if sync {
+            for row in rows where row.type == "file" {
+                if let u = try store.file(historyRowid: row.rowid)?.url, let id = FileSig.deleteId(url: u) { fileIds.append(id) }
+            }
+        }
         var local: [Int64] = []
         var requested: [(row: HistoryRow, devices: [String])] = []
         var idsFor: [String: [String]] = [:]
@@ -201,7 +209,26 @@ extension Core {
         }
         let names = targets.filter { pending.contains($0.text) }
             .map { (name: PeerLabel.label(try? store.peer($0)), word: failed[$0.text] ?? "failed:") }
-        return ErrorCopy.deleteResultText(names, error: callError)
+        let notice = ErrorCopy.deleteResultText(names, error: callError)
+        let fileNotice = await deleteFilesOnServer(fileIds)
+        return notice ?? fileNotice
+    }
+
+    /// DELETE /v1/file/<id> for each id, in order; 200 and 404 (already gone) are success. The
+    /// result is the notice of the first failure, nil when none.
+    func deleteFilesOnServer(_ ids: [String]) async -> String? {
+        var notice: String?
+        for id in ids {
+            let path = "/v1/file/" + id
+            var out = APIOutcome.network
+            if let me = try? myId() {
+                out = await api.call("DELETE", path, auth: .fileDelete(keys.signer, me, id))
+                if out.isClockSkew { out = await api.call("DELETE", path, auth: .fileDelete(keys.signer, me, id)) }
+            }
+            if let s = out.reply?.status, s == 200 || s == 404 { continue }
+            if notice == nil { notice = ErrorCopy.text(.deleteOnRelayServer, ErrorCopy.reason(from: out)) }
+        }
+        return notice
     }
 
     /// The result word kept for a device whose del call failed as a whole.

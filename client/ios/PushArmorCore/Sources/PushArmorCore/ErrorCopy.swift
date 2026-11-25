@@ -27,6 +27,8 @@ public enum ErrorCopy {
         case deleteOnOtherDevices
         /// Deleting History rows failed in this device's own data.
         case deleteOnThisDevice
+        /// Deleting a file row's file on the relay server with Sync deletions on.
+        case deleteOnRelayServer
         case changeSetting
         case turnOnNotifications
         case saveMessage
@@ -53,6 +55,7 @@ public enum ErrorCopy {
             case .deleteAccount: return "Unable to delete the account."
             case .deleteOnOtherDevices: return "Unable to delete on your other devices."
             case .deleteOnThisDevice: return "Unable to delete on this device."
+            case .deleteOnRelayServer: return "Unable to delete on the relay server."
             case .changeSetting: return "Unable to change this setting."
             case .turnOnNotifications: return "Unable to turn on notifications."
             case .saveMessage: return "Unable to save the message."

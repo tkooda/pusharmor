@@ -29,6 +29,7 @@ final class ErrorCopyTests: XCTestCase {
             (.deleteAccount, "Unable to delete the account."),
             (.deleteOnOtherDevices, "Unable to delete on your other devices."),
             (.deleteOnThisDevice, "Unable to delete on this device."),
+            (.deleteOnRelayServer, "Unable to delete on the relay server."),
             (.changeSetting, "Unable to change this setting."),
             (.turnOnNotifications, "Unable to turn on notifications."),
             (.saveMessage, "Unable to save the message."),

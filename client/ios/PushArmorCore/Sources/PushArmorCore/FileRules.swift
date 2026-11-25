@@ -223,6 +223,26 @@ public enum FileSig {
         Bytes.ascii("PA-FILE1\nDELETE\n/v1/file/" + id + "\n" + paTime)
     }
 
+    /// The headers of one DELETE /v1/file/<id> try, signed now.
+    public static func deleteHeaders(signer: PASigner, peerId: PeerId, timeMs: Int64, id: String) throws -> [String: String] {
+        let t = RequestSigning.paTime(ms: timeMs)
+        let sig = try signer.sign(deleteBytes(id: id, paTime: t))
+        return ["PA-ID": peerId.text, "PA-Time": t, "PA-Sig": B64URL.encode(sig)]
+    }
+
+    /// The file id of a file URL: its last path segment when that is 12 digits, "-", and 32
+    /// lowercase hex characters (the form the Worker's DELETE route takes), else nil.
+    public static func deleteId(url: String) -> String? {
+        guard let last = url.split(separator: "/", omittingEmptySubsequences: false).last else { return nil }
+        let u = Array(last.utf8)
+        guard u.count == 45, u[12] == 0x2D else { return nil }
+        for (i, c) in u.enumerated() where i != 12 {
+            let digit = c >= 0x30 && c <= 0x39
+            if i < 12 ? !digit : !(digit || (c >= 0x61 && c <= 0x66)) { return nil }
+        }
+        return String(last)
+    }
+
     /// A new PA-Send-ID: 22-char b64url of 16 random bytes, one per send, the same on each retry.
     public static func newSendId() -> String { InnerJSON.newId() }
 

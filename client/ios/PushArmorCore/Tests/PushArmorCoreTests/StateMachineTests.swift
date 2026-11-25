@@ -2915,6 +2915,95 @@ final class StateMachineTests: XCTestCase {
         XCTAssertNil(try n.core.store.historyRow(rowid))
     }
 
+    static let fileIdA = "202611230347-0123456789abcdef0123456789abcdef"
+    static let fileIdB = "202611230348-fedcba9876543210fedcba9876543210"
+
+    /// A file row of `d` with its files record, whose file URL ends in `fileId`.
+    func fileRow(_ d: Device, peer: PeerId, dir: HistoryDir, fileId: String) throws -> Int64 {
+        let rowid = try d.core.store.addMessage(dir: dir, peer: peer, type: "file", content: "a.bin", n: nil, pairingId: nil,
+                                                read: true, results: nil, now: clock.now, msgId: InnerJSON.newId())
+        var f = FileRecord(dir: dir, key: FileTests.ref.key, name: "a.bin", size: 1, state: "ready", created: clock.now)
+        f.historyRowid = rowid
+        f.url = "https://b2file.pusharmor.com/v1/202611230347/3f9a1c5e7b2d4a60/" + fileId
+        _ = try d.core.store.addFile(f)
+        return rowid
+    }
+
+    func fileDeletes() -> [String] { w.calls.filter { $0.0 == "DELETE" && $0.1.hasPrefix("/v1/file/") }.map { $0.1 } }
+
+    /// setting on, no other devices: a sent and a received file row each delete their file on
+    /// the relay server, in order, PA-FILE1 signed; a text row and a file URL of another form
+    /// call nothing.
+    func testSyncDeletionsFileRowsDeleteTheFileOnTheRelayServer() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        let sent = try fileRow(n, peer: x.id, dir: .outgoing, fileId: Self.fileIdA)
+        let received = try fileRow(n, peer: x.id, dir: .incoming, fileId: Self.fileIdB)
+        let odd = try fileRow(n, peer: x.id, dir: .incoming, fileId: "202611230347-0123456789ABCDEF0123456789ABCDEF")
+        let text = try n.core.store.addMessage(dir: .outgoing, peer: x.id, type: "text", content: "t", n: nil, pairingId: nil,
+                                               read: true, results: nil, now: clock.now, msgId: InnerJSON.newId())
+        w.script("DELETE", "/v1/file/", 200, "{}")
+        w.script("DELETE", "/v1/file/", 200, "{}")
+        let notice = try await n.core.deleteHistoryRows([sent, text, received, odd])
+        XCTAssertNil(notice)
+        XCTAssertEqual(fileDeletes(), ["/v1/file/" + Self.fileIdA, "/v1/file/" + Self.fileIdB])
+        for r in [sent, text, received, odd] { XCTAssertNil(try n.core.store.historyRow(r)) }
+        let h = w.lastHeaders
+        XCTAssertEqual(h["PA-ID"], n.id.text)
+        let t = try XCTUnwrap(h["PA-Time"])
+        let sig = try XCTUnwrap(B64URL.decode(try XCTUnwrap(h["PA-Sig"])))
+        XCTAssertTrue(Signatures.verify(sig, data: Bytes.ascii("PA-FILE1\nDELETE\n/v1/file/" + Self.fileIdB + "\n" + t),
+                                        publicKey: n.keys.signer.publicKey))
+    }
+
+    /// setting off: the file row goes here only, with no call.
+    func testSyncDeletionsOffFileRowCallsNothing() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        try n.core.store.setSetting(SettingKey.syncDeletions, "0")
+        let row = try fileRow(n, peer: x.id, dir: .outgoing, fileId: Self.fileIdA)
+        let notice = try await n.core.deleteHistoryRows([row])
+        XCTAssertNil(notice)
+        XCTAssertNil(try n.core.store.historyRow(row))
+        XCTAssertTrue(fileDeletes().isEmpty)
+    }
+
+    /// 404 (already gone) is success: no notice.
+    func testSyncDeletionsFileAlreadyGoneHasNoNotice() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        let row = try fileRow(n, peer: x.id, dir: .incoming, fileId: Self.fileIdA)
+        w.script("DELETE", "/v1/file/", 404, "{\"error\":\"not found\"}")
+        let notice = try await n.core.deleteHistoryRows([row])
+        XCTAssertNil(notice)
+        XCTAssertEqual(fileDeletes().count, 1)
+    }
+
+    /// a failed file delete (5xx after the retries, or any other reply): one notice, with the
+    /// first failure's reason.
+    func testSyncDeletionsFileDeleteFailureNotice() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        let a = try fileRow(n, peer: x.id, dir: .outgoing, fileId: Self.fileIdA)
+        let b = try fileRow(n, peer: x.id, dir: .incoming, fileId: Self.fileIdB)
+        for _ in 0 ..< 3 { w.script("DELETE", "/v1/file/", 503, "{\"error\":\"storage error\"}") }
+        w.script("DELETE", "/v1/file/", 403, "{\"error\":\"unapproved\"}")
+        let notice = try await n.core.deleteHistoryRows([a, b])
+        XCTAssertEqual(notice, "Unable to delete on the relay server.\nThe relay server is not working right now. Try again later.")
+        XCTAssertEqual(fileDeletes(), Array(repeating: "/v1/file/" + Self.fileIdA, count: 3) + ["/v1/file/" + Self.fileIdB])
+        XCTAssertNil(try n.core.store.historyRow(a))
+        XCTAssertNil(try n.core.store.historyRow(b))
+    }
+
+    /// the del notice is kept when the file delete fails too.
+    func testSyncDeletionsDelNoticeWinsOverFileNotice() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        try await pairFully(n, x)
+        await n.core.fetchPeers(force: true)
+        let row = try fileRow(n, peer: x.id, dir: .outgoing, fileId: Self.fileIdA)
+        let label = PeerLabel.label(try n.core.store.peer(x.id))
+        w.offline = true
+        let notice = try await n.core.deleteHistoryRows([row])
+        w.offline = false
+        XCTAssertEqual(notice, "Unable to delete on \"\(label)\"\nThe relay server could not be reached. Check your internet connection and try again.")
+    }
+
     /// the relay server cannot be reached: the rows stay pending and the notice says why.
     func testSyncDeletionsWorkerFailureKeepsRows() async throws {
         let n = try dev("Ndev"), x = try dev("Xdev")
