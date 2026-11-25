@@ -95,7 +95,7 @@ export const openMatchesCommit = (open, storedCN) => commitHash(open.signPub, op
 // ---------------------------------------------------------------------------
 export const CAP_WINDOW_S = 86400;
 export const CAP_MAX = 10;
-export const MAX_OPEN_ENTRIES = 9;
+export const MAX_OPEN_ENTRIES = 24;
 
 const out = (action, notice, entry, capCounted = false) => ({ action, notice, entry, cap_counted: capCounted });
 

@@ -3258,11 +3258,11 @@
           "get_after_verify": false,
           "listed": "yes",
           "now": 1761300000,
-          "open_entries": 8,
+          "open_entries": 23,
           "own_id": "CuVpna7--EmbwbnHnXELNLEqO59jjlhbwgppFu5n",
           "pinned": false
         },
-        "name": "e_9th_open_entry_ok",
+        "name": "e_24th_open_entry_ok",
         "output": {
           "action": "reply",
           "cap_counted": true,
@@ -3282,11 +3282,11 @@
           "get_after_verify": false,
           "listed": "yes",
           "now": 1761300000,
-          "open_entries": 9,
+          "open_entries": 24,
           "own_id": "CuVpna7--EmbwbnHnXELNLEqO59jjlhbwgppFu5n",
           "pinned": false
         },
-        "name": "e_10th_open_entry_dropped",
+        "name": "e_25th_open_entry_dropped",
         "output": {
           "action": "drop",
           "cap_counted": false,
