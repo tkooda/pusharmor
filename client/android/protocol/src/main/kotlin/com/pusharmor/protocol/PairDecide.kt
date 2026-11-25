@@ -56,7 +56,7 @@ enum class EntryChange { CREATED_REPLIED, CREATED_PROMPTED, N_WIPED_X_REPLIED, A
 data class PairDecision(val action: PairAction, val notice: PairNotice, val entry: EntryChange, val capCounted: Boolean)
 
 object PairDecide {
-    const val MAX_OPEN_ENTRIES = 9
+    const val MAX_OPEN_ENTRIES = 24
     const val CAP = 10
     const val CAP_WINDOW_S = 86_400L
 

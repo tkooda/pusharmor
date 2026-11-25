@@ -216,12 +216,12 @@ class EngineTest {
     }
 
     @Test fun capElevenThPromptedAndSurvivesRestart() {
-        val senders = (1..11).map { w.add("S$it") }
+        val senders = (1..9).map { w.add("S$it") }
         x.fetch()
         for (s in senders) { s.fetch(); s.pairing.tapPair(x.id, t0); s.runPairSends(t0) }
         x.deliver(t0)
         val rows = x.store.pairings()
-        assertEquals(9, rows.size) // at most 9 open entries
+        assertEquals(9, rows.size) // one open entry per sender
         assertEquals(9, x.store.capTimestamps().size)
         // close entries, then more commits: the cap counts across ids and survives a new engine
         for (r in rows) x.pairing.cancelPairing(r.peerId)

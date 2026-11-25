@@ -185,7 +185,7 @@ class DeleteSync(private val store: LocalStore, me: Identity, private val api: A
 
     companion object {
         /** The relay server takes at most this many messages per /v1/send. */
-        const val MAX_TARGETS = 9
+        const val MAX_TARGETS = 24
 
         /** An other approved own device that keeps a History (not the command line). */
         fun isTarget(p: Peer): Boolean = p.pinned && p.approved && p.approvesMe && !p.loggedOut && !p.removed && !p.missing && p.platform != "cli"
