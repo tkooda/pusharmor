@@ -3,7 +3,8 @@ import Foundation
 /// One file transfer, received (dir in) or sent (dir out), in the files table.
 /// in states: pending (not downloaded), loading (a download task runs), blob (the blob
 /// arrived, not yet checked), ready (size and sha256 checked), done (decrypted), failed.
-/// out states: uploading, uploaded (201 reply kept), sent, failed.
+/// out states: uploading, uploaded (201 reply kept), sent, failed; a send that reached a device
+/// then keeps its local copy through the in states.
 public struct FileRecord: Equatable, Sendable {
     public var id: Int64 = 0
     public var dir: HistoryDir
@@ -68,6 +69,10 @@ public struct FileRecord: Equatable, Sendable {
         guard let u = url, let e = expires, let s = sha256 else { return nil }
         return FileRef(url: u, expires: e, key: key, name: name, size: size, sha256: s)
     }
+
+    /// A received file, or a sent file whose message went: its local copy is kept, removed and
+    /// downloaded again as a received file's is (a sent file is never downloaded by catch-up).
+    public var asReceived: Bool { dir == .incoming || historyRowid != nil }
 
     /// Name prefixes of held transfer completions in the files directory (kept by pruning).
     public static let heldPrefix = "held-"
@@ -167,7 +172,7 @@ extension Store {
     public func fileTaskEnded(_ id: Int64, task: String, status: Int, body: Data?, blobArrived: Bool, received: Int64 = 0,
                               resumable: Bool = false, notCounted: Bool = false) throws {
         try db.write {
-            guard var f = try file(id), f.dir == .incoming, f.state == "loading", f.task == task else { return }
+            guard var f = try file(id), f.asReceived, f.state == "loading", f.task == task else { return }
             let j = body.flatMap { $0.count <= 4096 ? try? StrictJSON.parse($0) : nil }
             f.status = status
             f.replyError = j?["error"]?.stringValue

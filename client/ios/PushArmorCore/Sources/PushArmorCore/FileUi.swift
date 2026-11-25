@@ -261,7 +261,7 @@ public enum FileUi {
 }
 
 extension FileSettingKey {
-    /// The storage limit for received files (bytes).
+    /// The storage limit for sent and received files (bytes).
     public static let storage = "file_storage"
 }
 
@@ -274,7 +274,7 @@ extension Core {
     /// Removes the oldest decrypted files until the rest fit `limit`; their rows say "Removed from
     /// this device" (a Download button while not expired). The newest file always stays.
     public func fileEnforceLimit(dir: URL, limit: Int64) throws {
-        let done = try store.files(dir: .incoming, states: ["done"])
+        let done = try store.files(dir: .incoming, states: ["done"]) + store.files(dir: .outgoing, states: ["done"])
         let stored = done.map { FileUi.Stored(id: $0.id, at: $0.created, bytes: $0.size) }
         for id in FileUi.toRemove(stored, limit: limit) {
             guard var f = done.first(where: { $0.id == id }) else { continue }

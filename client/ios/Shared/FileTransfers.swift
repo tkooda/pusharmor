@@ -338,10 +338,22 @@ final class FileTransfers: NSObject, URLSessionDownloadDelegate, URLSessionDataD
     func catchUp(core: Core) {
         applyHeld(core: core)
         takeOver(core: core)
-        for f in (try? core.store.files(dir: .incoming, states: ["blob"])) ?? [] { settle(f.id, core: core, cancelled: false) }
+        for f in files(["blob"], core: core) { settle(f.id, core: core, cancelled: false) }
         guard let net = Self.currentNetwork(),
               let due = try? core.fileCatchUp(network: net.network, lowData: net.lowData, free: freeBytes()) else { return }
         for f in due { startDownload(f.id, core: core, manual: false) }
+    }
+
+    /// Received files and sent files' copies in these download states.
+    private func files(_ states: [String], core: Core) -> [FileRecord] {
+        [HistoryDir.incoming, .outgoing].flatMap { (try? core.store.files(dir: $0, states: states)) ?? [] }
+    }
+
+    /// The blob or resume data of download `id` under the files directory (a sent file's copy has its own names).
+    private func downloadPath(_ id: Int64, resume: Bool) -> URL {
+        let f = (try? env.openStore()).flatMap { try? $0.file(id) }
+        let name = f.map { resume ? $0.resumeName : $0.blobName } ?? "in-" + String(id) + (resume ? ".resume" : ".blob")
+        return ensureDir().appendingPathComponent(name)
     }
 
     /// App: a notification shown in front (the NSE left the file to the app).
@@ -368,7 +380,7 @@ final class FileTransfers: NSObject, URLSessionDownloadDelegate, URLSessionDataD
     /// resume data (its completion then starts it here, with progress); an app task still running
     /// stays; a task that is gone (its process ended before it reported) ends here and starts again.
     private func takeOver(core: Core) {
-        for f in (try? core.store.files(dir: .incoming, states: ["loading"])) ?? [] {
+        for f in files(["loading"], core: core) {
             guard let t = f.task else { continue }
             let sp = t.split(separator: " ").map(String.init)
             guard sp.count == 2, let tid = Int(sp[1]) else { continue }
@@ -527,6 +539,8 @@ final class FileTransfers: NSObject, URLSessionDownloadDelegate, URLSessionDataD
             do {
                 let rep = try await core.fileSendMessage(id, dir: dir)
                 self.report(id, .sent(rep))
+                // after the result: the app decrypts the sent row's local copy while History shows
+                self.onChange?()
             } catch {
                 // an expired upload fails; a send another caller holds, or a failed relay call,
                 // reports nothing here
@@ -585,7 +599,7 @@ final class FileTransfers: NSObject, URLSessionDownloadDelegate, URLSessionDataD
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
         guard let id = fileId(downloadTask) else { return }
         let status = (downloadTask.response as? HTTPURLResponse)?.statusCode ?? 0
-        let blob = ensureDir().appendingPathComponent("in-" + String(id) + ".blob")
+        let blob = downloadPath(id, resume: false)
         var body: Data? = nil
         var arrived = false
         if (200 ... 299).contains(status) {
@@ -652,7 +666,7 @@ final class FileTransfers: NSObject, URLSessionDownloadDelegate, URLSessionDataD
             if done { return }
             var resumable = false
             if let d = (error as NSError?)?.userInfo[NSURLSessionDownloadTaskResumeData] as? Data {
-                resumable = (try? d.write(to: ensureDir().appendingPathComponent("in-" + String(id) + ".resume"))) != nil
+                resumable = (try? d.write(to: downloadPath(id, resume: true))) != nil
             }
             let cancelled = (error as NSError?)?.code == NSURLErrorCancelled
             downloadEnded(Ended(upload: false, id: id, task: k, status: 0, body: nil, arrived: false,

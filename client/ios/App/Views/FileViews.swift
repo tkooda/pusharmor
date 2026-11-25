@@ -46,7 +46,8 @@ struct PastedImage: Transferable {
 }
 
 /// The part of a file History row under its header: the state of the transfer and, once the
-/// file is on this device, its buttons. A sent file shows its expiry only (no copy is kept).
+/// file is on this device, its buttons. A sent file shows its expiry, then the state of its
+/// local copy as a received file does (a file sent with no copy kept: its expiry only).
 struct FileRowDetail: View {
     let file: FileRecord
     let outgoing: Bool
@@ -60,11 +61,10 @@ struct FileRowDetail: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if outgoing {
-                if let e = file.expires {
-                    Text(FileUi.expiresText(e, nowSec: now)).font(.caption).foregroundColor(.secondaryText)
-                }
-            } else {
+            if sentExpiry, let e = file.expires {
+                Text(FileUi.expiresText(e, nowSec: now)).font(.caption).foregroundColor(.secondaryText)
+            }
+            if !outgoing || file.state != "sent" {
                 incoming
             }
         }
@@ -80,6 +80,17 @@ struct FileRowDetail: View {
                 }
             }
             .ignoresSafeArea()
+        }
+    }
+
+    /// A sent file's expiry line: not when its state shows the expiry (Download) or says Expired.
+    private var sentExpiry: Bool {
+        guard outgoing else { return false }
+        if file.state == "sent" { return true }
+        switch model.fileStatus(file) {
+        case .pending, .expired: return false
+        case .failed(_, let download, _): return !download
+        default: return true
         }
     }
 

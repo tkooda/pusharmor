@@ -394,7 +394,8 @@ final class FileTests: XCTestCase {
         XCTAssertEqual(f.state, "uploaded")
         XCTAssertEqual(f.tries, 2)
 
-        // the file message goes to the device; the blob goes; the sent row is the file row, named
+        // the file message goes to the device; the blob waits for the decrypt into the sent row's
+        // local copy; the sent row is the file row, named
         let rep = try await n.core.fileSendMessage(f.id, dir: nDir)
         XCTAssertTrue(rep.allSent)
         // a second caller (app open, a session event) sends nothing more
@@ -402,9 +403,9 @@ final class FileTests: XCTestCase {
             _ = try await n.core.fileSendMessage(f.id, dir: nDir)
             XCTFail("sent twice")
         } catch {}
-        XCTAssertFalse(FileManager.default.fileExists(atPath: blob.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: blob.path))
         f = try XCTUnwrap(try n.core.store.file(f.id))
-        XCTAssertEqual(f.state, "sent")
+        XCTAssertEqual(f.state, "ready")
         let sentRow = try XCTUnwrap(try n.core.store.historyRow(f.historyRowid!))
         XCTAssertEqual(sentRow.type, "file")
         XCTAssertEqual(sentRow.content, f.name)
@@ -490,6 +491,119 @@ final class FileTests: XCTestCase {
         try x.core.pruneFiles(dir: xDir)
         XCTAssertNil(try x.core.store.file(fid))
         XCTAssertFalse(FileManager.default.fileExists(atPath: out.path))
+    }
+
+    /// A sent file that reached a device keeps a local copy as a downloaded received file does: the
+    /// same decrypt, row states, storage limit, removal, and Download; never downloaded by catch-up.
+    /// A failed send keeps nothing.
+    func testSentFileKeepsACopy() async throws {
+        let w = FakeWorker(), clock = TestClock()
+        let n = try Device(worker: w, clock: clock, name: "Ndev"), x = try Device(worker: w, clock: clock, name: "Xdev")
+        try await Scenario.pairFully(w, n, x)
+        await n.core.fetchPeers(force: true)
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("files-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let plain = Data((0 ..< 70_000).map { UInt8($0 % 251) })
+        let input = dir.appendingPathComponent("picked")
+        try plain.write(to: input)
+        let reply = Data("{\"id\":\"209611230347-0123456789abcdef0123456789abcdef\",\"expires\":4000000000,\"url\":\"https://b2file.pusharmor.com/v1/209611230347/3f9a1c5e7b2d4a60/209611230347-0123456789abcdef0123456789abcdef\",\"quota\":{}}".utf8)
+        func prepared(_ name: String) throws -> FileRecord {
+            let f = try n.core.fileSendPrepare(input: input, rawName: name, to: [x.id], allCount: 1, dir: dir, free: nil)
+            XCTAssertNotNil(try n.core.fileUploadTry(f.id))
+            return f
+        }
+        func sent(_ name: String) async throws -> FileRecord {
+            let f = try prepared(name)
+            _ = try n.core.fileUploadEnded(f.id, status: 201, body: reply, epoch: nil)
+            let rep = try await n.core.fileSendMessage(f.id, dir: dir)
+            XCTAssertEqual(rep.sent, 1)
+            return try XCTUnwrap(try n.core.store.file(f.id))
+        }
+        func status(_ f: FileRecord) throws -> FileUi.Status {
+            let g = try XCTUnwrap(try n.core.store.file(f.id))
+            let there = FileManager.default.fileExists(atPath: dir.appendingPathComponent(g.plainDirName).appendingPathComponent(g.name).path)
+            return FileUi.status(g, plainThere: g.state == "done" && there, received: nil, nowSec: clock.now)
+        }
+
+        // a failed send keeps nothing
+        let bad = try prepared("bad.bin")
+        guard case .final(let c, let t)? = try n.core.fileUploadEnded(bad.id, status: 400, body: nil, epoch: nil) else { return XCTFail("final") }
+        try n.core.fileSendFailed(bad.id, dir: dir, code: c, text: t)
+        let badRec = try XCTUnwrap(try n.core.store.file(bad.id))
+        XCTAssertEqual(badRec.state, "failed")
+        XCTAssertNil(badRec.historyRowid)
+        XCTAssertFalse(badRec.asReceived)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: dir.appendingPathComponent(badRec.blobName).path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: dir.appendingPathComponent(badRec.plainDirName).path))
+
+        // sent: the copy is kept by the decrypt of a received file, after the result
+        var a = try await sent("a.bin")
+        XCTAssertTrue(a.asReceived)
+        XCTAssertEqual(try status(a), .decrypting)
+        let uploaded = dir.appendingPathComponent("uploaded")
+        try FileManager.default.copyItem(at: dir.appendingPathComponent(a.blobName), to: uploaded)
+        guard case .done(let out) = try n.core.fileDecrypt(a.id, dir: dir, freeMemory: nil, manual: false) else { return XCTFail("copy") }
+        XCTAssertEqual(try Data(contentsOf: out), plain)
+        a = try XCTUnwrap(try n.core.store.file(a.id))
+        XCTAssertEqual(a.state, "done")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: dir.appendingPathComponent(a.blobName).path))
+        XCTAssertEqual(try status(a), .ready)
+        // a failure on a later step of the send never touches it
+        try n.core.fileSendFailed(a.id, dir: dir, code: .failed, text: nil)
+        XCTAssertEqual(try n.core.store.file(a.id)?.state, "done")
+
+        // storage full and other write errors: the received row states, with a Decrypt button
+        var b = try await sent("b.bin")
+        let taken = dir.appendingPathComponent(b.plainDirName)
+        try Data().write(to: taken)
+        let size = b.size
+        b.size = 1 << 60
+        try n.core.store.saveFile(b)
+        let full = FileRules.storageFullText(upload: false, name: "b.bin")
+        XCTAssertEqual(try n.core.fileDecrypt(b.id, dir: dir, freeMemory: nil, manual: false), .failed(full))
+        XCTAssertEqual(try status(b), .decryptFailed(text: full))
+        b = try XCTUnwrap(try n.core.store.file(b.id))
+        b.size = size
+        try n.core.store.saveFile(b)
+        XCTAssertEqual(try n.core.fileDecrypt(b.id, dir: dir, freeMemory: nil, manual: true), .failed(FileUi.openFailed("b.bin")))
+        XCTAssertEqual(try status(b), .decryptFailed(text: FileUi.openFailed("b.bin")))
+        // the app closed during the copy: the received row state, never stuck
+        b = try XCTUnwrap(try n.core.store.file(b.id))
+        b.decryptMark = 5
+        try n.core.store.saveFile(b)
+        try n.core.settleDecryptMarks()
+        XCTAssertEqual(try status(b), .noMemory)
+        try FileManager.default.removeItem(at: taken)
+        guard case .done = try n.core.fileDecrypt(b.id, dir: dir, freeMemory: nil, manual: true) else { return XCTFail("decrypt") }
+
+        // the storage limit counts sent copies: the oldest is removed, with a Download button
+        try n.core.fileEnforceLimit(dir: dir, limit: Int64(plain.count))
+        let exp = FileUi.expiresText(4_000_000_000, nowSec: clock.now)
+        XCTAssertEqual(try status(a), .failed(text: FileUi.removed, download: true, expires: exp))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: out.path))
+        XCTAssertEqual(try status(b), .ready)
+
+        // catch-up never downloads a sent file, even one waiting for a download
+        XCTAssertTrue(try n.core.fileDownloadStarts(a.id, task: "s 1", manual: true))
+        try n.core.fileTaskEnded(a.id, task: "s 1", status: 0, body: nil, blobArrived: false)
+        XCTAssertEqual(try n.core.store.file(a.id)?.state, "pending")
+        XCTAssertEqual(try n.core.fileCatchUp(network: .wifi, lowData: false, free: nil).map { $0.id }, [])
+
+        // Download: the received download, check, and decrypt
+        XCTAssertTrue(try n.core.fileDownloadStarts(a.id, task: "s 2", manual: true))
+        a = try XCTUnwrap(try n.core.store.file(a.id))
+        try FileManager.default.moveItem(at: uploaded, to: dir.appendingPathComponent(a.blobName))
+        try n.core.fileTaskEnded(a.id, task: "s 2", status: 200, body: nil, blobArrived: true)
+        XCTAssertEqual(try n.core.fileCheck(a.id, dir: dir), .ready)
+        guard case .done(let again) = try n.core.fileDecrypt(a.id, dir: dir, freeMemory: nil, manual: false) else { return XCTFail("download") }
+        XCTAssertEqual(try Data(contentsOf: again), plain)
+
+        // the History row goes: the copy goes too
+        try n.core.store.db.exec("DELETE FROM history WHERE rowid = ?", [.int(a.historyRowid!)])
+        try n.core.pruneFiles(dir: dir)
+        XCTAssertNil(try n.core.store.file(a.id))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: again.path))
     }
 
     func testDownloadAttemptsDamagedAndStorage() throws {

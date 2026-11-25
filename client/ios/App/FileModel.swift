@@ -130,7 +130,7 @@ extension AppModel {
     /// (never during a share or on the Send tab). A short free memory skips with the row error and a toast.
     func decryptDue() {
         guard historyVisible, UIApplication.shared.applicationState == .active, !decryptRunning, let next = files.values.sorted(by: { $0.id < $1.id })
-            .first(where: { $0.dir == .incoming && $0.state == "ready" && $0.code == nil && $0.decryptMark == nil && !decryptSkip.contains($0.id) })
+            .first(where: { $0.asReceived && $0.state == "ready" && $0.code == nil && $0.decryptMark == nil && !decryptSkip.contains($0.id) })
         else { return }
         decrypt(next, manual: false)
     }

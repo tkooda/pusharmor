@@ -151,7 +151,7 @@ extension Core {
     /// always starts; the file keeps that mark for its later automatic tries.
     public func fileDownloadStarts(_ id: Int64, task: String, manual: Bool = false) throws -> Bool {
         try store.db.write {
-            guard var f = try store.file(id), f.dir == .incoming,
+            guard var f = try store.file(id), f.asReceived,
                   f.state == "pending" || (manual && f.state == "failed") else { return false }
             if manual {
                 f.attemptsState = FileRules.Attempts(used: 0, openAt: -1).start(have: f.have)!
@@ -195,7 +195,7 @@ extension Core {
     /// the record on. `dir`: the files directory.
     @discardableResult
     public func fileCheck(_ id: Int64, dir: URL) throws -> FileFlow.DownloadNext? {
-        guard var f = try store.file(id), f.dir == .incoming, let ref = f.ref, ["blob", "pending"].contains(f.state),
+        guard var f = try store.file(id), f.asReceived, let ref = f.ref, ["blob", "pending"].contains(f.state),
               f.status != 0 || f.state == "blob" else { return nil }
         let blob = dir.appendingPathComponent(f.blobName)
         var size: Int64? = nil
@@ -264,7 +264,7 @@ extension Core {
     /// Decrypt button) skips the memory check. `cancelled` is asked before each chunk.
     public func fileDecrypt(_ id: Int64, dir: URL, freeMemory: Int64?, manual: Bool,
                             cancelled: () -> Bool = { false }) throws -> DecryptResult {
-        guard var f = try store.file(id), f.dir == .incoming, f.state == "ready", let key = B64URL.decode(f.key) else { return .damaged }
+        guard var f = try store.file(id), f.asReceived, f.state == "ready", let key = B64URL.decode(f.key) else { return .damaged }
         if !manual, let m = freeMemory, m < FileRules.workingMemory {
             f.code = "memory"
             f.error = S.notEnoughMemory
@@ -425,8 +425,9 @@ extension Core {
     }
 
     /// Sends the file message of an uploaded send to its devices (the upload reply is used again
-    /// on a later try of the same send). On success the outgoing row is written and the blob
-    /// goes. A send whose file expired fails.
+    /// on a later try of the same send). On success the outgoing row is written; when a device got
+    /// it, the blob waits for its decrypt into the row's local copy as a downloaded received file
+    /// does (after the result is reported), else the blob goes. A send whose file expired fails.
     public func fileSendMessage(_ id: Int64, dir: URL) async throws -> SendReport {
         // one sender only: the send is claimed (uploaded -> sending) in one transaction, so a second
         // caller (app open, a session event) finds it taken and sends nothing
@@ -456,10 +457,10 @@ extension Core {
             try? store.saveFile(f)
             throw error
         }
-        f.state = "sent"
         f.historyRowid = rep.rowid
+        f.state = rep.sent > 0 && rep.rowid != nil ? "ready" : "sent"
         try store.saveFile(f)
-        try? FileManager.default.removeItem(at: dir.appendingPathComponent(f.blobName))
+        if f.state == "sent" { try? FileManager.default.removeItem(at: dir.appendingPathComponent(f.blobName)) }
         return rep
     }
 
@@ -488,7 +489,7 @@ extension Core {
 
     /// A send that cannot finish (its upload failed or the app gave up): its blob goes.
     public func fileSendFailed(_ id: Int64, dir: URL, code: FileRules.FinalCode, text: String?) throws {
-        guard var f = try store.file(id), f.dir == .outgoing, f.state != "sent", f.state != "sending" else { return }
+        guard var f = try store.file(id), f.dir == .outgoing, f.historyRowid == nil, f.state != "sent", f.state != "sending" else { return }
         f.state = "failed"
         f.code = code.rawValue
         f.error = text
