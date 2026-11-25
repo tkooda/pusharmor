@@ -29,9 +29,9 @@ def test_names(c):
     assert pa.sanitize_name(c["input"], V["names"]["time"], c["image"]) == c["output"]
 
 
-@pytest.mark.parametrize("c", V["collision"]["cases"], ids=lambda c: c["name"])
+@pytest.mark.parametrize("c", V["collision"]["cases"], ids=lambda c: c["name"] + "-" + c["mode"])
 def test_collision(c):
-    assert pa.collide(c["input"], c["existing"]) == c["output"]
+    assert pa.collide(c["input"], c["existing"], {"ignore_case": True, "exact": False}[c["mode"]]) == c["output"]
 
 
 @pytest.mark.parametrize("c", V["blob"]["cases"], ids=lambda c: c["name"])

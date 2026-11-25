@@ -2873,7 +2873,8 @@ def test_listen_files_never_overwrites_and_numbers_the_name(net, tmp_path, monke
     (dest / "REPORT.pdf").write_bytes(b"mine")
     code, cap = _listen_files(net, b, capsys, "--json", "--files", str(dest))
     paths = [json.loads(x)["file"] for x in cap.out.splitlines()]
-    assert paths == [str(dest / "report (1).pdf"), str(dest / "report (2).pdf")]
+    names = ["report (1).pdf", "report (2).pdf"] if _folder_ignores_case(dest) else ["report.pdf", "report (1).pdf"]
+    assert paths == [str(dest / n) for n in names]
     assert (dest / "REPORT.pdf").read_bytes() == b"mine"
 
 
@@ -3150,6 +3151,50 @@ def test_send_file_sanitizes_the_name(net, tmp_path, monkeypatch, capsys):
     assert run(a, "send", "-f", str(src)) == 0
     code, cap = _listen_files(net, b, capsys, "--json")
     assert json.loads(cap.out)["body"] == "caf_ menu.txt"
+
+
+def _folder_ignores_case(folder):
+    probe = folder / "Probe"
+    probe.write_bytes(b"")
+    try:
+        return (folder / "pROBE").exists()
+    finally:
+        probe.unlink()
+
+
+def test_ignores_case_matches_the_folder_and_leaves_nothing(tmp_path):
+    want = _folder_ignores_case(tmp_path)
+    tmp = tmp_path / ".pusharmor-x.tmp"
+    tmp.write_bytes(b"x")
+    assert pa._ignores_case(str(tmp)) is want
+    assert os.listdir(tmp_path) == [".pusharmor-x.tmp"]
+
+
+@pytest.mark.parametrize("found, want", [(True, True), (FileNotFoundError, False), (PermissionError, True)])
+def test_ignores_case_simulated(tmp_path, monkeypatch, found, want):
+    seen = []
+
+    def samefile(a, b):
+        seen.append((a, b))
+        if found is True:
+            return True
+        raise found()
+    monkeypatch.setattr(pa.os.path, "samefile", samefile)
+    tmp = str(tmp_path / ".pusharmor-x.tmp")
+    assert pa._ignores_case(tmp) is want
+    assert seen == [(tmp, str(tmp_path / ".PUSHARMOR-X.TMP"))]
+
+
+@pytest.mark.parametrize("ignore_case, want", [(True, "Photo (1).jpg"), (False, "Photo.jpg")])
+def test_place_matches_names_by_the_detected_mode(tmp_path, monkeypatch, ignore_case, want):
+    if not ignore_case and _folder_ignores_case(tmp_path):
+        pytest.skip("this file system ignores case")
+    monkeypatch.setattr(pa, "_ignores_case", lambda t: ignore_case)
+    (tmp_path / "photo.jpg").write_bytes(b"old")
+    tmp = tmp_path / ".pusharmor-x.tmp"
+    tmp.write_bytes(b"new")
+    assert pa._place(str(tmp), str(tmp_path), "Photo.jpg") == str(tmp_path / want)
+    assert (tmp_path / want).read_bytes() == b"new" and (tmp_path / "photo.jpg").read_bytes() == b"old"
 
 
 @pytest.mark.skipif(os.name == "nt", reason="Windows saves with a rename")

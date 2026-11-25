@@ -641,14 +641,16 @@ def _ascii_lower(s):
     return re.sub("[A-Z]", lambda m: m.group().lower(), s)
 
 
-def collide(name, existing):
-    """name, or "base (N).ext" with the smallest free N >= 1. Names match ignoring ASCII case."""
-    taken = {_ascii_lower(e) for e in existing}
-    if _ascii_lower(name) not in taken:
+def collide(name, existing, ignore_case):
+    """name, or "base (N).ext" with the smallest free N >= 1. Names match ignoring ASCII case when ignore_case
+    (the folder is on a case-insensitive file system), else exactly."""
+    key = _ascii_lower if ignore_case else str
+    taken = {key(e) for e in existing}
+    if key(name) not in taken:
         return name
     base, ext = split_ext(name)
     n = 1
-    while _ascii_lower("%s (%d)%s" % (base, n, ext)) in taken:
+    while key("%s (%d)%s" % (base, n, ext)) in taken:
         n += 1
     return "%s (%d)%s" % (base, n, ext)
 
@@ -2902,10 +2904,25 @@ def _sha256_of(f):
 _NO_LINK = {errno.EPERM, errno.EACCES, errno.ENOTSUP, errno.EOPNOTSUPP, errno.ENOSYS, errno.EXDEV}
 
 
+def _ignores_case(tmp):
+    """True when the folder that holds tmp (a file of ours, its name has letters) is on a case-insensitive file
+    system: the other-case name of tmp opens tmp itself. Creates nothing. When unsure: True, as an exact match
+    there could pick a name the file system says is taken."""
+    folder, base = os.path.split(tmp)
+    try:
+        return os.path.samefile(tmp, os.path.join(folder, base.swapcase()))
+    except FileNotFoundError:
+        return False
+    except OSError:
+        return True
+
+
 def _place(tmp, folder, name):
-    """Moves tmp into folder as name, or "name (N)" when taken; never replaces a file. -> the new path."""
+    """Moves tmp into folder as name, or "name (N)" when taken; never replaces a file. -> the new path.
+    Names match ignoring case only when the folder's file system does."""
+    ignore_case = _ignores_case(tmp)
     while True:
-        path = os.path.join(folder, collide(name, os.listdir(folder)))
+        path = os.path.join(folder, collide(name, os.listdir(folder), ignore_case))
         try:
             if windows():
                 os.rename(tmp, path)  # fails when path exists
