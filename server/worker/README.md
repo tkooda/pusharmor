@@ -40,7 +40,7 @@ test route.
 ## Logs
 
 One compact JSON line per request (`src/log.ts`): allow-listed fields only, no bodies,
-tokens or messages; the largest field is the per-recipient list (at most 9 short entries).
+tokens or messages; the largest field is the per-recipient list (at most 24 short entries).
 Every logged line adds to the log volume. `head_sampling_rate` stays 1: head sampling is decided before
 the request runs and would drop errors as well. Sampling is done in code with the var
 `PA_LOG_SAMPLE`, a Cloudflare dashboard variable (not in wrangler.jsonc):

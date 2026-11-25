@@ -22,7 +22,7 @@ export interface QuotaRow {
 }
 
 export const FREE_ATTEMPTS = 3;
-export const MAX_SLOTS = 16;
+export const MAX_SLOTS = 25;
 const ROW = "q";
 const SWEEP = "sweep";
 // Name of the one object that holds the last cleanup time (":" never occurs in an account id).

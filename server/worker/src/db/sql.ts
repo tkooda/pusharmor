@@ -29,7 +29,7 @@ const Q_CTX_COLS = `id, sign_pub, enc_pub, platform, ${PF}, push_type, push, pus
   CASE WHEN id = ?1 THEN allow END AS my_allow`;
 const ctxCache = new Map<string, string>();
 function ctxSql(ids: number, send: boolean): string {
-  if (!Number.isInteger(ids) || ids < 0 || ids > 10) throw new Error("Q_CTX ids");
+  if (!Number.isInteger(ids) || ids < 0 || ids > 25) throw new Error("Q_CTX ids");
   const key = `${ids}${send}`;
   let s = ctxCache.get(key);
   if (s) return s;
@@ -81,10 +81,10 @@ FROM peers WHERE account = ?2 AND id = ?1`;
 // ?1 me, ?2 acct, ?3 push JSON, ?4 push_type
 export const W_PUSH = `UPDATE peers SET push = ?3, push_type = ?4, push_verified_at = NULL WHERE account = ?2 AND id = ?1`;
 
-// W_NAME for 1..9 pairs: ?1 me, ?2 acct, then (?3 id, ?4 entry), (?5, ?6), ...
+// W_NAME for 1..24 pairs: ?1 me, ?2 acct, then (?3 id, ?4 entry), (?5, ?6), ...
 const wNameCache = new Map<number, string>();
 export function W_NAME(pairs: number): string {
-  if (!Number.isInteger(pairs) || pairs < 1 || pairs > 9) throw new Error("W_NAME pairs");
+  if (!Number.isInteger(pairs) || pairs < 1 || pairs > 24) throw new Error("W_NAME pairs");
   let s = wNameCache.get(pairs);
   if (s) return s;
   const sets: string[] = [];

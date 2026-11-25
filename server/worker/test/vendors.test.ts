@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { b64urlDecode } from "../src/codec/b64url";
 import { MAX_MESSAGE } from "../src/codec/validate";
 import { utf8 } from "../src/crypto/hash";
-import { BUDGET_MS, fanout, SUBREQUEST_WORST_CASE, type Target } from "../src/push/fanout";
+import { BUDGET_MS, fanout, MAX_RECIPIENTS, SUBREQUEST_WORST_CASE, type Target } from "../src/push/fanout";
 import { apnsPayload } from "../src/push/apns";
 import { deps } from "../src/push/deps";
 import { mintFcmToken } from "../src/push/fcm";
@@ -184,8 +184,30 @@ describe("result mapping, row by row (vendor-wrap 6)", () => {
     expect(Object.values(out.results).every((x) => x === "sent")).toBe(true);
   });
 
-  it("subrequest worst case is 47", () => {
-    expect(SUBREQUEST_WORST_CASE).toBe(47);
+  it("24 recipients: 6 connection slots at a time, every recipient sent", async () => {
+    const e = await testEnv();
+    let open = 0;
+    let maxOpen = 0;
+    let calls = 0;
+    onVendor(isSend("wp"), async () => {
+      calls++;
+      open++;
+      maxOpen = Math.max(maxOpen, open);
+      await new Promise((r) => setTimeout(r, 1));
+      open--;
+      return new Response(null, { status: 201 });
+    }, 99);
+    expect(MAX_RECIPIENTS).toBe(24);
+    const targets = await Promise.all(Array.from({ length: MAX_RECIPIENTS }, async (_, i) => ({ ...(await target("wp")), id: "r" + i })));
+    const out = await fanout(e, targets, new Log());
+    expect(calls).toBe(24);
+    expect(maxOpen).toBe(6);
+    expect(Object.keys(out.results)).toHaveLength(24);
+    expect(Object.values(out.results).every((x) => x === "sent")).toBe(true);
+  });
+
+  it("subrequest worst case is 122", () => {
+    expect(SUBREQUEST_WORST_CASE).toBe(122);
   });
 });
 

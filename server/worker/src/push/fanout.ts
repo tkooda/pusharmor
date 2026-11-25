@@ -18,9 +18,9 @@ export const BUDGET_MS = 8000;
 export const ATTEMPT_MS = 5000;
 export const PROBE_MS = 3000;
 export const BODY_READ_CAP = 4096;
-export const MAX_RECIPIENTS = 9;
+export const MAX_RECIPIENTS = 24;
 export const TOKEN_MINTS = 2;
-// 9 recipients x (1 + 3 retries + 1 auth refresh) + 2 token mints.
+// 24 recipients x (1 + 3 retries + 1 auth refresh) + 2 token mints.
 export const SUBREQUEST_WORST_CASE = MAX_RECIPIENTS * (1 + MAX_RETRIES + 1) + TOKEN_MINTS;
 
 export interface Target {

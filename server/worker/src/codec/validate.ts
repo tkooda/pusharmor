@@ -8,7 +8,7 @@ import { b64urlEncode } from "./b64url";
 
 export const MAX_MESSAGE = 3800;
 export const MAX_NAME_ENTRY = 1024;
-export const MAX_MAP = 9;
+export const MAX_MAP = 24;
 export const PAIR_MESSAGE_LEN = 366;
 
 export function bad(): ApiError {
@@ -40,7 +40,7 @@ export function checkNameEntry(v: unknown): string {
   return v;
 }
 
-// "m" map: object, at most 9 entries, keys are ids, values messages.
+// "m" map: object, at most 24 entries, keys are ids, values messages.
 export function checkMessageMap(v: unknown): Record<string, string> {
   if (!v || typeof v !== "object" || Array.isArray(v)) throw bad();
   const o = v as Record<string, unknown>;

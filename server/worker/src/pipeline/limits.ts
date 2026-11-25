@@ -47,7 +47,7 @@ function expandIPv6(ip: string): string[] | null {
   return all.map((g) => (g.includes(".") ? g : g.replace(/^0+(?=.)/, "")));
 }
 
-// RL_ACCT: one counter per account for every signed call and POST /peers, so 10 peers (or a
+// RL_ACCT: one counter per account for every signed call and POST /peers, so 25 peers (or a
 // register/evict churn) cannot multiply the per-peer limit.
 export function enforceAccount(env: Env, acct: string, log: Log): Promise<void> {
   return enforce(env, "RL_ACCT", "acct:" + acct, log);

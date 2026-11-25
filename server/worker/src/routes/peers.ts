@@ -67,7 +67,7 @@ export async function register(c: Ctx): Promise<Response> {
   if (push) checkPushPlatform(platform, push);
   let evict: string[] = [];
   if (b.evict !== undefined) {
-    if (!Array.isArray(b.evict) || b.evict.length > 9 || !b.evict.every(isId)) throw bad();
+    if (!Array.isArray(b.evict) || b.evict.length > 24 || !b.evict.every(isId)) throw bad();
     evict = b.evict as string[];
     if (new Set(evict).size !== evict.length) throw bad();
   }

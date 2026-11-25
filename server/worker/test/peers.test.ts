@@ -4,7 +4,7 @@ import { b64urlEncode } from "../src/codec/b64url";
 import { type Peer, acctOf, call, cliCodeFor, initP256, keys, message, newPeer, pushFor, randomEmail, register, row, setAllow, ticketFor, vendorRequests } from "./helpers";
 import { LABEL_TICKET, makeTicket, openToken } from "../src/crypto/tokens";
 import { TEST_SECRETS as S } from "./secrets";
-import { PUSH_FAILED_COL } from "../src/db/sql";
+import { PUSH_FAILED_COL, Q_CTX, Q_CTX_SEND, W_NAME } from "../src/db/sql";
 import { checkWebpushEndpoint, endpointRules } from "../src/push/allowlist";
 
 beforeAll(initP256);
@@ -205,6 +205,17 @@ describe("POST /peers", () => {
     const ghost = p.acct + b64urlEncode(crypto.getRandomValues(new Uint8Array(21)));
     r = (await register(email, "android", null, { evict: [ghost] })).r;
     expect(r.status).toBe(400);
+  });
+
+  it("evict list: 24 ids pass the shape check, 25 ids -> 400 before the ticket is read", async () => {
+    const p = await newPeer(randomEmail());
+    const k = await keys();
+    const ids = Array.from({ length: 25 }, () => p.acct + b64urlEncode(crypto.getRandomValues(new Uint8Array(21))));
+    const body = (evict: string[]) => ({ ticket: "x", sign_pub: k.signPub, enc_pub: k.encPub, platform: "android", push: null, evict });
+    expect((await call("POST", "/v1/peers", body(ids.slice(0, 24)), { sign: k.sign })).status).toBe(401);
+    const r = await call("POST", "/v1/peers", body(ids), { sign: k.sign });
+    expect(r.status).toBe(400);
+    expect(r.body).toEqual({ error: "bad request" });
   });
 
   it("id collision is unreachable without a keyhash collision (same keys = re-register)", async () => {
@@ -550,7 +561,7 @@ describe("pipeline", () => {
     expect(r.status).toBe(200);
   });
 
-  it("3801-char message -> 413; non-canonical b64url -> 400; 10 entries -> 400", async () => {
+  it("3801-char message -> 413; non-canonical b64url -> 400; 25 entries -> 400", async () => {
     const email = randomEmail();
     const p = await newPeer(email);
     const q = await newPeer(email);
@@ -560,7 +571,11 @@ describe("pipeline", () => {
     r = await call("POST", "/v1/send", { v: 1, m: { [q.id]: "AB" } }, { peer: p });
     expect(r.status).toBe(400);
     const m: Record<string, string> = {};
-    for (let i = 0; i < 10; i++) m[p.acct + b64urlEncode(crypto.getRandomValues(new Uint8Array(21)))] = message(512);
+    for (let i = 0; i < 24; i++) m[p.acct + b64urlEncode(crypto.getRandomValues(new Uint8Array(21)))] = message(512);
+    r = await call("POST", "/v1/send", { v: 1, m }, { peer: p });
+    expect(r.status).toBe(200);
+    expect(Object.keys(r.body.r as Record<string, string>)).toHaveLength(24);
+    m[p.acct + b64urlEncode(crypto.getRandomValues(new Uint8Array(21)))] = message(512);
     r = await call("POST", "/v1/send", { v: 1, m }, { peer: p });
     expect(r.status).toBe(400);
     r = await call("POST", "/v1/send", { v: 1, m: {}, x: 1 }, { peer: p });
@@ -569,6 +584,49 @@ describe("pipeline", () => {
     expect(r.status).toBe(400);
     r = await call("POST", "/v1/send", undefined, { peer: p, rawBody: new Uint8Array([0x7b, 0xff, 0x7d]) });
     expect(r.status).toBe(400);
+  });
+
+  it("PATCH name and m maps: 24 entries accepted, 25 entries -> 400", async () => {
+    const p = await newPeer(randomEmail());
+    const ids = Array.from({ length: 25 }, () => p.acct + b64urlEncode(crypto.getRandomValues(new Uint8Array(21))));
+    const name: Record<string, string> = {};
+    const m: Record<string, string> = {};
+    for (const id of ids.slice(0, 24)) {
+      name[id] = message(64);
+      m[id] = message(64);
+    }
+    let r = await call("PATCH", "/v1/peers/" + p.id, { name, m }, { peer: p });
+    expect(r.status).toBe(200);
+    r = await call("PATCH", "/v1/peers/" + p.id, { name: { ...name, [ids[24]]: message(64) }, m }, { peer: p });
+    expect(r.status).toBe(400);
+    r = await call("PATCH", "/v1/peers/" + p.id, { name, m: { ...m, [ids[24]]: message(64) } }, { peer: p });
+    expect(r.status).toBe(400);
+  });
+
+  it("DELETE /peers/$id: target plus 24 m entries (25 ids read) accepted, 25 m entries -> 400", async () => {
+    const p = await newPeer(randomEmail());
+    const ghost = () => p.acct + b64urlEncode(crypto.getRandomValues(new Uint8Array(21)));
+    const m: Record<string, string> = {};
+    for (let i = 0; i < 24; i++) m[ghost()] = message(64);
+    let r = await call("DELETE", "/v1/peers/" + ghost(), { m }, { peer: p });
+    expect(r.status).toBe(200);
+    m[ghost()] = message(64);
+    r = await call("DELETE", "/v1/peers/" + ghost(), { m }, { peer: p });
+    expect(r.status).toBe(400);
+  });
+
+  it("Q_CTX takes up to 25 ids and W_NAME up to 24 pairs; both run on D1 at the largest size", async () => {
+    expect(() => Q_CTX(26)).toThrow();
+    expect(() => Q_CTX_SEND(26)).toThrow();
+    expect(() => W_NAME(25)).toThrow();
+    const p = await newPeer(randomEmail());
+    const ids = Array.from({ length: 25 }, () => p.acct + b64urlEncode(crypto.getRandomValues(new Uint8Array(21))));
+    const ctx = await env.DB.prepare(Q_CTX_SEND(25)).bind(p.id, p.acct, ...ids).all();
+    expect(ctx.results.map((x) => x.id)).toEqual([p.id]);
+    const args: unknown[] = [p.id, p.acct];
+    for (const id of ids.slice(0, 24)) args.push(id, message(64));
+    const nm = await env.DB.prepare(W_NAME(24)).bind(...args).all();
+    expect(nm.results).toHaveLength(0);
   });
 
   it("404 and 405", async () => {

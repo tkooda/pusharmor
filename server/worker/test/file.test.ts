@@ -444,6 +444,7 @@ describe("check 9: quota", () => {
   });
 
   it("keeps at most MAX_SLOTS device slots, dropping the oldest", () => {
+    expect(MAX_SLOTS).toBe(25);
     let row: QuotaRow | undefined;
     for (let i = 0; i <= MAX_SLOTS; i++) row = chargeRow(row, "dev" + i, "s" + i, 1000, 1000, 1_800_000_000).row!;
     expect(Object.keys(row!.sends)).toHaveLength(MAX_SLOTS);
