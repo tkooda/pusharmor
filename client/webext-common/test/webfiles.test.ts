@@ -296,6 +296,77 @@ test("send: a sent file keeps a local copy with the received-file buttons; a fai
   assert.equal((await s.storeA.plainSizes()).size, 0);
 });
 
+test("send: a sent copy that cannot be kept shows the received-file error, or Removed from this device, each with Download", async () => {
+  const s = await fileSetup();
+  const nowSec = () => Math.floor(s.clock.t / 1000);
+  const expires = nowSec() + 24 * H;
+  let n = 0;
+  s.hostA.answer = async (req) => (req.op === "upload" ? { ok: true, url: FILE.url + ++n, expires, key: FILE.key, sha256: FILE.sha256 } : null);
+  const sent = async (name: string) => {
+    assert.equal((await s.fa.send(await s.storeA.putPicked(new Blob(["x"])), name, 1, [s.b.id])).sent, 1);
+    return (await s.a.db.history()).find((x) => x.type === "file" && x.dir === "out" && x.file?.url === FILE.url + n)!;
+  };
+  const status = (r: HistoryRow) => F.fileRowStatus(r.fs!, false, 0, false, r.file!.expires, nowSec());
+  const putPlain = s.storeA.putPlain.bind(s.storeA);
+  // storage full
+  s.storeA.putPlain = async () => {
+    throw new DOMException("full", "QuotaExceededError");
+  };
+  const full = await sent("a.txt");
+  assert.deepEqual(full.fs, { code: "storage", text: 'Not enough storage to download "a.txt"' });
+  assert.deepEqual(status(full), { k: "failed", text: 'Not enough storage to download "a.txt"', download: true, expires: F.expiresText(expires, nowSec()) });
+  // any other store error
+  s.storeA.putPlain = async () => {
+    throw new Error("idb");
+  };
+  const bad = await sent("b.txt");
+  assert.deepEqual(bad.fs, { code: "failed", text: F.DOWNLOAD_FAILED });
+  assert.equal(status(bad).k, "failed");
+  s.storeA.putPlain = putPlain;
+  // the picked file is gone
+  const picked = s.storeA.picked.bind(s.storeA);
+  s.storeA.picked = async () => null;
+  const gone = await sent("c.txt");
+  s.storeA.picked = picked;
+  assert.deepEqual(gone.fs, { plain: true });
+  assert.deepEqual(status(gone), { k: "failed", text: F.REMOVED, download: true, expires: F.expiresText(expires, nowSec()), grey: true });
+  assert.equal((await s.storeA.plainSizes()).size, 0);
+});
+
+test("send: a removed sent copy reads Removed from this device; only Download fetches it again, through the received download and decrypt", async () => {
+  const s = await fileSetup();
+  const nowSec = () => Math.floor(s.clock.t / 1000);
+  const expires = nowSec() + 24 * H;
+  s.hostA.answer = async (req) => (req.op === "upload" ? { ok: true, url: FILE.url, expires, key: FILE.key, sha256: FILE.sha256 } : null);
+  // the name says image, the bytes are not one: Preview not available, as on a received file
+  await s.fa.send(await s.storeA.putPicked(new Blob(["not a png"])), "cat.png", 9, [s.b.id]);
+  let row = (await s.a.db.history()).find((x) => x.type === "file" && x.dir === "out")!;
+  assert.deepEqual(row.fs, { plain: true, image: false });
+  assert.equal(F.fileRowStatus(row.fs!, false, 0, true, expires, nowSec()).k, "ready");
+  assert.equal(F.previewMissing(row.content, row.fs!), true);
+  // account switch: every local copy goes
+  await s.fa.clearAll();
+  assert.equal((await s.fa.here()).has(fileKey(row.id!)), false);
+  assert.deepEqual(F.fileRowStatus(row.fs!, false, 0, false, expires, nowSec()), { k: "failed", text: F.REMOVED, download: true, expires: F.expiresText(expires, nowSec()), grey: true });
+  // no catch-up fetches it (a received row that reads Removed from this device is not fetched by itself either)
+  s.hostA.reqs = [];
+  await s.fa.catchUp();
+  await new Promise((r) => setTimeout(r, 10));
+  assert.deepEqual(s.hostA.reqs, []);
+  // Download: the received download, then the received decrypt with the row's key
+  s.hostA.answer = async (req) => (req.op === "download" ? { ok: true, tries: 0 } : req.op === "decrypt" ? { result: "ok", image: true } : null);
+  await s.fa.download(row.id!, false);
+  const dl = s.hostA.reqs[0] as Extract<JobReq, { op: "download" }>;
+  assert.deepEqual([dl.op, dl.key, dl.ref.url, dl.ref.expires], ["download", fileKey(row.id!), FILE.url, expires]);
+  row = (await s.a.db.get<HistoryRow>("history", row.id!))!;
+  assert.equal(row.fs?.got, true);
+  assert.deepEqual(await s.fa.decryptShown(), []);
+  const dec = s.hostA.reqs[1] as Extract<JobReq, { op: "decrypt" }>;
+  assert.deepEqual([dec.op, dec.key, dec.fileKey], ["decrypt", fileKey(row.id!), FILE.key]);
+  row = (await s.a.db.get<HistoryRow>("history", row.id!))!;
+  assert.deepEqual([row.fs?.plain, row.fs?.image, row.fs?.got], [true, true, false]);
+});
+
 async function downloadedRow(s: Awaited<ReturnType<typeof fileSetup>>): Promise<number> {
   return s.b.db.addHistory({ dir: "in", peer: s.a.id, type: "file", content: "cat.png", n: 1, pairing_id: null, received: s.clock.t, read: true, file: { ...FILE, expires: Math.floor(s.clock.t / 1000) + H }, fs: { got: true } });
 }

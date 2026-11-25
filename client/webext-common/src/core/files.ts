@@ -96,7 +96,7 @@ export class Files implements FilesHook {
   }
 
   private async fileRows(): Promise<(HistoryRow & { id: number; file: FileValue })[]> {
-    return (await this.e.db.history()).filter((r): r is HistoryRow & { id: number; file: FileValue } => r.type === "file" && r.dir === "in" && !!r.file && r.id !== undefined);
+    return (await this.e.db.history()).filter((r): r is HistoryRow & { id: number; file: FileValue } => r.type === "file" && !!r.file && r.id !== undefined);
   }
 
   /** Changes the file state of a row (read, change, write); null when the row is gone. */
@@ -144,24 +144,40 @@ export class Files implements FilesHook {
     const value: FileValue = { url: out.url, expires: out.expires, key: out.key, name: clean, size, sha256: out.sha256 };
     const r = await this.e.deliver(self, to, { type: "file", value }, { type: "file", content: clean, file: value });
     if (r.sent > 0) {
-      await this.keepSent(picked, value.url).catch(() => undefined);
+      // only a failure of the History database itself is not shown (the row cannot say it)
+      await this.keepSent(picked, value.url, clean).catch(() => undefined);
       await this.dropPicked(picked);
     }
     if (!quiet && (r.error || r.sent < r.total)) this.afterFailure(picked, r.error || [actionLine("send"), ...r.failures.map((f) => f.text)].join("\n"), r.sent > 0);
     return r;
   }
 
-  /** Keeps the picked file as the local copy of the sent row of url, where decrypted files are kept. */
-  private async keepSent(picked: string, url: string): Promise<void> {
-    const store = await this.store();
-    const blob = await store.picked(picked);
+  /**
+   * Keeps the picked file as the local copy of the sent row of url, where decrypted files are kept. A copy
+   * that cannot be kept shows on the row as on a received file: the storage or download error, or (the
+   * picked file is gone) "Removed from this device"; each with Download while the file has not expired.
+   * No row (deleted while the send ran): nothing is left to show it.
+   */
+  private async keepSent(picked: string, url: string, name: string): Promise<void> {
     const row = (await this.e.db.history()).find((x) => x.type === "file" && x.dir === "out" && x.file?.url === url);
-    if (!blob || row?.id === undefined) return;
+    if (row?.id === undefined) return;
     const key = fileKey(row.id);
-    await store.putPlain(key, blob);
-    const image = sniffImage(new Uint8Array(await blob.slice(0, 32).arrayBuffer())) !== null;
-    await this.setFs(row.id, (x) => ({ ...x, plain: true, image }));
-    await this.evict(key);
+    try {
+      const store = await this.store();
+      const blob = await store.picked(picked);
+      if (!blob) {
+        await this.setFs(row.id, (x) => ({ ...x, plain: true }));
+        return;
+      }
+      await store.putPlain(key, blob);
+      const image = sniffImage(new Uint8Array(await blob.slice(0, 32).arrayBuffer())) !== null;
+      await this.setFs(row.id, (x) => ({ ...x, plain: true, image }));
+    } catch (e) {
+      const storage = e instanceof DOMException && e.name === "QuotaExceededError";
+      await this.setFs(row.id, (x) => ({ ...x, code: storage ? "storage" : "failed", text: storage ? storageFullText("download", name) : DOWNLOAD_FAILED }));
+      return;
+    }
+    await this.evict(key).catch(() => undefined);
   }
 
   private async dropPicked(picked: string): Promise<void> {
@@ -211,6 +227,8 @@ export class Files implements FilesHook {
   async catchUp(): Promise<void> {
     const picker = (await this.e.settings()).fileAuto;
     for (const r of await this.fileRows()) {
+      // a sent file is downloaded again only by its Download button
+      if (r.dir !== "in") continue;
       const s = r.fs ?? {};
       if (s.got || s.plain || s.code || s.mem || (s.tries ?? 0) >= DOWNLOAD_TRIES || this.running.has(r.id)) continue;
       if (catchUpDue(r.file, picker, this.nowSec())) void this.download(r.id, true);
@@ -221,7 +239,7 @@ export class Files implements FilesHook {
   async download(id: number, auto: boolean): Promise<void> {
     if (this.running.has(id)) return;
     const r = await this.e.db.get<HistoryRow>("history", id);
-    if (!r?.file || r.dir !== "in") return;
+    if (!r?.file) return;
     const s = r.fs ?? {};
     if (auto && (s.tries ?? 0) >= DOWNLOAD_TRIES) return;
     this.running.set(id, 0);

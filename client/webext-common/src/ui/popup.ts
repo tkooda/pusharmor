@@ -844,7 +844,7 @@ export async function historyView(env: UiEnv, root: HTMLElement, focus?: string,
   root.append(filterRow, bar, delBar.el, list, h("div", { class: "grow" }));
   if (focus) document.getElementById("h-" + focus)?.scrollIntoView({ block: "center" });
   // files: a row redraws when its state changes; downloaded files decrypt only while History shows
-  const needsDecrypt = (r: HistRow) => r.type === "file" && r.dir === "in" && !!r.fs?.got && !r.fs.plain;
+  const needsDecrypt = (r: HistRow) => r.type === "file" && !!r.fs?.got && !r.fs.plain;
   const stop = env.files?.onEvent((id, pct) => {
     if (!list.isConnected) return stop?.();
     const bar = list.querySelector<HTMLProgressElement>('progress[data-file="' + id + '"]');
@@ -994,12 +994,15 @@ async function plainOf(env: UiEnv, r: HistRow): Promise<Blob | null> {
   return b ?? null;
 }
 
-/** The lines under a file row's name: size and type, then (received) its state with Download or Decrypt, or (sent) when it expires. */
+/**
+ * The lines under a file row's name: size and type, then its state with Download or Decrypt; a sent file
+ * shows the states of a received one once its copy was kept here (or could not be), else when it expires.
+ */
 function fileLines(env: UiEnv, r: HistRow, nowMs: number, row: HTMLElement): HTMLElement[] {
   const f = r.file!;
   const nowSec = Math.floor(nowMs / 1000);
   const out = [h("div", { class: "dim" }, F.detail(r.content, f.size))];
-  if (r.dir === "out") return [...out, h("div", { class: "dim" }, F.expiresText(f.expires, nowSec))];
+  if (r.dir === "out" && !r.fs) return [...out, h("div", { class: "dim" }, F.expiresText(f.expires, nowSec))];
   const st = F.fileRowStatus(r.fs ?? {}, r.pct !== undefined, r.pct ?? 0, r.here === true, f.expires, nowSec);
   const line = (glyph: IconName, text: string, cls: string) => h("div", { class: "fline " + cls }, icon(glyph, 16), h("span", {}, text));
   const button = (label: string, glyph: IconName, run: () => void, expires: string | null) =>
