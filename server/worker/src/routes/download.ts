@@ -57,9 +57,12 @@ function preflight(): Response {
   });
 }
 
-// Error replies: JSON body, readable from any origin, never sniffed or cached.
+// Error replies: JSON body, readable from any origin, never sniffed or cached. PA-Epoch as on
+// API replies, so a client can correct its clock after a 401 clock skew.
 export function errorReply(e: ApiError): Response {
   const res = errorResponse(e);
+  res.headers.set("PA-Epoch", String(Math.floor(Date.now() / 1000)));
+  res.headers.set("Access-Control-Expose-Headers", "PA-Epoch");
   res.headers.set("X-Content-Type-Options", "nosniff");
   res.headers.set("Access-Control-Allow-Origin", "*");
   res.headers.set("Cache-Control", "no-store");

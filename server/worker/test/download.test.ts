@@ -1,9 +1,11 @@
 // File host b2file.pusharmor.com: key pattern, signed GET, fixed headers, Range, limits, storage errors.
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
+import vectors from "../../../tests/vectors/file-v1.json";
 import { handle } from "../src/index";
 import type { Env } from "../src/env";
 import { b64urlEncode } from "../src/codec/b64url";
+import { checkKeyhash, checkSig, downloadSignedBytes } from "../src/pipeline/signed";
 import { peerId } from "../src/crypto/ids";
 import { acctHash, minuteOf, testing } from "../src/routes/file";
 import { storeDeps, type FileStore, type GetResult } from "../src/file/store";
@@ -377,6 +379,9 @@ describe("file host", () => {
       const res = await get("/" + key, { time: String(t) });
       expect(res.status).toBe(401);
       expect(await res.json()).toEqual({ error: "clock skew" });
+      expect(res.headers.get("PA-Epoch")).toMatch(/^[0-9]{10}$/);
+      expect(Math.abs(Number(res.headers.get("PA-Epoch")) - Date.now() / 1000)).toBeLessThan(5);
+      expect(res.headers.get("Access-Control-Expose-Headers")).toBe("PA-Epoch");
     }
     const h = await dlHeaders(dev, "/" + key);
     delete h["PA-Time"];
@@ -392,5 +397,22 @@ describe("file host", () => {
     expect((await get("/" + key, { signer: null, headers: { ...h, "PA-Time": String(Number(t) + 1) } })).status).toBe(401);
     const res = await get("/" + key, { env: await looseEnv(), signer: null, headers: { ...h, Range: "bytes=0-1" } });
     expect(res.status).toBe(206);
+  });
+});
+
+describe("vectors (download_sig)", () => {
+  it("PA-DL1 signing strings, keyhash and signatures", async () => {
+    expect(vectors.download_sig.cases.length).toBeGreaterThan(0);
+    for (const c of vectors.download_sig.cases) {
+      const signed = downloadSignedBytes(c.path, c.pa_time);
+      expect(new TextDecoder().decode(signed), c.name).toBe(c.signed_text);
+      expect(b64urlEncode(signed), c.name).toBe(c.signed_bytes);
+      expect(new URL(c.url).pathname, c.name).toBe(c.path);
+      const h = new Headers(c.headers);
+      await checkKeyhash(h.get("PA-ID")!, h.get("PA-Sign-Pub")!, h.get("PA-Enc-Pub")!);
+      const p = checkSig(h.get("PA-Sign-Pub")!, h, c.method, c.path, c.pa_time, new Uint8Array(0), signed);
+      if (c.verifies) await p;
+      else await expect(p, c.name).rejects.toMatchObject({ status: 401, word: "invalid client signature" });
+    }
   });
 });
