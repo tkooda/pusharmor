@@ -562,6 +562,11 @@ def file_sig_bytes(method, path, pa_time, length=None, file_sha256=None, send_id
     return s.encode()
 
 
+def download_sig_bytes(path, pa_time):
+    """PA-DL1 signing string for a GET on the file host: path is the URL pathname; Range is not signed."""
+    return ("PA-DL1\nGET\n%s\n%s" % (path, pa_time)).encode()
+
+
 def seal_file(src, dst, key, nonce, size):
     """Streams size plaintext bytes from src to dst as the blob. -> 43-char b64url SHA-256 of the blob.
     Raises ValueError when src does not hold exactly size bytes (the file changed while it was read)."""
@@ -2713,6 +2718,13 @@ def file_post_headers(keys, pa_time, length, file_sha256, send_id):
             "Content-Type": "application/octet-stream"}
 
 
+def download_headers(keys, url, pa_time):
+    """Headers that sign one file host GET by this device (PA-DL1), fresh for each request."""
+    sig = sign(keys["sign"], download_sig_bytes(urllib.parse.urlsplit(url).path, pa_time))
+    return {"PA-ID": keys["id"], "PA-Time": pa_time, "PA-Sign-Pub": b64e(keys["sign_pub"]),
+            "PA-Enc-Pub": b64e(keys["enc_pub"]), "PA-Sig": b64e(sig)}
+
+
 def upload_file(cx, f, length, file_sha256, name):
     """POST /v1/file with the blob in f, signed again for each try, one PA-Send-ID for all tries. -> 201 reply."""
     api, send_id = cx.api, b64e(os.urandom(16))
@@ -2811,12 +2823,17 @@ def _drop(path, temps):
 
 
 def fetch_blob(cx, v, name, out, tries):
-    """Downloads the blob into out, resuming a cut-off transfer with Range. tries: [attempts used]. Returns when
+    """Downloads the blob into out, resuming a cut-off transfer with Range. Each request is signed (PA-DL1) with
+    a fresh PA-Time; one retry after a clock skew 401, not counted as a try. tries: [attempts used]. Returns when
     out holds size + 28 bytes; raises FileFail for a final error, ValueError for too many bytes (damaged)."""
     want, have = v["size"] + BLOB_OVERHEAD, out.seek(0, 2)
+    skewed = False
     while True:
+        h = download_headers(cx.keys, v["url"], str(int(time.time() * 1000) + cx.api.skew_ms))
+        if have:
+            h["Range"] = "bytes=%d-" % have
         try:
-            status, hdrs, r = http_open(v["url"], {"Range": "bytes=%d-" % have} if have else {})
+            status, hdrs, r = http_open(v["url"], h)
         except OSError:
             status, hdrs, r = 0, {}, None
         j = {}
@@ -2849,6 +2866,11 @@ def fetch_blob(cx, v, name, out, tries):
                 else:
                     with contextlib.suppress(OSError, http.client.HTTPException):
                         j = _json_of(r.read(4096))
+        epoch = hdrs.get("pa-epoch", "")
+        if status == 401 and j.get("error") == "clock skew" and not skewed and re.fullmatch(r"[0-9]{1,12}", epoch):
+            skewed = True  # one retry with PA-Time resynced, not counted as a try
+            cx.api.skew_ms = int(epoch) * 1000 - int(time.time() * 1000)
+            continue
         if status == 410:
             raise FileFail('Unable to download "%s". The file expired.' % name)
         if status == 404 and j.get("error") == "update required":

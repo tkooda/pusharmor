@@ -97,6 +97,23 @@ def test_upload_request():
     assert out.getvalue() == b64d(u["plaintext"])
 
 
+@pytest.mark.parametrize("c", V["download_sig"]["cases"], ids=lambda c: c["name"])
+def test_download_sig(c):
+    path = pa.urllib.parse.urlsplit(c["url"]).path
+    assert path == c["path"] and c["method"] == "GET"
+    b = pa.download_sig_bytes(path, c["pa_time"])
+    assert b == b64d(c["signed_bytes"]) == c["signed_text"].encode()
+    assert pa.verify(b64d(c["sign_pub"]), b, b64d(c["sig"])) is c["verifies"]
+    x = {k: (v if k in ("id", "email") else b64d(v)) for k, v in G["keys"]["peers"][c["signer"]].items()}
+    keys = {"id": x["id"], "sign": x["sign_priv"], "sign_pub": x["sign_pub"], "enc_pub": x["enc_pub"]}
+    got = pa.download_headers(keys, c["url"], c["pa_time"])
+    assert sorted(got) == sorted(c["headers"])
+    for k in ("PA-ID", "PA-Time", "PA-Sign-Pub", "PA-Enc-Pub"):
+        assert got[k] == c["headers"][k], k
+    assert c["headers"]["PA-Sig"] == c["sig"] and len(got["PA-Sig"]) == 86
+    assert pa.verify(b64d(c["sign_pub"]), b, b64d(got["PA-Sig"]))
+
+
 @pytest.mark.parametrize("c", [c for c in V["auto_download"]["cases"] if c["client"] == "cli"], ids=lambda c: str(c["size"]))
 def test_auto_download_cli(c, monkeypatch, tmp_path):
     """listen --files: every file up to MAX_FILE is fetched, no picker; a larger one is refused before any GET."""
@@ -105,6 +122,8 @@ def test_auto_download_cli(c, monkeypatch, tmp_path):
     monkeypatch.setattr(pa.shutil, "disk_usage", lambda p: pa.shutil._ntuple_diskusage(1 << 40, 0, 1 << 40))
 
     class Cx:
+        keys = {"id": "x", "sign": pa.new_key()[0], "sign_pub": pa.new_key()[1], "enc_pub": pa.new_key()[1]}
+
         class api:
             skew_ms = 0
 

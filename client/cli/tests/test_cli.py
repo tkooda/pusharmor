@@ -2922,7 +2922,8 @@ def test_listen_files_checks_the_tag_too(net, tmp_path, monkeypatch, capsys):
     (404, b'{"error":"update required"}', "Update PushArmor to continue."),
     (503, b'{"error":"files paused","retry_after":7200}', "File sending is over quota and paused for 2 hours."),
     (503, b'{"error":"files paused"}', "File sending is paused. Try again later."),
-    (403, b"", "The file server refused the request (HTTP 403).")])
+    (403, b"", "The file server refused the request (HTTP 403)."),
+    (401, b'{"error":"bad signature"}', "The file server refused the request (HTTP 401).")])
 def test_listen_files_final_download_errors(status, body, text, net, tmp_path, monkeypatch, capsys):
     err = _one_file_error(net, tmp_path, monkeypatch, capsys, lambda u, h: (status, {}, body))
     assert err == 'Unable to download "report.pdf". ' + text and len(net.gets) == 1
@@ -2948,6 +2949,54 @@ def test_listen_files_resumes_a_cut_off_download_with_range(net, tmp_path, monke
     assert json.loads(cap.out)["file"] == str(dest / "report.pdf")
     assert [h.get("Range") for u, h in net.gets] == [None, "bytes=100-"]
     assert (dest / "report.pdf").read_bytes() == src.read_bytes()
+
+
+def test_listen_files_signs_every_get_with_a_fresh_time(net, tmp_path, monkeypatch, capsys):
+    """The first try, each retry and each resumed Range request: PA-DL1 headers (checked by the fake file host)."""
+    real_sleep = pa.time.sleep
+    monkeypatch.setattr(pa.time, "sleep", lambda s: None)
+    a, b, ida, idb, src = _file_pair(net, tmp_path, monkeypatch, os.urandom(500))
+    assert run(a, "send", "-f", str(src)) == 0
+    url = list(net.blobs)[0]
+
+    def hook(u, h):
+        real_sleep(0.003)
+        n = len(net.gets)
+        return (502, {}, b"") if n <= 2 else (200, {}, net.blobs[url][:100]) if n == 3 else None
+
+    net.get_hook = hook
+    dest = tmp_path / "dl"
+    dest.mkdir()
+    code, cap = _listen_files(net, b, capsys, "--json", "--files", str(dest))
+    assert json.loads(cap.out)["file"] == str(dest / "report.pdf")
+    assert [h.get("Range") for u, h in net.gets] == [None, None, None, "bytes=100-"]
+    times = [int(h["PA-Time"]) for u, h in net.gets]
+    assert times == sorted(set(times)) and abs(times[0] - time.time() * 1000) < 60000
+    for u, h in net.gets:
+        assert h["PA-ID"] == idb and set(h) >= {"PA-ID", "PA-Time", "PA-Sign-Pub", "PA-Enc-Pub", "PA-Sig"}
+
+
+def test_listen_files_resyncs_once_after_clock_skew(net, tmp_path, monkeypatch, capsys):
+    """A 401 clock skew: one retry with PA-Time from the reply, not counted as a try (4 server errors still pass)."""
+    monkeypatch.setattr(pa.time, "sleep", lambda s: None)
+    a, b, ida, idb, src = _file_pair(net, tmp_path, monkeypatch)
+    assert run(a, "send", "-f", str(src)) == 0
+    epoch = int(time.time()) + 3600
+    hdrs = {"pa-epoch": str(epoch)}
+    net.get_hook = lambda u, h: ((401, hdrs, b'{"error":"clock skew"}') if len(net.gets) == 1
+                                 else (502, {}, b"") if len(net.gets) <= 5 else None)
+    dest = tmp_path / "dl"
+    dest.mkdir()
+    code, cap = _listen_files(net, b, capsys, "--json", "--files", str(dest))
+    assert json.loads(cap.out)["file"] == str(dest / "report.pdf") and len(net.gets) == 6
+    assert abs(int(net.gets[1][1]["PA-Time"]) - epoch * 1000) < 60000
+
+
+def test_listen_files_second_clock_skew_is_final(net, tmp_path, monkeypatch, capsys):
+    hdrs = {"pa-epoch": str(int(time.time()))}
+    err = _one_file_error(net, tmp_path, monkeypatch, capsys, lambda u, h: (401, hdrs, b'{"error":"clock skew"}'))
+    assert err == 'Unable to download "report.pdf". The file server refused the request (HTTP 401).'
+    assert len(net.gets) == 2
 
 
 def test_listen_files_storage_full_is_final_with_no_download(net, tmp_path, monkeypatch, capsys):

@@ -192,7 +192,13 @@ class Net:
         return self.reply(201, {"id": fid, "expires": expires, "url": url, "quota": {"day": quota, "month": quota}})
 
     def http_open(self, url, headers):
-        """The file host: GET with one Range, or get_hook(url, headers) -> (status, headers, body) first."""
+        """The file host: GET with one Range, or get_hook(url, headers) -> (status, headers, body) first.
+        Every GET is signed by a registered device (PA-DL1) with its own keys."""
+        p = self.peers[headers["PA-ID"]]
+        assert headers["PA-Sign-Pub"] == p["sign_pub"] and headers["PA-Enc-Pub"] == p["enc_pub"]
+        assert len(headers["PA-Time"]) == 13 and len(headers["PA-Sig"]) == 86
+        assert pa.verify(pa.b64d(p["sign_pub"]), pa.download_sig_bytes(urllib.parse.urlsplit(url).path,
+                                                                       headers["PA-Time"]), pa.b64d(headers["PA-Sig"]))
         self.gets.append((url, dict(headers)))
         r = self.get_hook(url, headers) if self.get_hook else None
         if r:
