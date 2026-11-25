@@ -16,8 +16,8 @@ final class Devices25Tests: XCTestCase {
     func account25() async throws -> (Device, [Device]) {
         let n = try Device(worker: w, clock: clock, name: "Ndev")
         var others: [Device] = []
-        for i in 0 ..< 24 {
-            let x = try Device(worker: w, clock: clock, name: "X\(i)")
+        for _ in 0 ..< 24 {
+            let x = try Device(worker: w, clock: clock, name: "Xdev")
             try await Scenario.pairFully(w, n, x)
             others.append(x)
             clock.now += 100
