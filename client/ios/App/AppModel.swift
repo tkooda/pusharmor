@@ -739,14 +739,14 @@ final class AppModel: ObservableObject {
         case .peerLimit(let t, let list):
             limitTicket = (t, Date())
             let old = try? store.me().oldId
-            limitEntries = list.compactMap { e in
+            limitEntries = AppModel.limitOrder(list.compactMap { e in
                 guard let id = e["id"]?.stringValue else { return nil }
                 func int(_ k: String) -> Int { if case .number(let s)? = e[k] { return Int(s) ?? 0 }; return 0 }
                 func bool(_ k: String) -> Bool { if case .bool(let b)? = e[k] { return b }; return false }
                 return LimitEntry(id: id, platform: e["platform"]?.stringValue ?? "", created: Int64(int("created")),
                                   approves: int("approves"), approvedBy: int("approved_by"), reachable: bool("reachable"),
                                   loggedOut: bool("logged_out"), oldInstall: id == old)
-            }
+            })
             phase = .limitPicker
         case .idCollision:
             let next = AppModel.afterIdCollision(deleteKeys: { env.keychain.deleteAll() },
@@ -760,6 +760,14 @@ final class AppModel: ObservableObject {
         case .ticketExpired: toast = ErrorCopy.text(.login, .loginExpired); phase = .signIn(.register)
         case .network: toast = ErrorCopy.text(.login, .unreachable)
         case .failed(let s, let e): toast = ErrorCopy.text(.login, ErrorCopy.reason(status: s, error: e))
+        }
+    }
+
+    /// Device limit order: fewest pairings (trusts + trusted by) first, then oldest added first.
+    static func limitOrder(_ list: [LimitEntry]) -> [LimitEntry] {
+        list.sorted { a, b in
+            let pa = a.approves + a.approvedBy, pb = b.approves + b.approvedBy
+            return pa != pb ? pa < pb : a.created < b.created
         }
     }
 
