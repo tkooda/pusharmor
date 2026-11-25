@@ -1,6 +1,6 @@
 # PushArmor command-line client
 
-Send URLs and text to your own devices from a terminal. Everything is
+Send URLs, text, and small files to your own devices from a terminal. Everything is
 end-to-end encrypted: the relay server only passes on data it cannot read.
 
 See https://pusharmor.com for the apps and the full guide.
@@ -33,7 +33,7 @@ distribution:
 - `pusharmor devices` - list your devices and their pairing status (as `pusharmor pair` does).
 - `pusharmor send TEXT` - send a URL or text to all paired devices; `-d ID` for one,
   `--text` to send a URL as plain text. With `-` or piped input it reads stdin.
-- `pusharmor send --file PATH` (`-f`) - send a file of up to 100,000,000 bytes. It is
+- `pusharmor send --file PATH` (`-f`) - send a small file to all paired devices (`-d ID` for one). It is
   end-to-end encrypted and expires on the relay server at the time shown after the send.
 - `pusharmor listen` - print messages as they arrive; `--json`, `--tsv`, or
   `--exec PROG` (runs PROG ID NAME PLATFORM TYPE BODY per message). `--json` escapes

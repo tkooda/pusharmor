@@ -1,6 +1,6 @@
 # PushArmor
 
-PushArmor sends links and short notes between your own devices. All of your
+PushArmor sends URLs, short notes, and small files between your own devices. All of your
 data is always end-to-end encrypted, and can never be read by the server or
 anyone else.
 

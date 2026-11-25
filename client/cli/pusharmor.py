@@ -3739,7 +3739,7 @@ COMMANDS = {
                 (("--files",), {"metavar": "DIR", "help": "download received files to DIR (never to the output)"})]),
     "send": (cmd_send, "Send a URL or text to your paired devices (all, or -d ID).",
              [(("message",), {"nargs": "*", "metavar": "MESSAGE", "help": "text to send; - or none reads stdin"}),
-              (("-f", "--file"), {"metavar": "PATH", "help": "send this file (up to 100,000,000 bytes)"}),
+              (("-f", "--file"), {"metavar": "PATH", "help": "send this small file"}),
               (("-d", "--to"), {"dest": "to", "action": "append", "metavar": "ID", "help": "send to this device only (repeatable)"}),
               (("--text",), {"action": "store_true", "help": "send as plain text, not as a URL or phone number"})]),
     "rename": (cmd_rename, "Change the name your other devices show for this device.",
