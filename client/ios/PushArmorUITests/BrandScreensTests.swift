@@ -76,7 +76,7 @@ final class BrandScreensTests: XCTestCase {
         XCTAssertTrue(app.tabBars.firstMatch.exists)
         XCTAssertTrue(app.buttons["Codes match"].exists)
         XCTAssertTrue(app.buttons["Codes differ"].exists)
-        XCTAssertTrue(app.staticTexts["Verify that \"New laptop\" shows this same code."].exists)
+        XCTAssertTrue(app.staticTexts["Confirm the other device shows this code."].exists)
     }
 
     func testUnpairedPeerActionsHaveAVisibleButton() {

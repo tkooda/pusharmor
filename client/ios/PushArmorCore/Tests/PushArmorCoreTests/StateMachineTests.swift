@@ -1596,7 +1596,7 @@ final class StateMachineTests: XCTestCase {
         XCTAssertFalse(try x.core.store.allowSet().contains(n.id.text))   // withdrawn by the reconcile
         XCTAssertNil(w.rows[x.id.text]!.allow[n.id.text])
         let r3 = await x.core.receive(commit, mode: .nse)
-        XCTAssertEqual(r3.banner?.body, S.pairCommit(try x.core.store.peer(n.id)?.name))
+        XCTAssertEqual(r3.banner?.body, Core.pairRequestText(try x.core.store.peer(n.id), from: n.id).body)
         XCTAssertEqual(try x.core.store.pairing(n.id)?.role, .x)
     }
 
@@ -1881,7 +1881,7 @@ final class StateMachineTests: XCTestCase {
         try n.core.store.deletePairing(x.id)
         _ = try await n.core.startPair(x.id)
         let r = await x.drainInbox(w)
-        XCTAssertEqual(r.first?.banner?.body, S.pairCommit(try x.core.store.peer(n.id)?.name))
+        XCTAssertEqual(r.first?.banner?.body, Core.pairRequestText(try x.core.store.peer(n.id), from: n.id).body)
         let e = try XCTUnwrap(try x.core.store.pairing(n.id))
         XCTAssertEqual(e.role, .x)
         XCTAssertNotEqual(e.cN, oldCN)
@@ -1906,7 +1906,7 @@ final class StateMachineTests: XCTestCase {
         XCTAssertNil(p.fingerprint)
         XCTAssertNil(try x.core.store.replay(n.id))
         XCTAssertEqual(p.state, .unruled)
-        XCTAssertEqual(r.first?.banner?.body, S.pairCommit(try x.core.store.peer(n.id)?.name))
+        XCTAssertEqual(r.first?.banner?.body, Core.pairRequestText(try x.core.store.peer(n.id), from: n.id).body)
         XCTAssertEqual(try x.core.store.pairing(n.id)?.role, .x)
     }
 

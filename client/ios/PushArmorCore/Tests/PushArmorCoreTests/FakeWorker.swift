@@ -241,7 +241,7 @@ enum Scenario {
         let v1 = try await n.core.startPair(x.id)
         XCTAssertEqual(v1, .sent)
         let r1 = await x.drainInbox(w)
-        XCTAssertEqual(r1.first?.banner?.body, S.pairCommit(try x.core.store.peer(n.id)?.name))
+        XCTAssertEqual(r1.first?.banner?.body, Core.pairRequestText(try x.core.store.peer(n.id), from: n.id).body)
         let r2 = await n.drainInbox(w)
         XCTAssertEqual(r2.first?.banner?.body, S.pairReply)
         let r3 = await x.drainInbox(w)

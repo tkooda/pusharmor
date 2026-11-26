@@ -31,6 +31,20 @@ extension Core {
         }
     }
 
+    /// The pairing request notice: "X" wants to pair, or for a device with no known name, the
+    /// title "A new device wants to pair" over its platform and ID.
+    public static func pairRequestText(_ peer: Peer?, from: PeerId) -> (title: String, body: String) {
+        if let n = peer?.name { return (S.title, S.pairCommit(DeviceName.display(n))) }
+        return (S.newDeviceWantsToPair, S.deviceWithId(peer?.platform, from))
+    }
+
+    func pairRequestBanner(_ peer: Peer?, from: PeerId, me: PeerId) -> Banner {
+        let t = Core.pairRequestText(peer, from: from)
+        var b = pairBanner(t.body, n: from, x: me, peer: from)
+        b.title = t.title
+        return b
+    }
+
     func pairBanner(_ body: String, n: PeerId, x: PeerId, peer: PeerId, category: BannerCategory = .event) -> Banner {
         Banner(body: body, locKey: nil, category: category, threadId: PairingCrypto.pairingKey(nId: n, xId: x), rowid: nil,
                tap: .peers(peer.text))
@@ -109,12 +123,12 @@ extension Core {
         var banner: Banner?
         switch out.notice {
         case .commit:
-            banner = pairBanner(S.pairCommit(peer?.name.map(DeviceName.display)), n: from, x: me, peer: from)
+            banner = pairRequestBanner(peer, from: from, me: me)
         case .represent:
             if entry?.state == .shown, let fp = peer?.fingerprint {
                 banner = pairBanner(S.pairOpen(fp), n: from, x: me, peer: from)
             } else {
-                banner = pairBanner(S.pairCommit(peer?.name.map(DeviceName.display)), n: from, x: me, peer: from)
+                banner = pairRequestBanner(peer, from: from, me: me)
             }
         case .halfState:
             banner = pairBanner(S.pairAgain(PeerLabel.label(peer)), n: from, x: me, peer: from, category: .notice)

@@ -18,9 +18,12 @@ public enum S {
     public static let invalid = "Unable to read a message.\nIt is not valid or was damaged."
     public static let unknownSender = "Unknown sender"
     public static let aPeer = "A device"
-    /// The device named in quotes when its name is known, else the generic text.
-    public static func pairCommit(_ name: String?) -> String {
-        name.map { quoted($0) + " wants to pair." } ?? "A new device wants to pair. Open PushArmor."
+    /// A pairing request from a device whose name is known.
+    public static func pairCommit(_ name: String) -> String { quoted(name) + " wants to pair." }
+    /// A pairing request from a device with no known name: the title, and its platform and ID.
+    public static let newDeviceWantsToPair = "A new device wants to pair"
+    public static func deviceWithId(_ platform: String?, _ id: PeerId) -> String {
+        PeerLabel.platformName(platform) + " device with ID " + Ids.deviceId(id.raw)
     }
     public static func pairOpen(_ fp: String) -> String { "New device: compare \(fp)" }
     public static let pairReply = "Pairing code ready. Open PushArmor."
@@ -198,8 +201,17 @@ public enum S {
         func onOff(_ b: Bool) -> String { b ? "on" : "off" }
         return "Send screen \(onOff(sendScreen)); content in notifications \(onOff(content)); content on lock screen \(onOff(lockScreen))"
     }
-    public static func pairWith(_ x: String) -> String { "Pair with new device: \"\(x)\"" }
-    public static func checkSameCode(_ x: String) -> String { "Verify that \"\(x)\" shows this same code." }
+    /// Pairing card titles: the name in quotes when it is known, else the platform.
+    public static func pairWith(name: String?, platform: String?) -> String {
+        name.map { "Pair with " + quoted($0) } ?? "Pair with new " + PeerLabel.platformName(platform) + " device"
+    }
+    public static func pairingWith(name: String?, platform: String?) -> String {
+        name.map { "Pairing with " + quoted($0) } ?? "Pairing with new " + PeerLabel.platformName(platform) + " device"
+    }
+    public static func awaitingResponse(name: String?, platform: String?) -> String {
+        name.map { "Awaiting " + quoted($0) + "'s response" } ?? "Awaiting " + PeerLabel.platformName(platform) + " device's response"
+    }
+    public static let confirmCode = "Confirm the other device shows this code."
     public static let newPeerWantsToPair = "A new device wants to pair."
     public static func timesOutIn(_ t: String) -> String { "Times out in \(t)" }
     public static let sameAccount = "Use the same account on every device you want to pair."
@@ -345,8 +357,7 @@ public enum LockScreen {
     }
 }
 
-/// "$X" for a peer without a name in pairing notices: platform and created date,
-/// for example "Android peer added Oct 3".
+/// "$X" for a peer without a name: "New" and its platform, for example "New Android device".
 public enum PeerLabel {
     public static func platformName(_ p: String?) -> String {
         switch p {
@@ -354,22 +365,12 @@ public enum PeerLabel {
         case "ios": return "iOS"
         case "chrome": return "Chrome"
         case "firefox": return "Firefox"
-        case "cli": return "Command line"
+        case "cli": return "CLI"
         default: return "Unknown"
         }
     }
 
-    public static func unnamed(platform: String?, created: Int64?, timeZone: TimeZone = .current) -> String {
-        var s = platformName(platform) + " device"
-        if let c = created {
-            let f = DateFormatter()
-            f.locale = Locale(identifier: "en_US_POSIX")
-            f.timeZone = timeZone
-            f.dateFormat = "MMM d"
-            s += " added " + f.string(from: Date(timeIntervalSince1970: TimeInterval(c)))
-        }
-        return s
-    }
+    public static func unnamed(platform: String?) -> String { "New " + platformName(platform) + " device" }
 
     /// "Added" date on device cards: YYYY-MM-DD from created (seconds), in local time.
     public static func addedDate(_ created: Int64, timeZone: TimeZone = .current) -> String {
@@ -383,7 +384,7 @@ public enum PeerLabel {
 
     public static func label(_ p: Peer?) -> String {
         guard let p = p else { return S.aPeer }
-        return p.name.map(DeviceName.display) ?? unnamed(platform: p.platform, created: p.created)
+        return p.name.map(DeviceName.display) ?? unnamed(platform: p.platform)
     }
 
     /// Devices in alphabetical order of the shown name: case-insensitive, locale-aware. Ties keep their order.

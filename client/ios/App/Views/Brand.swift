@@ -291,7 +291,6 @@ struct IconTile: View {
 /// The pairing fingerprint on a tinted plate: caps label, one cell per character, check line.
 struct FingerprintPlate: View {
     let code: String
-    let peer: String
     @ScaledMetric private var scaledCell: CGFloat = 40
     @State private var rowWidth: CGFloat = 0
     // All cells stay on one row: at large text sizes or on a narrow screen they shrink to fit.
@@ -320,7 +319,7 @@ struct FingerprintPlate: View {
             cells
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("Pairing code " + code.map(String.init).joined(separator: ", "))
-            Text(S.checkSameCode(peer))
+            Text(S.confirmCode)
                 .font(.subheadline)
                 .foregroundStyle(Color.secondaryText)
                 .multilineTextAlignment(.center)

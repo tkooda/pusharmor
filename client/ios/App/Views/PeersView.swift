@@ -244,13 +244,20 @@ struct PairingCardView: View {
     private var label: String { model.label(p) }
     private var entry: PairingEntry? { model.pairings[p.id.text] }
 
+    /// The name as shown when it is known; the titles name the platform otherwise.
+    private var name: String? { p.name.map(DeviceName.display) }
+
+    /// This device confirmed the codes and waits for the other device's answer.
+    private var awaiting: Bool { entry != nil && p.state == .approved && !p.approveVerified }
+
     private var title: String {
-        guard let e = entry else { return S.pairWith(label) }
+        guard let e = entry else { return S.pairWith(name: name, platform: p.platform) }
+        if awaiting { return S.awaitingResponse(name: name, platform: p.platform) }
         switch e.state {
-        case .committed: return "Pairing with " + S.quoted(label)
-        case .prompted where !e.authorized: return S.pairWith(label)
+        case .committed: return S.pairingWith(name: name, platform: p.platform)
+        case .prompted where !e.authorized: return S.pairWith(name: name, platform: p.platform)
         case .prompted, .replied: return "Pairing..."
-        case .shown: return S.pairWith(label)
+        case .shown: return S.pairWith(name: name, platform: p.platform)
         }
     }
 
@@ -261,13 +268,10 @@ struct PairingCardView: View {
                     IconTile(platformSymbol(p.platform), size: 40)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(title).font(.headline)
-                        Text(PeerLabel.platformName(p.platform))
-                            .font(.subheadline)
-                            .foregroundColor(.secondaryText)
                         Text("ID: " + Ids.deviceId(p.id.raw))
                             .font(.subheadline)
                             .foregroundColor(.secondaryText)
-                        if let c = p.created {
+                        if !awaiting, let c = p.created {
                             Text("Added: " + PeerLabel.addedDate(c))
                                 .font(.subheadline)
                                 .foregroundColor(.secondaryText)
@@ -370,7 +374,7 @@ struct PairingCardView: View {
             case .prompted, .replied:
                 EmptyView()
             case .shown:
-                FingerprintPlate(code: p.fingerprint ?? "", peer: label)
+                FingerprintPlate(code: p.fingerprint ?? "")
                     .onAppear { model.fingerprintShown(p) }
                 ButtonPair {
                     Button("Codes match") { Task { _ = await model.approve(p) } }

@@ -139,7 +139,7 @@ final class ScreenshotTests: XCTestCase {
         }
         for (name, theme) in [("95-firstpair-waiting-light", "light"), ("96-firstpair-waiting-dark", "dark")] {
             app = launch(["-PAScreenshotsPairing", "-appearance", theme])
-            XCTAssertTrue(labelled(app, "Pair with new device: \"New laptop\"").waitForExistence(timeout: 30))
+            XCTAssertTrue(labelled(app, "Pair with \"New laptop\"").waitForExistence(timeout: 30))
             sleep(1)
             shot(name)
             app.terminate()
@@ -151,7 +151,7 @@ final class ScreenshotTests: XCTestCase {
     func testCaptureAboutScreenshots() {
         for theme in ["light", "dark"] {
             var app = launch(["-PAScreenshotsPairing", "-appearance", theme])
-            XCTAssertTrue(labelled(app, "Pair with new device: \"New laptop\"").waitForExistence(timeout: 30))
+            XCTAssertTrue(labelled(app, "Pair with \"New laptop\"").waitForExistence(timeout: 30))
             sleep(1)
             shot("97-first-pair-waiting-\(theme)")
             app.terminate()
@@ -211,7 +211,7 @@ final class ScreenshotTests: XCTestCase {
             app.terminate()
 
             app = launch(["-PAScreenshotsPairing", "-appearance", theme])
-            XCTAssertTrue(labelled(app, "Pair with new device: \"New laptop\"").waitForExistence(timeout: 30))
+            XCTAssertTrue(labelled(app, "Pair with \"New laptop\"").waitForExistence(timeout: 30))
             sleep(1)
             shot("03-firstpair-fingerprint-\(theme)")
             app.terminate()

@@ -86,11 +86,10 @@ final class InboxTests: XCTestCase {
     }
 
     func testPeerLabel() {
-        XCTAssertEqual(PeerLabel.unnamed(platform: "android", created: 1759449600, timeZone: TimeZone(identifier: "UTC")!),
-                       "Android device added Oct 3")
+        XCTAssertEqual(PeerLabel.unnamed(platform: "android"), "New Android device")
         XCTAssertEqual(PeerLabel.platformName("ios"), "iOS")
-        XCTAssertEqual(PeerLabel.platformName("cli"), "Command line")
-        XCTAssertEqual(PeerLabel.unnamed(platform: "cli", created: nil), "Command line device")
+        XCTAssertEqual(PeerLabel.platformName("cli"), "CLI")
+        XCTAssertEqual(PeerLabel.unnamed(platform: "cli"), "New CLI device")
     }
 
     /// A received name shows with every disallowed character as "?", in lists and notices.
