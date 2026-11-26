@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import PushArmorCore
 
 struct NameDeviceView: View {
@@ -23,6 +24,18 @@ struct NameDeviceView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .scrollBounceBehavior(.basedOnSize)
+        // a new setup: the field starts with the device type as the name
+        .onAppear {
+            if name.isEmpty {
+                name = Self.defaultName(pad: UIDevice.current.userInterfaceIdiom == .pad, taken: model.peers.compactMap { $0.name })
+            }
+        }
+    }
+
+    /// The name a new setup offers: "iPhone" or "iPad", with " (2)" and up when another device
+    /// on the account already has it.
+    static func defaultName(pad: Bool, taken: [String]) -> String {
+        DeviceName.uniqueDefault(pad ? "iPad" : "iPhone", taken: taken)
     }
 
     /// Save, and the Return key: only a valid name, one run at a time. A name that breaks the
