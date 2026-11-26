@@ -37,6 +37,24 @@ public enum HistoryFilter: Hashable, Sendable {
         rows.filter { $0.event != .loggedIn && $0.event != .loggedOut && $0.event != .denied }
     }
 
+    /// A chosen filter that matches nothing (its rows deleted, or aged out) shows this line.
+    public static let noMatch = "No matching messages"
+
+    /// The chosen filter as it shows now: a device filter takes its device's current name. It
+    /// stays chosen when it matches nothing; only All lists every row.
+    public static func current(_ f: HistoryFilter, options: [HistoryFilter]) -> HistoryFilter {
+        guard case .peer(let id, _) = f else { return f }
+        return options.first {
+            if case .peer(let i, _) = $0 { return i == id }
+            return false
+        } ?? f
+    }
+
+    /// The choices shown: the options, plus the chosen filter while it has no rows left.
+    public static func choices(_ options: [HistoryFilter], chosen: HistoryFilter) -> [HistoryFilter] {
+        options.contains(chosen) ? options : options + [chosen]
+    }
+
     public static func apply(_ f: HistoryFilter, _ rows: [HistoryRow]) -> [HistoryRow] {
         switch f {
         case .all: return rows

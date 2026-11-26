@@ -14,13 +14,11 @@ struct HistoryView: View {
 
     private var options: [HistoryFilter] { HistoryFilter.options(rows: model.history, peers: model.peers) }
 
-    /// The selected filter, or All when it is gone or has no rows.
-    private var effective: HistoryFilter {
-        if filter != .all && (!options.contains(filter) || HistoryFilter.apply(filter, model.history).isEmpty) {
-            return .all
-        }
-        return filter
-    }
+    /// The selected filter; it stays selected when it matches nothing (never All in its place).
+    private var effective: HistoryFilter { HistoryFilter.current(filter, options: options) }
+
+    /// The filter choices: the selected filter stays among them while it has no rows.
+    private var choices: [HistoryFilter] { HistoryFilter.choices(options, chosen: effective) }
 
     var body: some View {
         let rows = HistoryFilter.apply(effective, model.history)
@@ -37,7 +35,7 @@ struct HistoryView: View {
                 }
                 .listRowSeparator(.hidden)
             }
-            if options.count > 1 {
+            if choices.count > 1 {
                 filterControl
             }
             if !rows.isEmpty {
@@ -52,7 +50,13 @@ struct HistoryView: View {
             }
             // sent files whose message has not gone yet, newest first
             ForEach(pending, id: \.id) { PendingSendRow(file: $0) }
-            if rows.isEmpty && pending.isEmpty {
+            if rows.isEmpty && pending.isEmpty && effective != .all {
+                Text(HistoryFilter.noMatch)
+                    .foregroundColor(.secondaryText)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+            } else if rows.isEmpty && pending.isEmpty {
                 VStack(spacing: 8) {
                     MessagesIllustration()
                     Text("No messages yet")
@@ -114,15 +118,15 @@ struct HistoryView: View {
     @ViewBuilder
     private var filterControl: some View {
         let sel = Binding<HistoryFilter>(get: { effective }, set: { filter = $0 })
-        if options.count <= 4 {
+        if choices.count <= 4 {
             Picker("Filter", selection: sel) {
-                ForEach(options, id: \.self) { Text($0.label).tag($0) }
+                ForEach(choices, id: \.self) { Text($0.label).tag($0) }
             }
             .pickerStyle(.segmented)
         } else {
             Menu {
                 Picker("Filter", selection: sel) {
-                    ForEach(options, id: \.self) { Text($0.label).tag($0) }
+                    ForEach(choices, id: \.self) { Text($0.label).tag($0) }
                 }
             } label: {
                 Label(effective.label, systemImage: "line.3.horizontal.decrease.circle")
