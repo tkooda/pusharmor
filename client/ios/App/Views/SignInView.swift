@@ -110,8 +110,10 @@ struct SignInView: View {
         guard left <= 0, !model.busy.contains("sendCode") else { return }
         if Ids.normalizeEmail(email) == nil {
             model.toast = ErrorCopy.text(.sendCode, .badEmail)
-        } else {
+        } else if TotpLogin.needsSecurityCheck(email) {
             instantly { showTurnstile = true }
+        } else {
+            Task { await model.emailStart(email, purpose: purpose, turnstile: "") }
         }
     }
 

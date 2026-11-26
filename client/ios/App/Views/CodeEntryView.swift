@@ -82,7 +82,10 @@ struct CodeEntryView: View {
             // The countdown ticks once a second until a new code can be sent.
             TimelineView(.periodic(from: .now, by: 1)) { ctx in
                 let left = model.resend.leftMs(for: email, nowMs: Int(ctx.date.timeIntervalSince1970 * 1000))
-                Button(S.sendLabel("Get a new code", leftMs: left)) { instantly { showTurnstile = true } }
+                Button(S.sendLabel("Get a new code", leftMs: left)) {
+                    if TotpLogin.needsSecurityCheck(email) { instantly { showTurnstile = true } }
+                    else { Task { await model.emailStart(email, purpose: purpose, turnstile: "") } }
+                }
                     .disabled(left > 0 || busy || model.busy.contains("sendCode"))
             }
             Button("Back") { model.leaveCode(purpose) }

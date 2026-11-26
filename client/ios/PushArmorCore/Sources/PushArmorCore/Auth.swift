@@ -122,3 +122,19 @@ public enum TurnstileOrigin {
         scheme == "https" && host == "pusharmor.com" && (port == 0 || port == 443)
     }
 }
+
+/// The two TOTP login addresses log in by TOTP code; the relay server skips the security check for them.
+public enum TotpLogin {
+    /// SHA-256 hex of each address, normalized as the relay server does; the same values as the relay server's list.
+    public static let hashes: Set<String> = [
+        "0cb0ee6c640e13641d605d3fd417c1e412e707676424a34a92bef701c855c7c4",
+        "34a7fa4e54529533ee628eb78cee8b7322eda149625c442bf1b33f13e55f3120",
+    ]
+
+    /// False for a TOTP login address: the code is sent with no security check.
+    public static func needsSecurityCheck(_ email: String, hashes: Set<String> = TotpLogin.hashes) -> Bool {
+        guard let n = Ids.normalizeEmail(email) else { return true }
+        let h = SHA256.hash(data: Data(n.utf8)).map { String(format: "%02x", $0) }.joined()
+        return !hashes.contains(h)
+    }
+}
