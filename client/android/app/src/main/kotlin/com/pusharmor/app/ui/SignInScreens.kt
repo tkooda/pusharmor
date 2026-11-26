@@ -228,7 +228,17 @@ fun EmailScreen(vm: AppViewModel, purpose: String, onBack: () -> Unit = {}, onSe
                     val next = {
                         if (email.any { it.code > 127 }) error = "Only email addresses with plain ASCII characters are supported."
                         else if (!UiText.emailValid(email)) error = "Enter a valid email address."
-                        else { error = null; stage = 1 }
+                        else if (needsSecurityCheck(email)) { error = null; stage = 1 }
+                        // The two store review and release-test addresses log in by TOTP code: the relay server skips the security check for them.
+                        else if (!requesting) {
+                            error = null; requesting = true
+                            scope.launch {
+                                try {
+                                    val rt = vm.emailStart(email, "", purpose)
+                                    if (rt != null) { requestToken = rt; stage = 2 }
+                                } finally { requesting = false }
+                            }
+                        }
                     }
                     val invalid = UiText.emailFieldError(email)
                     OutlinedTextField(email, { email = it; error = UiText.emailErrorAfterEdit(error, it) }, label = { Text("Email address") }, singleLine = true, isError = invalid,
@@ -256,22 +266,23 @@ fun EmailScreen(vm: AppViewModel, purpose: String, onBack: () -> Unit = {}, onSe
                     }
                     // A new code for the same address after the resend countdown; the security check shows here and the code step stays.
                     // Greyed while the security check shows and while the new code is requested: a security check that fails can be started again.
-                    TextButton(onClick = { code = ""; error = null; vm.message.value = null; resending = true; checkFailed = false; resendTry++ }, Modifier.heightIn(min = 48.dp), enabled = left <= 0 && !requesting && (!resending || checkFailed)) {
+                    val resendWith = { token: String ->
+                        requesting = true
+                        scope.launch {
+                            try {
+                                val rt = vm.emailStart(email, token, purpose)
+                                if (rt != null) requestToken = rt
+                            } finally {
+                                requesting = false
+                                resending = false
+                            }
+                        }
+                    }
+                    TextButton(onClick = { code = ""; error = null; vm.message.value = null; checkFailed = false; resendTry++; if (needsSecurityCheck(email)) resending = true else resendWith("") }, Modifier.heightIn(min = 48.dp), enabled = left <= 0 && !requesting && (!resending || checkFailed)) {
                         Text(UiText.sendLabel("Get a new code", left))
                     }
                     if (resending) key(resendTry) {
-                        TurnstileView(onNoApp = { vm.message.value = it }, playStore = vm.g.push.hasPlayServices, onFail = { checkFailed = true }, onError = { error = it }) { token ->
-                            requesting = true
-                            scope.launch {
-                                try {
-                                    val rt = vm.emailStart(email, token, purpose)
-                                    if (rt != null) requestToken = rt
-                                } finally {
-                                    requesting = false
-                                    resending = false
-                                }
-                            }
-                        }
+                        TurnstileView(onNoApp = { vm.message.value = it }, playStore = vm.g.push.hasPlayServices, onFail = { checkFailed = true }, onError = { error = it }) { token -> resendWith(token) }
                     }
                 }
             }
@@ -301,6 +312,20 @@ internal fun StepBar(vm: AppViewModel, modifier: Modifier = Modifier) {
 /** The step after [old] when the caption becomes [new]: a new caption is the next step (up to [at]'s total), the same one is not. */
 internal fun nextStep(at: Pair<Int, Int>, old: String?, new: String): Pair<Int, Int> =
     if (new == old) at else minOf(at.first + 1, at.second) to at.second
+
+/** SHA-256 hex of the two TOTP login addresses, normalized as the relay server does; the same values as the relay server's list. */
+internal val TOTP_LOGIN_HASHES = setOf(
+    "0cb0ee6c640e13641d605d3fd417c1e412e707676424a34a92bef701c855c7c4",
+    "34a7fa4e54529533ee628eb78cee8b7322eda149625c442bf1b33f13e55f3120",
+)
+
+/** False for a TOTP login address: the relay server skips the security check for it. The address is normalized as the
+ *  relay server does: ASCII whitespace trimmed from both ends, then A-Z lowercased. */
+internal fun needsSecurityCheck(email: String, hashes: Set<String> = TOTP_LOGIN_HASHES): Boolean {
+    val n = email.trim { it in " \t\n\r\u000c\u000b" }.map { if (it in 'A'..'Z') it + 32 else it }.joinToString("")
+    val h = java.security.MessageDigest.getInstance("SHA-256").digest(n.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
+    return h !in hashes
+}
 
 /** A full code is sent once: a keystroke beyond the sixth digit leaves the code as it was and sends nothing. */
 internal fun shouldSubmit(old: String, new: String): Boolean = new != old && new.length == 6
