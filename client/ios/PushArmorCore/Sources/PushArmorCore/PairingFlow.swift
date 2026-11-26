@@ -5,6 +5,7 @@ public enum PairNote: String, Sendable {
     case failed      // "Pairing failed. Start again on the new peer."
     case timedOut    // "Pairing timed out. Tap Pair to start again."
     case pairAgain   // the half-state notice fired: the device wants to pair again
+    case nameUnreadable   // its approve came with a name that could not be read: pairing failed
 }
 
 /// Result of one POST /pair.

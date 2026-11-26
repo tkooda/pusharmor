@@ -83,8 +83,8 @@ public struct Peer: Sendable {
     /// A send target on the Send screen: approves me, listed, and listening.
     public var canReceive: Bool { approvesMe && !missing && listening }
 
-    /// $name / $X in notices: the peer name if known (as shown), else "A device".
-    public var noticeName: String { name.map(DeviceName.display) ?? "A device" }
+    /// $name / $X in notices: the peer name if known (as shown), else "New X device".
+    public var noticeName: String { PeerLabel.label(self) }
 
     init(id: PeerId) {
         self.id = id

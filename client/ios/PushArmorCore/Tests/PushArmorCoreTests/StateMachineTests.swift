@@ -1870,6 +1870,27 @@ final class StateMachineTests: XCTestCase {
         XCTAssertFalse(n.core.offersPairAgain(try n.core.store.peer(x.id)!))   // withdrawn only: Cancel pairing request
     }
 
+    /// An approve whose name entry does not verify fails the pairing: no pin, no paired device
+    /// without a name, and the row says why.
+    func testApproveWithUnreadableNameFailsThePairing() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        try await Scenario.pairToShown(w, n, x)
+        try x.core.store.setMe("name", .text("a\"b"))   // a name no receiver accepts
+        let v2 = await x.core.approve(n.id)
+        XCTAssertEqual(v2, .stored)
+        let v3 = await n.core.approve(x.id)
+        XCTAssertNotEqual(v3, .completed)
+        let p = try n.core.store.peer(x.id)!
+        XCTAssertFalse(p.pinned)
+        XCTAssertFalse(p.approveVerified)
+        XCTAssertNil(p.name)
+        XCTAssertEqual(p.state, .unruled)
+        XCTAssertEqual(p.note, PairNote.nameUnreadable.rawValue)
+        XCTAssertNil(try n.core.store.pairing(x.id))
+        XCTAssertEqual(S.nameUnreadable("firefox"),
+                       "Unable to pair with Firefox device\nIts name could not be read. Try pairing again")
+    }
+
     /// A paired device that rejected this one: Waiting to pair with Reject and Pair; Reject moves
     /// it to Rejected devices.
     func testPeerThatRejectedThisDeviceOffersRejectAndPair() async throws {

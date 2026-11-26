@@ -42,6 +42,9 @@ public enum ReceivePipeline {
         public var json: InnerJSON?
         /// approve / rename: the verified name.
         public var name: String?
+        /// Unreadable outcome only: a verified, fresh approve from the pinned pairing whose name
+        /// entry did not verify. The pairing fails visibly rather than waiting to time out.
+        public var nameUnreadable = false
         public var windowAfter: ReplayWindow?
         public var pairingId: Data?
         /// Unreadable outcome only: a verified message of an unknown type. windowAfter is set when the
@@ -137,7 +140,12 @@ public enum ReceivePipeline {
         switch j.content {
         case .approve(let f), .rename(let f):
             guard f.n == j.n, let v = NameEntry.verify(f, owner: from, recipient: me, pairingId: p.pairingId, ownerSignPub: p.signPub) else {
-                return .drop(from)
+                var d = Result.drop(from)
+                if isApprove, p.ruling == .approved || p.ruling == .unruled, let w = window(from),
+                   case .accept = w.outcome(j.n, control: isControl(j.content), hasHistory: hasHistory(from, j.n)) {
+                    d.nameUnreadable = true
+                }
+                return d
             }
             name = v
         default: break

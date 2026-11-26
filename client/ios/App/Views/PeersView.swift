@@ -220,7 +220,9 @@ struct PeerPendingLines: View {
                 .font(.footnote)
                 .foregroundColor(.secondaryText)
         }
-        if p.note == "failed" {
+        if p.note == PairNote.nameUnreadable.rawValue {
+            failure(S.nameUnreadable(p.platform))
+        } else if p.note == "failed" {
             failure(S.pairingFailed(label))
         } else if p.note == "timedOut" {
             failure(S.pairingTimedOut(label))

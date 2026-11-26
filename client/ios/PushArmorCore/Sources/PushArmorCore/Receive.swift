@@ -171,6 +171,11 @@ extension Core {
                 if r.ignored, mode != .returnedC, let w = r.windowAfter, let pid = r.pairingId {
                     try store.saveReplay(r.verifiedFrom!, pairingId: pid, window: w)
                 }
+                if r.nameUnreadable, let from = r.verifiedFrom {
+                    // its name could not be read: the pairing fails and the device waits to pair again
+                    try store.dropPin(from)
+                    if var q = try store.peer(from) { q.note = PairNote.nameUnreadable.rawValue; try store.savePeer(q) }
+                }
                 guard r.outcome == .accept else { return (r, nil) }
                 // a returned c may only be an approve; anything else is dropped before
                 // the replay window is saved, so a real delivery of it still applies.
@@ -201,6 +206,11 @@ extension Core {
                 return .plain(controlBanner(j.content, peer: p, name: r.name, me: me, removed: 0))
             case .unreadable:
                 if r.ignored { return .plain(mode == .nse ? .fallback : nil) }
+                if r.nameUnreadable, let from = r.verifiedFrom {
+                    let platform = (try? store.peer(from))?.platform
+                    return .plain(mode == .nse ? noticeBanner(S.nameUnreadable(platform), peer: from, category: .notice,
+                                                              tap: .peers(from.text)) : nil)
+                }
                 if let u = r.unknownFrom, mode != .returnedC, (try? store.peer(u)) == nil {
                     try? store.setMe("fetch_due", .int(1))
                 }

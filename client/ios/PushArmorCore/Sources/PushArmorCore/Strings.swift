@@ -49,6 +49,10 @@ public enum S {
         (count == 1 ? "1 message" : "\(count) messages") + " deleted by " + quoted(name) + "."
     }
     public static func newMessageFrom(_ peer: String) -> String { "New message from " + quoted(peer) }
+    /// A pairing that failed because the other device's name could not be read.
+    public static func nameUnreadable(_ platform: String?) -> String {
+        "Unable to pair with " + PeerLabel.platformName(platform) + " device\nIts name could not be read. Try pairing again"
+    }
     public static func pairingFailed(_ x: String) -> String { "Unable to pair with " + quoted(x) + ".\nTap Pair to start again." }
     public static func pairingTimedOut(_ x: String) -> String {
         "Unable to pair with " + quoted(x) + ".\nIt did not answer in time. Tap Pair to start again."
