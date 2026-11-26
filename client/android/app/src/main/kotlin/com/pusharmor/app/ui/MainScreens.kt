@@ -714,13 +714,14 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
                 Text(x, Modifier.alpha(if (grey) 0.6f else 1f), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
             },
             supportingContent = {
-                // Status icons sit beside lines 2-3, so the name line keeps its full width.
+                // Status icons sit at the right end of the status line, so the name and other lines keep their full width.
                 LinesBesideIcons({
                     // A device with no known name already names its platform ("New Android device").
                     if (p.name != null) Text(AppEffects.platformLabel(p.platform))
                     Text("ID: ${UiText.shortDeviceId(p.id)}")
                     UiText.addedLine(p.created)?.let { Text(it) }
-                    if (lines.isEmpty()) { val (k, w) = UiText.status(p); StatusLine(k, w) } else for (l in lines) Text(l)
+                }, {
+                    if (lines.isEmpty()) { val (k, w) = UiText.status(p); StatusLine(k, w) } else Column { for (l in lines) Text(l) }
                 }) {
                     val se = ents.firstOrNull { it.id == p.id }
                     if (p.pinned && se != null) {
@@ -802,32 +803,28 @@ internal fun PeerStatusIcons(items: List<Pair<ImageVector, PeerStatus>>) {
     }
 }
 
-/** The platform names, as the device rows show them, and the widest ID and Added lines. */
-private val PLATFORM_LABELS = listOf("android", "ios", "chrome", "firefox", "cli").map { AppEffects.platformLabel(it) } +
-    listOf("ID: 000-000-000", "Added: 0000-00-00")
-
 /**
- * A device row's lines with the status icons at their right. The icons go under the lines when the lines beside them
- * would be narrower than the longest platform name or ID or Added line (a small screen or a large font), so no line breaks into fragments.
+ * A device row's lines, then its [status] line with the status icons at its right end. The icons go on a line of
+ * their own under it only when they do not fit beside it (a long status, a small screen, or a large font).
  */
 @Composable
-internal fun LinesBesideIcons(lines: @Composable () -> Unit, icons: @Composable () -> Unit) {
-    val measurer = rememberTextMeasurer()
-    val style = LocalTextStyle.current
-    val need = PLATFORM_LABELS.maxOf { measurer.measure(it, style).size.width }
-    Layout({ Column { lines() }; Box { icons() } }) { (t, i), c ->
-        val ip = i.measure(c.copy(minWidth = 0, minHeight = 0))
-        val gap = if (ip.width > 0) 8.dp.roundToPx() else 0
-        val w = c.maxWidth - ip.width - gap
-        if (w >= need) {
-            // As a Row: the lines fill the width left by the icons and an 8 dp gap; both centred vertically.
-            val tp = t.measure(Constraints(minWidth = w, maxWidth = w, maxHeight = c.maxHeight))
-            val h = maxOf(tp.height, ip.height, c.minHeight)
-            layout(c.maxWidth, h) { tp.placeRelative(0, ((h - tp.height) / 2f).roundToInt()); ip.placeRelative(w + gap, ((h - ip.height) / 2f).roundToInt()) }
-        } else {
-            val tp = t.measure(c.copy(minWidth = 0, minHeight = 0))
-            val top = tp.height + 4.dp.roundToPx()
-            layout(c.maxWidth, maxOf(top + ip.height, c.minHeight)) { tp.placeRelative(0, 0); ip.placeRelative(0, top) }
+internal fun LinesBesideIcons(lines: @Composable () -> Unit, status: @Composable () -> Unit, icons: @Composable () -> Unit) {
+    Column {
+        lines()
+        Layout({ Box { status() }; Box { icons() } }) { (t, i), c ->
+            val ip = i.measure(c.copy(minWidth = 0, minHeight = 0))
+            val gap = if (ip.width > 0) 8.dp.roundToPx() else 0
+            val w = c.maxWidth - ip.width - gap
+            if (t.maxIntrinsicWidth(c.maxHeight) <= w) {
+                // One line: the status at the start, the icons at the end; both centred vertically.
+                val tp = t.measure(Constraints(maxWidth = w, maxHeight = c.maxHeight))
+                val h = maxOf(tp.height, ip.height, c.minHeight)
+                layout(c.maxWidth, h) { tp.placeRelative(0, ((h - tp.height) / 2f).roundToInt()); ip.placeRelative(c.maxWidth - ip.width, ((h - ip.height) / 2f).roundToInt()) }
+            } else {
+                val tp = t.measure(c.copy(minWidth = 0, minHeight = 0))
+                val top = tp.height + 4.dp.roundToPx()
+                layout(c.maxWidth, maxOf(top + ip.height, c.minHeight)) { tp.placeRelative(0, 0); ip.placeRelative(0, top) }
+            }
         }
     }
 }

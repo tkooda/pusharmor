@@ -65,11 +65,11 @@ class RowFitTest {
     private fun icons(): Rect = nodes().first { it.config.getOrNull(SemanticsProperties.ContentDescription)?.any { d -> d.startsWith("Send screen") } == true }.boundsInRoot
 
     /** A device row as on the Devices screen: icon tile, name, platform and status lines, status icons, overflow. */
-    private fun deviceRow(widthDp: Int, font: Float) = show(widthDp, font) {
+    private fun deviceRow(widthDp: Int, font: Float, status: String = "(missing)") = show(widthDp, font) {
         Box(Modifier.width((widthDp - 32).dp)) {
             ListItem(leadingContent = { Box(Modifier.width(40.dp)) }, headlineContent = { Text("Missing phone") },
                 supportingContent = {
-                    LinesBesideIcons({ Text("Added: 2026-11-23"); Text("(missing)") }) {
+                    LinesBesideIcons({ Text("ID: 907-331-064"); Text("Added: 2026-11-23") }, { Text(status) }) {
                         PeerStatusIcons(listOf("Send screen", "Content in notifications", "Content on lock screen", "Watch", "Sharing shortcut")
                             .map { PaIcons.Send to PeerStatus(it, true) })
                     }
@@ -78,21 +78,33 @@ class RowFitTest {
         }
     }
 
-    @Test fun deviceRowKeepsIconsBesideTheLinesAt411dp() {
+    /** The icons on the status line, at its right end: under the Added line, right of the status, as far right as the row allows. */
+    private fun assertIconsEndTheStatusLine(status: String) {
+        assertEquals(1, lines("Added: 2026-11-23")); assertEquals(1, lines(status))
+        assertTrue("${icons()} ${box(status)}", icons().left >= box(status).right && icons().top >= box("Added: 2026-11-23").bottom - 1f)
+        assertEquals(box(status).center.y, icons().center.y, 2f)
+        assertTrue("${icons()} ${box("ID: 907-331-064")}", icons().right > box("ID: 907-331-064").right)
+    }
+
+    @Test fun deviceRowPutsIconsAtTheEndOfTheStatusLineAt411dp() {
         deviceRow(411, 1.0f)
-        assertTrue("${icons()} ${box("Added: 2026-11-23")}", icons().left >= box("Added: 2026-11-23").right && icons().top < box("(missing)").bottom)
+        assertIconsEndTheStatusLine("(missing)")
     }
 
-    @Test fun deviceRowPutsIconsUnderTheLinesAt360dp() {
+    @Test fun deviceRowPutsIconsAtTheEndOfTheStatusLineAt360dp() {
         deviceRow(360, 1.0f)
-        assertEquals(1, lines("Added: 2026-11-23")); assertEquals(1, lines("(missing)"))
-        assertTrue("${icons()}", icons().top >= box("(missing)").bottom)
+        assertIconsEndTheStatusLine("(missing)")
     }
 
-    @Test fun deviceRowPutsIconsUnderTheLinesAtLargeFont() {
+    @Test fun deviceRowPutsIconsAtTheEndOfTheStatusLineAtLargeFont() {
         deviceRow(411, 1.5f)
-        assertEquals(1, lines("Added: 2026-11-23"))
-        assertTrue("${icons()}", icons().top >= box("(missing)").bottom)
+        assertIconsEndTheStatusLine("(missing)")
+    }
+
+    @Test fun deviceRowPutsIconsUnderAStatusThatDoesNotFitBesideThem() {
+        val long = "Waiting for \"Kitchen tablet\": open PushArmor there and tap Codes match."
+        deviceRow(360, 1.0f, long)
+        assertTrue("${icons()} ${box(long)}", icons().top >= box(long).bottom)
     }
 
     private fun buttons(rowDp: Int) = show(411, 1.0f) {
