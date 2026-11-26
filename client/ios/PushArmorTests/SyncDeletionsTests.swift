@@ -21,7 +21,7 @@ final class SyncDeletionsTests: XCTestCase {
         let src = try source("App/Views/SettingsView.swift")
         let history = src.components(separatedBy: "Section(\"History\")")[1].components(separatedBy: "Section(\"Account\")")[0]
         XCTAssertEqual(try count(#"Toggle\("Sync deletions", isOn: boolBinding\(SettingKey\.syncDeletions, true\)\)"#, in: history), 1)
-        XCTAssertEqual(try count(#"Text\("Deleting on this device will also delete on your other devices\."\)"#, in: history), 1)
+        XCTAssertEqual(try count(#"Text\("Manually deleting on this device will also delete on your other devices\."\)"#, in: history), 1)
         XCTAssertEqual(SettingKey.syncDeletions, "sync_deletions")
     }
 
