@@ -8,7 +8,7 @@ import { canReceiveNow, rememberedSelection, sendCountLabel, sendDisabled, sendT
 import { isLikelyUrl, sentLength } from "../model/sendurl.ts";
 import { AUTH_CHANGED, AUTH_SWITCHED, type Restore } from "../model/signin.ts";
 import type { HistoryRow } from "../store/db.ts";
-import { type UiEnv, accountLine, add, busyBar, clear, disableFor, failView, group, h, midEllipsis, nextTabIndex, openHref, rpc, sh, shortTime } from "./dom.ts";
+import { type UiEnv, accountLine, add, busyBar, clear, disableFor, failView, group, h, idLabel, midEllipsis, nextTabIndex, openHref, rpc, sh, shortTime } from "./dom.ts";
 import { closeDialogs, confirmDialog, dismissToast, toast } from "./dialog.ts";
 import { applyFilter, historyChips } from "./historyfilter.ts";
 import { type MsgAction, msgActions, saveFilename } from "../model/msgactions.ts";
@@ -403,7 +403,7 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
   };
   const chip = (glyph: Node, name: string, pressed: boolean, dim = false): HTMLButtonElement => {
     const c = h("button", { type: "button", class: "chip dchip" + (dim ? " off" : ""), title: name },
-      h("span", { class: "pi" }, glyph), h("span", { class: "ck" }, icon("check", 16)), h("span", { class: "nm" }, name)) as HTMLButtonElement;
+      h("span", { class: "pi" }, glyph), h("span", { class: "ck" }, icon("check", 16)), idLabel(h("span", { class: "nm" }), name)) as HTMLButtonElement;
     press(c, pressed);
     return c;
   };
@@ -411,7 +411,7 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
   const relabel = () => {
     const n = count();
     const one = n === 1 ? sendable.find((p) => p.id === checks.find((c) => on(c.chip))!.id) : undefined;
-    if (one) sendLabel.replaceChildren('Send to "', h("span", { class: "who" }, one.label), '"');
+    if (one) sendLabel.replaceChildren('Send to "', idLabel(h("span", { class: "who" }), one.label), '"');
     else sendLabel.textContent = sendCountLabel(n);
     head.textContent = sendToHeader(n, sendable.length);
     void update();
@@ -1111,7 +1111,7 @@ function historyRow(env: UiEnv, r: HistRow, now: number, ctl: SelectCtl, prev?: 
   if (r.type === "event") {
     // Events: a bare glyph, no tile; the sender stays visible when the text lacks it.
     const named = r.event === "denied" || r.event === "logged_out" || r.event === "logged_in";
-    const col = h("div", { class: "txt" }, h("div", { class: "hmeta" }, h("span", { class: "who", id: "h-" + r.id + "-who" }, named ? eventText(r) : r.sender), time));
+    const col = h("div", { class: "txt" }, h("div", { class: "hmeta" }, idLabel(h("span", { class: "who", id: "h-" + r.id + "-who" }), named ? eventText(r) : r.sender), time));
     if (!named) col.append(h("div", { class: "content ev", id: "h-" + r.id + "-c" }, eventText(r)));
     row.classList.add("event");
     row.append(h("div", { class: "av bare" }, icon(r.event === "logged_out" ? "pause" : "info", 18)), col);
@@ -1120,12 +1120,12 @@ function historyRow(env: UiEnv, r: HistRow, now: number, ctl: SelectCtl, prev?: 
   }
   const sent = r.results ? Object.values(r.results).filter((v) => v === "sent").length : (r.targets?.length ?? 0);
   const whoText = r.dir === "out" ? T.sentToNofM(sent, r.targets?.length ?? 0) : r.sender;
-  const who = h("span", { class: "who", id: "h-" + r.id + "-who" }, whoText);
+  const who = idLabel(h("span", { class: "who", id: "h-" + r.id + "-who" }), whoText);
   // Sent to one device: name it in quotes; the name truncates inside them (F22).
   if (r.dir === "out" && r.targets?.length === 1 && sent === 1 && r.sender) {
     who.classList.add("one");
     who.title = T.sentToOne(r.sender);
-    who.replaceChildren('Sent to "', h("span", { class: "nm" }, r.sender), '"');
+    who.replaceChildren('Sent to "', idLabel(h("span", { class: "nm" }), r.sender), '"');
   }
   const col = h("div", { class: "txt" }, h("div", { class: "hmeta" }, who, time));
   const isFile = r.type === "file" && !!r.file;

@@ -279,6 +279,21 @@ export function fitMiddle(text: string, fits: (s: string) => boolean): string {
 let refitInstalled = false;
 
 /** Middle ellipsis on one line; the full text stays in title and aria-label. */
+/**
+ * A device name with its ID (" (NNN-NNN-NNN)", two devices show the same name), maybe in a line: where the line cuts
+ * with an ellipsis, only the text before the ID cuts; the ID and the rest stay whole (class "idl").
+ */
+export function idLabel(el: HTMLElement, text: string): HTMLElement {
+  const m = / \(\d{3}-\d{3}-\d{3}\)/.exec(text);
+  if (!m) {
+    el.replaceChildren(text);
+    return el;
+  }
+  el.classList.add("idl");
+  el.replaceChildren(h("span", { class: "nmx" }, text.slice(0, m.index)), h("span", { class: "nid" }, text.slice(m.index)));
+  return el;
+}
+
 export function midEllipsis(el: HTMLElement, text: string): void {
   el.title = text;
   el.setAttribute("aria-label", text);

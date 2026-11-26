@@ -250,6 +250,12 @@ button.dellight { height: 32px; border-color: transparent; color: var(--err); ba
 .hmeta .who.one { display: inline-flex; white-space: pre; }
 .hmeta .who.one .nm { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .hmeta .time { white-space: nowrap; }
+/* a name with its ID: only the name cuts with an ellipsis, the ID stays whole; an open History row wraps it all */
+.idl { display: inline-flex; min-width: 0; max-width: 100%; }
+.idl > .nmx { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.idl > .nid { flex: none; white-space: pre; }
+.hrow.sel .idl { display: inline; }
+.hrow.sel .idl > .nmx, .hrow.sel .idl > .nid { white-space: normal; }
 .content { font-size: 14px; line-height: 1.42858; user-select: text; overflow-wrap: anywhere; }
 .content.one { white-space: nowrap; overflow: hidden; text-overflow: clip; }
 .content.clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-wrap; }
