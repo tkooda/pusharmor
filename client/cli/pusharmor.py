@@ -2498,7 +2498,7 @@ def on_commit(cx, frm, c_n, listed):
                 ruling = p["ruling"]
                 unpin(p)
                 p["ruling"] = ruling
-            notes.append(pair_note(cx, d, frm, 'Pairing with "%s" failed. Run: `pusharmor pair %s` to start again.'))
+            notes.append(pair_note(cx, d, frm, 'Pairing with %s failed. Run: `pusharmor pair %s` to start again.'))
             # the old entry is gone: decide the new commit on its own
         if dec["entry"].startswith("created") or dec["entry"] == "n_wiped_x_replied":
             e = d["pairs"][frm] = new_entry("X", "prompted", secrets.token_bytes(32), c_n)
@@ -2509,12 +2509,12 @@ def on_commit(cx, frm, c_n, listed):
                 d["pair_auto"] = [t for t in d["pair_auto"] if 0 <= now - t < PAIR_CAP_WINDOW_S] + [now]
         notice = dec["notice"]
         if notice in ("commit", "represent"):
-            notes.append(pair_note(cx, d, frm, '"%s" wants to pair. Run: `pusharmor pair %s`'))
+            notes.append(pair_note(cx, d, frm, '%s wants to pair. Run: `pusharmor pair %s`'))
         elif notice == "crossing":
-            notes.append(pair_note(cx, d, frm, 'Pairing with "%s" is in progress. (%s)'))
+            notes.append(pair_note(cx, d, frm, 'Pairing with %s is in progress. (%s)'))
             again = e["msg"]  # X may never have got this device's commit: send the stored one again
         elif notice == "half_state":
-            notes.append(pair_note(cx, d, frm, '"%s" wants to pair again. Run: `pusharmor pair %s`'))
+            notes.append(pair_note(cx, d, frm, '%s wants to pair again. Run: `pusharmor pair %s`'))
         else:
             notes.append(("warning", UNREADABLE))
     for n in notes:
@@ -2553,12 +2553,12 @@ def on_open(cx, d, e, p, o, notes):
         return notes.append(("warning", UNREADABLE))
     if not open_matches_commit(o, b64d(e["c_N"])):
         d["pairs"].pop(frm, None)
-        return notes.append(pair_note(cx, d, frm, 'Pairing with "%s" failed. Run: `pusharmor pair %s` to start again.'))
+        return notes.append(pair_note(cx, d, frm, 'Pairing with %s failed. Run: `pusharmor pair %s` to start again.'))
     r_x = b64d(e["r"])
     pin_peer(p, o["sign_pub"], o["enc_pub"], pairing_id(o["r"], r_x))
     e.update(state="shown", fingerprint=sas(o["sign_pub"], o["enc_pub"], k["sign_pub"], k["enc_pub"], o["r"], r_x),
              sign_pub=b64e(o["sign_pub"]), enc_pub=b64e(o["enc_pub"]))
-    notes.append(pair_note(cx, d, frm, '"%s" wants to pair. Compare the code: pusharmor pair %s'))
+    notes.append(pair_note(cx, d, frm, '%s wants to pair. Compare the code: pusharmor pair %s'))
 
 
 def post_pair(cx, x, kind, c):

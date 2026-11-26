@@ -822,6 +822,9 @@ def test_abort_then_decides_the_new_commit(net, tmp_path, monkeypatch, capsys):
     err = capsys.readouterr().err
     assert 'failed. Run: `pusharmor pair %s` to start again.' % pa.device_id(ida) in err
     assert "wants to pair. Run: `pusharmor pair %s`" % pa.device_id(ida) in err
+    # the name is quoted once, never doubled
+    assert 'Pairing with "{UNKNOWN}" failed.' in err and 'info: "{UNKNOWN}" wants to pair.' in err
+    assert '""' not in err
 
 
 def test_peer_list_opens_stored_remove_messages(net, tmp_path, monkeypatch, capsys):
@@ -1035,8 +1038,8 @@ def test_another_device_that_wants_to_pair_is_shown_once(net, tmp_path, monkeypa
     cx.refresh()
     cx.target = "x" * 40
     with cx.store.state(write=False) as d:
-        notes = [pa.pair_note(cx, d, ida, '"%s" wants to pair. Compare the code: pusharmor pair %s'),
-                 pa.pair_note(cx, d, ida, '"%s" wants to pair. Run: `pusharmor pair %s`')]
+        notes = [pa.pair_note(cx, d, ida, '%s wants to pair. Compare the code: pusharmor pair %s'),
+                 pa.pair_note(cx, d, ida, '%s wants to pair. Run: `pusharmor pair %s`')]
         name = pa.peer_label(d["peers"][ida])
     assert notes == [("info", '"%s" also wants to pair. Run: `pusharmor pair %s`' % (name, pa.device_id(ida))), None]
 
