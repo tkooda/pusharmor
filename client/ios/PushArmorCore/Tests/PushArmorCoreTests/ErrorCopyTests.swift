@@ -197,6 +197,8 @@ final class ErrorCopyTests: XCTestCase {
     func testFixedTexts() {
         XCTAssertEqual(ErrorCopy.Action.cancelPairing(S.aPeer).line, "Unable to cancel pairing with A device.")
         XCTAssertEqual(S.noAppLink, "No app can open this URL.")
+        XCTAssertEqual(S.unreachable, "Unreachable.")
+        XCTAssertEqual(S.loggedOutBadge, "Logged out.")
         XCTAssertEqual(S.noAppDial, "No app can call this number.")
         XCTAssertTrue(S.keysBrokenBody.contains("You will then log in again"))
         XCTAssertFalse(S.keysBrokenBody.contains("sign in"))

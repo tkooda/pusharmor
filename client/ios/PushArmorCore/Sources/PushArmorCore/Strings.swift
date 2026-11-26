@@ -140,8 +140,9 @@ public enum S {
     /// Check again on the banner: the cause is still there.
     public static let stillCannotReceive = "Still cannot receive messages."
     public static let relayHelp = "To log in on another device, use this address. Find it in iOS Settings > Apple ID > Sign in with Apple, or at appleid.apple.com > Hide My Email."
-    public static let unreachable = "Unreachable"
-    public static let loggedOutBadge = "Logged out"
+    /// Device limit rows: full sentences, so each ends with a period.
+    public static let unreachable = "Unreachable."
+    public static let loggedOutBadge = "Logged out."
     public static let pushRegistrationFailed = ErrorCopy.text(.turnOnNotifications, .appleUnreachable)
     /// History Open when no app takes the URL or the phone number.
     public static let noAppLink = "No app can open this URL."
