@@ -47,7 +47,7 @@ final class FileScreensTests: XCTestCase {
         let row = try source("App/Views/HistoryView.swift")
         XCTAssertTrue(row.contains("if let f = file, !selecting, fileDetailShows(f) { FileRowDetail(file: f, outgoing: outgoing, open: fileOpen, recipients: recipientLines).padding(.leading, textInset + 10) }"))
         XCTAssertTrue(row.contains("private var fileOpen: Bool { expanded && !selecting && isFile }"))
-        XCTAssertTrue(row.contains("if outgoing && f.state == \"sent\" { return false }\n        if case .ready = model.fileStatus(f) { return false }"))
+        XCTAssertTrue(row.contains("if outgoing && f.state == \"sent\" { return false }\n        if case .ready = model.fileStatus(f) { return FileUi.previewNotAvailable(name: f.name, decodes: decodes ?? true) }"))
         XCTAssertTrue(row.contains("if isUnknownType { return }\n        model.detailRow = HistoryExpand.tap("))
         XCTAssertFalse(row.contains("if isUnknownType || isFile { return }"))
         XCTAssertTrue(row.contains(".accessibilityValue(isEvent || isUnknownType || selecting ? \"\" : (isOpen || fileOpen ? \"Expanded\" : \"Collapsed\"))"))

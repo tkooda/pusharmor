@@ -164,9 +164,12 @@ struct FileRowDetail: View {
             if FileUi.previewNotAvailable(name: file.name, decodes: ok) {
                 Text(FileUi.previewNA).font(.caption).foregroundColor(.secondaryText)
             }
-            HStack(spacing: 10) {
-                ForEach(FileUi.actions(name: file.name, decodes: ok), id: \.self) { a in
-                    button(a, url)
+            // closed, the row keeps only "Preview not available"
+            if open {
+                HStack(spacing: 10) {
+                    ForEach(FileUi.actions(name: file.name, decodes: ok), id: \.self) { a in
+                        button(a, url)
+                    }
                 }
             }
         }

@@ -171,6 +171,9 @@ struct HistoryRowView: View {
     @ScaledMetric private var eventIcon: CGFloat = 30
     /// The icon column of a row (IconTile and its spacing): a file's state lines up with the text.
     @ScaledMetric private var textInset: CGFloat = 30
+    /// A ready image file decodes (checked per file state): closed, a file that does not keeps
+    /// "Preview not available" under its name.
+    @State private var decodes: Bool?
 
     private var peer: Peer? { row.peerId.flatMap { id in model.peers.first { $0.id.text == id } } }
     private var outgoing: Bool { row.dir == .outgoing }
@@ -209,12 +212,13 @@ struct HistoryRowView: View {
     /// A file row opened by a tap: its buttons show.
     private var fileOpen: Bool { expanded && !selecting && isFile }
 
-    /// A closed file row whose file is on this device has nothing under its name: no buttons.
+    /// A closed file row whose file is on this device has no buttons under its name, only
+    /// "Preview not available" for an image that does not decode.
     /// A closed sent file row with no copy kept has nothing either: no expiry.
     private func fileDetailShows(_ f: FileRecord) -> Bool {
         if fileOpen { return true }
         if outgoing && f.state == "sent" { return false }
-        if case .ready = model.fileStatus(f) { return false }
+        if case .ready = model.fileStatus(f) { return FileUi.previewNotAvailable(name: f.name, decodes: decodes ?? true) }
         return true
     }
 
@@ -255,6 +259,11 @@ struct HistoryRowView: View {
             summary
             if isOpen { MessageDetailView(row: row, notDeletedOn: notDeletedOn, recipients: recipientLines) }
             if let f = file, !selecting, fileDetailShows(f) { FileRowDetail(file: f, outgoing: outgoing, open: fileOpen, recipients: recipientLines).padding(.leading, textInset + 10) }
+        }
+        .task(id: file.map { "\($0.id):\($0.state)" }) {
+            guard let f = file, FileUi.kind(f.name) == .image else { return }
+            let url = model.plainURL(f)
+            decodes = await Task.detached { FileRowDetail.decodes(url) }.value
         }
     }
 
