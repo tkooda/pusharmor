@@ -152,6 +152,7 @@ import com.pusharmor.app.ScreenshotMode
 import com.pusharmor.app.data.Settings
 import com.pusharmor.app.notify.AppEffects
 import com.pusharmor.app.notify.HistoryFilter
+import com.pusharmor.app.notify.Notifier
 import com.pusharmor.app.notify.PeerStatus
 import com.pusharmor.app.notify.Policy
 import com.pusharmor.app.notify.peerStatusLabel
@@ -467,9 +468,9 @@ private fun Banners(vm: AppViewModel, prefs: androidx.datastore.preferences.core
     if (remember(tick, prefs) { prefs != null && UnifiedPushSupport.mustChoose(context, type, vm.g.push.hasPlayServices) }) {
         BannerRow(UiText.CHOOSE_PUSH_APP, "Choose", fault = true, PaIcons.NotificationsOff) { onChoosePush() }
     }
-    n.blockedChannelPeer(vm.peerEntities.collectAsState().value)?.let { BannerRow(UiText.blockedChannel(UiText.peerLabel(it.name, it.platform)), "Fix", fault = true, PaIcons.NotificationsOff) {
+    vm.peerEntities.collectAsState().value.let { all -> n.blockedChannelPeer(all)?.let { BannerRow(UiText.blockedChannel(Notifier.deviceName(it, all)), "Fix", fault = true, PaIcons.NotificationsOff) {
         safeStart(context, Intent(SysSettings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(SysSettings.EXTRA_APP_PACKAGE, context.packageName))
-    } }
+    } } }
     val upAt = prefs?.get(Settings.K.UP_REGISTERED_AT)
     if (prefs?.get(Settings.K.PUSH_TYPE) == "unifiedpush" && upAt != null && !Settings.flagOf(prefs, Settings.K.UP_VERIFIED, false) && System.currentTimeMillis() - upAt > 10 * 60_000) {
         // With no UnifiedPush app the cannot-receive card offers Switch back to Google, so this banner does not offer it twice.

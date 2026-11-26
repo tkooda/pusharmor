@@ -43,6 +43,8 @@ import kotlinx.coroutines.withContext
 /** Share sheet entry (section 7): ACTION_SEND text/plain, or any file (EXTRA_STREAM) up to the file cap. */
 class ShareActivity : ComponentActivity() {
     private val vm: AppViewModel by viewModels()
+    /** Every device on this device, read with the share targets: the captions name a device as its shortcut does. */
+    private var known: List<Peer> = emptyList()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -64,7 +66,7 @@ class ShareActivity : ComponentActivity() {
             val all = withContext(Dispatchers.IO) {
                 try {
                     if (!canShare(vm.g.identity() != null, vm.g.settings.flag(com.pusharmor.app.data.Settings.K.SIGNED_OUT, false))) { loggedOut = true; null }
-                    else vm.g.store.peers().filter { it.inAll }
+                    else vm.g.store.peers().also { known = it }.filter { it.inAll }
                 } catch (e: android.database.SQLException) { null }
             }
             // Logged out or not set up: a toast says why, and the app opens at log in, never a Send screen that cannot
@@ -185,7 +187,9 @@ class ShareActivity : ComponentActivity() {
      * A [file] also shows its progress in a notification while it is encrypted and sent.
      */
     private fun sendDirect(peer: Peer, text: String, file: FileModel.Chosen? = null) {
-        val caption = if (file != null) UiText.directSendingFile(file.name, listOf(label(peer))) else UiText.directSending(Detect.type(text), label(peer))
+        // As the share sheet names the device: with its ID when another device has the same name.
+        val x = UiText.distinctLabel(peer, known)
+        val caption = if (file != null) UiText.directSendingFile(file.name, listOf(x)) else UiText.directSending(Detect.type(text), x)
         // The step under the bar: encrypting, sending, or a retry of the relay server call.
         setContent {
             Frame {
@@ -197,8 +201,8 @@ class ShareActivity : ComponentActivity() {
                     LinearProgressIndicator({ vm.sendStep / 100f }, Modifier.fillMaxWidth().padding(top = 16.dp), color = BrandGreen)
                     Text(when {
                         vm.sendRetry > 1 -> UiText.tryingAgain(vm.sendRetry)
-                        vm.sendStep < SendFlow.Step.ENCRYPTED -> UiText.encryptingFor(label(peer))
-                        else -> UiText.sendingTo(label(peer))
+                        vm.sendStep < SendFlow.Step.ENCRYPTED -> UiText.encryptingFor(x)
+                        else -> UiText.sendingTo(x)
                     }, Modifier.padding(top = 4.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
