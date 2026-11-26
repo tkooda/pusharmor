@@ -599,7 +599,7 @@ def test_pair_send_listen(net, tmp_path, monkeypatch, capsys):
     lines = [json.loads(x) for x in capsys.readouterr().out.splitlines()]
     assert [x["type"] for x in lines] == ["url", "text"]
     assert lines[0]["body"] == "https://example.com/a%20b" and lines[1]["body"] == "line one\n\tline two"
-    assert list(lines[0]) == list(pa.REC_KEYS) and lines[0]["from"] == pa.id_hex(ida)
+    assert list(lines[0]) == list(pa.REC_KEYS) and lines[0]["from"] == pa.device_id(ida)
     assert lines[0]["platform"] == "cli"
 
     # rename reaches the other device by push
@@ -1389,17 +1389,17 @@ def test_send_too_long(net, tmp_path, monkeypatch, capsys):
 
 # ---- listen output ----
 
-REC = {"from": "ab" * 21, "name": "Pixel", "platform": "android", "type": "text", "body": "a\tb\nc\\d\x1b",
+REC = {"from": "907-331-064", "name": "Pixel", "platform": "android", "type": "text", "body": "a\tb\nc\\d\x1b",
        "date": "2026-10-30T12:00:00Z", "file": ""}
 
 
 def test_format_json_and_tsv():
     assert json.loads(pa.format_record(REC, "json")) == REC
-    assert pa.format_record(REC, "tsv") == "\t".join(["ab" * 21, "Pixel", "android", "text", "a\\tb\\nc\\\\d\\u001b",
+    assert pa.format_record(REC, "tsv") == "\t".join(["907-331-064", "Pixel", "android", "text", "a\\tb\\nc\\\\d\\u001b",
                                                        "2026-10-30T12:00:00Z"])
     f = dict(REC, type="file", body="a.pdf")
     assert pa.format_record(f, "tsv").split("\t")[4] == "a.pdf"
-    assert pa.format_record(dict(f, file="/d/a (1).pdf"), "tsv").split("\t") == ["ab" * 21, "Pixel", "android", "file",
+    assert pa.format_record(dict(f, file="/d/a (1).pdf"), "tsv").split("\t") == ["907-331-064", "Pixel", "android", "file",
                                                                                 "/d/a (1).pdf", "2026-10-30T12:00:00Z"]
 
 
@@ -1424,7 +1424,7 @@ def test_tsv_escapes_controls_and_json_is_ascii():
 
 def test_format_blocks():
     out = pa.format_record(REC, "blocks").splitlines()
-    assert out[0] == "From: ababab Pixel" and out[1] == "Platform: Android" and out[2] == "Type: text"
+    assert out[0] == "From: 907-331-064 Pixel" and out[1] == "Platform: Android" and out[2] == "Type: text"
     assert out[3].startswith("Date: ") and out[4] == "Body: a\tb" and out[5] == " c\\d?"
 
 
@@ -2893,7 +2893,7 @@ def _listen_unknown(net, tmp_path, monkeypatch, capsys, body, *args):
 @pytest.mark.parametrize("body", ['{"n":%d,"show":true,"zzz":1}', '{"v":2,"n":%d,"show":true,"text":"hi"}'])
 def test_listen_shows_an_unknown_message_with_show_in_every_output(body, net, tmp_path, monkeypatch, capsys):
     cap, ida, n, b = _listen_unknown(net, tmp_path, monkeypatch, capsys, body)
-    assert "Type: unknown\n" in cap.out and "Body: " + UNKNOWN_SHOWN in cap.out and "From: " + pa.id_hex(ida)[:6] in cap.out
+    assert "Type: unknown\n" in cap.out and "Body: " + UNKNOWN_SHOWN in cap.out and "From: " + pa.device_id(ida) + " " in cap.out
     assert n in state(b)["peers"][ida]["seen"]
 
 
@@ -2901,7 +2901,7 @@ def test_listen_shows_an_unknown_message_with_show_in_every_output(body, net, tm
 def test_listen_json_and_tsv_show_an_unknown_message(body, net, tmp_path, monkeypatch, capsys):
     cap, ida, n, b = _listen_unknown(net, tmp_path, monkeypatch, capsys, body, "--json")
     o = json.loads(cap.out)
-    assert o["type"] == "unknown" and o["body"] == UNKNOWN_SHOWN and o["from"] == pa.id_hex(ida)
+    assert o["type"] == "unknown" and o["body"] == UNKNOWN_SHOWN and o["from"] == pa.device_id(ida)
 
 
 @pytest.mark.parametrize("body", ['{"n":%d,"show":true,"zzz":1}', '{"v":2,"n":%d,"show":true,"text":"hi"}'])

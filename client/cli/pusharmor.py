@@ -2284,7 +2284,7 @@ def receive_inner(cx, pt, src):
                 w = window_accept({"h": p["h"], "seen": p["seen"]}, r["n"])
                 p["h"], p["seen"] = w["h"], w["seen"]
                 if r["show"]:
-                    rec = {"from": id_hex(r["from"]), "name": peer_label(p), "platform": p["platform"], "type": "unknown",
+                    rec = {"from": device_id(r["from"]), "name": peer_label(p), "platform": p["platform"], "type": "unknown",
                            "body": "Unknown message type, please update",
                            "date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "file": ""}
             elif not r["ignorable"] and src != "returned" and r["ruling"] != "approved":
@@ -2349,11 +2349,11 @@ def act(cx, d, r, p, notes):
             t, v = ("url", u["href"]) if u["url"] else ("text", v)
         elif t == "tel" and not is_phone(v):
             t = "text"
-        return None, {"from": id_hex(frm), "name": name, "platform": p["platform"], "type": t, "body": v,
+        return None, {"from": device_id(frm), "name": name, "platform": p["platform"], "type": t, "body": v,
                       "date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "file": ""}
     if t == "file":
         now = time.time()
-        return None, {"from": id_hex(frm), "name": name, "platform": p["platform"], "type": "file",
+        return None, {"from": device_id(frm), "name": name, "platform": p["platform"], "type": "file",
                       "body": sanitize_name(v["name"], now, is_image(v["name"])),
                       "date": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now)), "file": "", "_file": v}
     if t == "approve":
@@ -3060,7 +3060,7 @@ def format_record(rec, fmt):
     t = datetime.datetime.strptime(rec["date"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc)
     body = _clean(rec["body"].replace("\r\n", "\n").replace("\r", "\n")).replace("\n", "\n ")
     out = "From: %s %s\nPlatform: %s\nType: %s\nDate: %s\nBody: %s\n" % (
-        rec["from"][:6], rec["name"], platform_label(rec["platform"]), rec["type"],
+        rec["from"], rec["name"], platform_label(rec["platform"]), rec["type"],
         email.utils.format_datetime(t.astimezone()), body)
     if rec["type"] == "file":
         v = rec["_file"]
