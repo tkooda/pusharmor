@@ -869,9 +869,7 @@ export async function historyView(env: UiEnv, root: HTMLElement, focus?: string,
       const r = rows.find((x) => x.id === id);
       const old = document.getElementById("h-" + id);
       if (r && old && (applyFilter(rows, key).rows as HistRow[]).includes(r)) {
-        const fresh = historyRow(env, r, Date.now(), ctl);
-        if (old.classList.contains("sel")) fresh.classList.add("sel");
-        old.replaceWith(fresh);
+        old.replaceWith(historyRow(env, r, Date.now(), ctl, old));
       }
       if (r && needsDecrypt(r)) void decryptRows(env);
     }, () => undefined);
@@ -1105,7 +1103,8 @@ async function decryptRows(env: UiEnv, id: number | null = null): Promise<void> 
   return decrypting;
 }
 
-function historyRow(env: UiEnv, r: HistRow, now: number, ctl: SelectCtl): HTMLElement {
+/** A History row; a row redrawn in place of `prev` keeps its open or closed state, its cut name, and its bold (unread) look. */
+function historyRow(env: UiEnv, r: HistRow, now: number, ctl: SelectCtl, prev?: HTMLElement): HTMLElement {
   const full = new Date(r.received).toLocaleString();
   const time = h("span", { class: "time", title: full }, shortTime(r.received, now));
   const row = h("div", { class: "hrow", id: "h-" + r.id });
@@ -1141,7 +1140,7 @@ function historyRow(env: UiEnv, r: HistRow, now: number, ctl: SelectCtl): HTMLEl
   const notDeleted = r.notDeleted?.length ? r.notDeleted : null;
   if (notDeleted) content.classList.add("struck");
   // Unread: bold text, no visible marker (times stay in one column); screen readers hear "Unread".
-  if (!r.read) {
+  if (prev ? prev.classList.contains("unread") : !r.read) {
     row.classList.add("unread");
     col.append(h("span", { class: "sr", role: "img", "aria-label": "Unread" }));
   }
@@ -1176,6 +1175,11 @@ function historyRow(env: UiEnv, r: HistRow, now: number, ctl: SelectCtl): HTMLEl
     row.classList.remove("unread");
     select();
   };
+  if (prev?.classList.contains("closed")) row.classList.add("closed");
+  if (prev?.classList.contains("sel")) select();
+  // the name as the replaced row cut it, until the next fit
+  const was = prev?.querySelector<HTMLElement>(".content[data-full]");
+  if (was && content.dataset.full === was.dataset.full && !(r.type === "url" && row.classList.contains("sel"))) content.textContent = was.textContent;
   sync();
   content.addEventListener("keydown", (ev: KeyboardEvent) => {
     if (ev.key !== "Enter" && ev.key !== " ") return;

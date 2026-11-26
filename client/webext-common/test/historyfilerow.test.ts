@@ -60,3 +60,54 @@ test("a collapsed History file row shows only the sender line and the file name;
   click(rows[2], content(rows[2]));
   assert.deepEqual(shown(rows[2]).filter(detail), ["2.1 MB - PDF", "expires in 2 h"]);
 });
+
+test("a History file row redrawn while History shows keeps its open or closed state, its cut name, and its unread look", async () => {
+  const root = new N("div");
+  // what the redraw needs of a real DOM: the row by id, replaceWith, isConnected, and .content[data-full]
+  const doc = g.document as Record<string, unknown>;
+  doc.getElementById = (id: string) => find(root, (x) => x.attrs.id === id) ?? null;
+  const P = N.prototype as unknown as Record<string, unknown>;
+  P.replaceWith = function (this: N, n: N) {
+    const p = this.parent!;
+    p.kids[p.kids.indexOf(this)] = n;
+    n.parent = p;
+    this.parent = null;
+  };
+  Object.defineProperty(N.prototype, "isConnected", { configurable: true, get(this: N) { let x: N = this; while (x.parent) x = x.parent; return x === root; } });
+  P.querySelector = function (this: N, sel: string) {
+    if (sel === ".content[data-full]") return find(this, (x) => x !== this && hasClass(x, "content") && x.dataset.full !== undefined) ?? null;
+    return /^(\.[\w-]+)+$/.test(sel) ? (this.querySelectorAll(sel)[0] ?? null) : null;
+  };
+  const rowsAt = (read: boolean) => [fileRow(1, "in", "a.pdf", {}), fileRow(2, "in", "b.pdf", {}), fileRow(3, "in", "c.pdf", {})].map((r) => ({ ...r, read }));
+  const data: Record<string, unknown> = { historyOpened: null, history: rowsAt(false), historyRead: null };
+  let ev!: (id: number, pct?: number) => void;
+  const env = {
+    call: async (m: { op: string }) => ({ ok: true, data: data[m.op] }),
+    files: { onEvent: (cb: typeof ev) => ((ev = cb), () => undefined) },
+  } as unknown as UiEnv;
+  await historyView(env, root as unknown as HTMLElement, undefined, { toDevices: () => undefined, toSend: () => undefined });
+  const row = (id: number) => find(root, (x) => x.attrs.id === "h-" + id)!;
+  const content = (id: number) => find(row(id), (x) => hasClass(x, "content"))!;
+  click(row(2), content(2));
+  click(row(2), content(2)); // opened, then closed again
+  click(row(1), content(1)); // opened (and read)
+  content(3).textContent = "c\u2026f"; // the middle cut the fit made
+  const state = (id: number) => ({
+    sel: row(id).cls.has("sel"),
+    closed: row(id).cls.has("closed"),
+    unread: row(id).cls.has("unread"),
+    sr: !!find(row(id), (x) => hasClass(x, "sr")),
+    expanded: content(id).attrs["aria-expanded"],
+    text: content(id).textContent,
+    full: content(id).dataset.full,
+    mid: content(id).cls.has("mid"),
+  });
+  const before = [1, 2, 3].map(state);
+  const olds = [1, 2, 3].map(row);
+  data.history = rowsAt(true);
+  for (const id of [1, 2, 3]) ev(id);
+  await new Promise((r) => setTimeout(r, 10));
+  assert.ok([1, 2, 3].every((id, i) => row(id) !== olds[i]), "each row was redrawn");
+  assert.deepEqual([1, 2, 3].map(state), before);
+  assert.deepEqual(before.map((s) => [s.sel, s.closed, s.unread, s.expanded]), [[true, false, false, "true"], [false, true, false, "false"], [false, false, true, "false"]]);
+});
