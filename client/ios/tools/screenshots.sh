@@ -1,9 +1,10 @@
 #!/bin/bash
 # Store screenshots on an iOS simulator (workflow screenshots.yml).
 # Usage: bash tools/screenshots.sh <out-dir> [device name] [review-dir]   (run from client/ios after
-# xcodegen generate). Boots the device (default iPhone 17 Pro Max, 1320x2868; the iPad shots
+# xcodegen generate). Erases and boots the device (default iPhone 17 Pro Max, 1320x2868; the iPad shots
 # use iPad Pro 13-inch (M5), 2064x2752), sets the
-# status bar to 9:41, runs PushArmorUITests/ScreenshotTests with PA_SHOTS=1 and exports
+# status bar to 9:41, runs PushArmorUITests/ScreenshotTests with PA_SHOTS=1 (app version: env
+# PA_VERSION, else 0.0.0) and exports
 # its screenshot attachments as <out-dir>/NN-name.png. Attachments named 9N-* are review
 # images: written to [review-dir] when given, else dropped. With PA_SHOTS_ALL=1 it runs only
 # ScreenshotTests/testCaptureAllScreens (every screen, light and dark, NN-screen-<theme>,
@@ -23,8 +24,13 @@ for rt, devs in sorted(json.load(sys.stdin)["devices"].items(), reverse=True):
             print(d["udid"]); sys.exit(0)
 ' "$name")"
 [ -n "$udid" ] || { echo "error: no available simulator named $name" >&2; xcrun simctl list devices available; exit 1; }
-xcrun simctl boot "$udid" 2>/dev/null || true
+# Erased first, so no banner from an earlier boot shows; after boot, time for the home screen
+# to settle before the status bar override and the tests.
+xcrun simctl shutdown "$udid" 2>/dev/null || true
+xcrun simctl erase "$udid"
+xcrun simctl boot "$udid"
 xcrun simctl bootstatus "$udid" -b
+sleep 60
 xcrun simctl status_bar "$udid" override --time 9:41 --dataNetwork wifi --wifiMode active --wifiBars 3 \
   --cellularMode active --cellularBars 4 --batteryState discharging --batteryLevel 100
 tmp="$(mktemp -d)"
@@ -34,7 +40,7 @@ only=PushArmorUITests/ScreenshotTests
 [ "$all" != 1 ] || only=PushArmorUITests/ScreenshotTests/testCaptureAllScreens
 TEST_RUNNER_PA_SHOTS=1 TEST_RUNNER_PA_SHOTS_ALL="$all" xcodebuild test -project PushArmor.xcodeproj -scheme PushArmor \
   -destination "platform=iOS Simulator,id=$udid" -disableAutomaticPackageResolution \
-  -only-testing:"$only" -resultBundlePath "$rb"
+  -only-testing:"$only" -resultBundlePath "$rb" MARKETING_VERSION="${PA_VERSION:-0.0.0}"
 xcrun xcresulttool export attachments --path "$rb" --output-path "$tmp/att"
 mkdir -p "$out"
 [ -z "$review" ] || mkdir -p "$review"
