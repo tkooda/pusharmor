@@ -24,9 +24,13 @@ class AppEffects(private val g: Graph, private val fcm: Boolean) : Effects {
     override fun peerChannelRename(peerId: String) = n.renamePeerChannel(peerId)
 
     override fun pairNotice(peerId: String, pk: String, kind: PairNoticeKind, fingerprint: String?) {
-        val x = g.dao.peer(peerId)?.let { it.name ?: "${platformLabel(it.platform)} device added ${dateLabel(it.created)}" }
+        val peer = g.dao.peer(peerId)
+        val x = peer?.let { UiText.peerLabel(it.name, it.platform) }
         when (kind) {
-            PairNoticeKind.COMMIT -> n.pairNotice(pk, UiText.wantsToPairNotice(x), peerId)
+            // A device with no known name: "A new device wants to pair" over "Firefox device with ID 130-772-845".
+            PairNoticeKind.COMMIT -> if (peer != null && peer.name == null) {
+                n.pairNotice(pk, UiText.newDeviceWithId(peer.platform, UiText.shortDeviceId(peerId)), peerId, title = UiText.NEW_DEVICE_WANTS_TO_PAIR)
+            } else n.pairNotice(pk, UiText.wantsToPairNotice(x), peerId)
             PairNoticeKind.COMPARE -> n.pairNotice(pk, UiText.compareNotice(fingerprint ?: ""), peerId)
             PairNoticeKind.READY -> n.pairNotice(pk, "Pairing code ready. Open PushArmor.", peerId)
             PairNoticeKind.IN_PROGRESS -> n.pairNotice(pk, UiText.pairingInProgress(x), peerId)
@@ -63,7 +67,7 @@ class AppEffects(private val g: Graph, private val fcm: Boolean) : Effects {
     override fun selfRemoved(deleted: Boolean) { g.session.onRemovedSignal(deleted = deleted) }
 
     companion object {
-        fun platformLabel(p: String) = when (p) { "android" -> "Android"; "ios" -> "iOS"; "chrome" -> "Chrome"; "firefox" -> "Firefox"; "cli" -> "Command line"; else -> p }
+        fun platformLabel(p: String) = when (p) { "android" -> "Android"; "ios" -> "iOS"; "chrome" -> "Chrome"; "firefox" -> "Firefox"; "cli" -> "CLI"; else -> p }
         fun dateLabel(created: Long): String = java.text.SimpleDateFormat("MMM d", java.util.Locale.US).format(java.util.Date(created * 1000))
     }
 }

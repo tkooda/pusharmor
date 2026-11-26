@@ -190,7 +190,7 @@ import kotlinx.coroutines.launch
 import java.text.DateFormat
 import java.util.Date
 
-internal fun label(p: Peer) = p.name ?: "${AppEffects.platformLabel(p.platform)} device added ${AppEffects.dateLabel(p.created)}"
+internal fun label(p: Peer) = UiText.peerLabel(p.name, p.platform)
 
 /** Peers other than self; none until self is known, so the own device never shows as a peer. */
 internal fun others(peers: List<Peer>, selfId: String?): List<Peer> = if (selfId == null) emptyList() else peers.filter { it.id != selfId }
@@ -698,7 +698,8 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
             supportingContent = {
                 // Status icons sit beside lines 2-3, so the name line keeps its full width.
                 LinesBesideIcons({
-                    Text(AppEffects.platformLabel(p.platform))
+                    // A device with no known name already names its platform ("New Android device").
+                    if (p.name != null) Text(AppEffects.platformLabel(p.platform))
                     Text("ID: ${UiText.shortDeviceId(p.id)}")
                     UiText.addedLine(p.created)?.let { Text(it) }
                     if (lines.isEmpty()) { val (k, w) = UiText.status(p); StatusLine(k, w) } else for (l in lines) Text(l)
@@ -779,12 +780,13 @@ internal fun PeerStatusIcons(items: List<Pair<ImageVector, PeerStatus>>) {
     }
 }
 
-/** The platform names, as the device rows show them. */
-private val PLATFORM_LABELS = listOf("android", "ios", "chrome", "firefox", "cli").map { AppEffects.platformLabel(it) }
+/** The platform names, as the device rows show them, and the widest ID and Added lines. */
+private val PLATFORM_LABELS = listOf("android", "ios", "chrome", "firefox", "cli").map { AppEffects.platformLabel(it) } +
+    listOf("ID: 000-000-000", "Added: 0000-00-00")
 
 /**
  * A device row's lines with the status icons at their right. The icons go under the lines when the lines beside them
- * would be narrower than the longest platform name (a small screen or a large font), so no line breaks into fragments.
+ * would be narrower than the longest platform name or ID or Added line (a small screen or a large font), so no line breaks into fragments.
  */
 @Composable
 internal fun LinesBesideIcons(lines: @Composable () -> Unit, icons: @Composable () -> Unit) {
@@ -884,20 +886,28 @@ private fun PairingCard(vm: AppViewModel, p: Peer, row: PairingRow, now: Long, m
         Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             IconTile(platformIcon(p.platform))
             Column {
-                Text(if (shown || prompted) "Pair with new device: \"$x\"" else x, style = MaterialTheme.typography.titleMedium)
-                Text(AppEffects.platformLabel(p.platform), style = body, color = cs.onSurfaceVariant)
+                val awaiting = row.state == PairState.SHOWN && p.waiting
+                val title = when {
+                    awaiting -> UiText.awaitingResponse(p.platform)
+                    shown || prompted -> UiText.pairWithNew(p.platform)
+                    else -> x
+                }
+                Text(title, style = MaterialTheme.typography.titleMedium)
+                // The title names the platform unless it shows a known name.
+                if (title == p.name) Text(AppEffects.platformLabel(p.platform), style = body, color = cs.onSurfaceVariant)
                 Text("ID: ${UiText.shortDeviceId(p.id)}", style = body, color = cs.onSurfaceVariant)
-                UiText.addedLine(p.created)?.let { Text(it, style = body, color = cs.onSurfaceVariant) }
+                if (!awaiting) UiText.addedLine(p.created)?.let { Text(it, style = body, color = cs.onSurfaceVariant) }
             }
         }
         Spacer(Modifier.height(16.dp))
         when {
+            // Codes match tapped here: the code stays up while the other device confirms.
             row.state == PairState.SHOWN && p.waiting -> {
-                Text(UiText.waitingCodesMatch(x), style = body, color = cs.onSurfaceVariant)
+                FingerprintPlate(row.fingerprint.orEmpty())
                 WaitingSendAgain(vm, p, now)
             }
             row.state == PairState.SHOWN -> {
-                FingerprintPlate(row.fingerprint.orEmpty(), x)
+                FingerprintPlate(row.fingerprint.orEmpty())
                 Spacer(Modifier.height(16.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedButton(onClick = { vm.deny(p.id) }, Modifier.weight(1f).heightIn(min = 48.dp), enabled = "deny:${p.id}" !in running,
@@ -959,7 +969,7 @@ internal fun PairingFooter(timeout: String, enabled: Boolean = true, onCancel: (
 
 /** Plate with the caps label and four mono cells; read as one element, character by character. */
 @Composable
-internal fun FingerprintPlate(code: String, x: String) {
+internal fun FingerprintPlate(code: String) {
     val ex = LocalPaExtra.current
     val cs = MaterialTheme.colorScheme
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(ex.plate).padding(horizontal = 12.dp, vertical = 16.dp),
@@ -985,7 +995,7 @@ internal fun FingerprintPlate(code: String, x: String) {
             }
         }
         Spacer(Modifier.height(12.dp))
-        Text("Verify that \"$x\" shows this same code.", style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant, textAlign = TextAlign.Center)
+        Text(UiText.CONFIRM_CODE, style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant, textAlign = TextAlign.Center)
     }
 }
 

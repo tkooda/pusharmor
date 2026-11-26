@@ -27,7 +27,6 @@ import com.pusharmor.net.WorkerClient
 import com.pusharmor.protocol.MessageBody
 import com.pusharmor.protocol.NameEntry
 import com.pusharmor.protocol.Peer
-import com.pusharmor.app.notify.AppEffects
 import com.pusharmor.protocol.allSet
 import com.pusharmor.protocol.engine.ApiResult
 import com.pusharmor.protocol.engine.ClockSkew
@@ -45,7 +44,7 @@ class Session(private val g: Graph) {
         /** Share sheet targets: the All set less the devices turned off in their menu. */
         fun shareTargets(peers: List<Peer>, off: Set<String>): List<Peer> = allSet(peers).filter { it.id !in off }
         /** A device's name as the app shows it; the share sheet needs it distinct per device. */
-        fun shortcutLabel(p: Peer): String = p.name ?: "${AppEffects.platformLabel(p.platform)} device added ${AppEffects.dateLabel(p.created)}"
+        fun shortcutLabel(p: Peer): String = UiText.peerLabel(p.name, p.platform)
         const val REMOVED = "This device was removed from the account. Log in again."
         const val LOST_KEYS = "This device lost its keys. Log in again."
         const val DELETED = "The account was deleted on another device."

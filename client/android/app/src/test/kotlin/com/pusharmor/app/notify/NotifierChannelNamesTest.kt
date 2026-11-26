@@ -50,9 +50,9 @@ class NotifierChannelNamesTest {
         assertEquals("Messages from devices", nm.getNotificationChannelGroup(Notifier.PEER_GROUP).name.toString())
     }
 
-    @Test fun unnamedDeviceUsesTheAddedFallback() {
+    @Test fun unnamedDeviceUsesTheNewDeviceLabel() {
         io { g.notifier.ensureChannels(); g.store.putPeer(paired("b", null)); g.notifier.createPeerChannel("b") }
-        assertEquals("Android device added Nov 4", channelName("b"))
+        assertEquals("New Android device", channelName("b"))
     }
 
     @Test fun listRefreshRenamesChannels() {

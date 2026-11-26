@@ -53,8 +53,8 @@ class Notifier(private val context: Context, private val settings: Settings, pri
         /** Group of the per-device message channels, as the system settings list it. */
         const val PEER_GROUP = "device_messages"
 
-        /** A device's name as the app shows it: its name, else "Android device added Nov 4". */
-        fun deviceName(p: PeerEntity): String = p.name ?: "${AppEffects.platformLabel(p.platform)} device added ${AppEffects.dateLabel(p.created)}"
+        /** A device's name as the app shows it: its name, else "New Android device". */
+        fun deviceName(p: PeerEntity): String = UiText.peerLabel(p.name, p.platform)
 
         /**
          * The system keeps the group a channel was made with, so a per-device channel outside [PEER_GROUP] is made again
@@ -217,10 +217,10 @@ class Notifier(private val context: Context, private val settings: Settings, pri
     }
 
     /** Pairing notices under the id from pk (tag "pair"). */
-    fun pairNotice(pk: String, text: String, peerId: String?, highlight: Boolean = false, ok: Boolean = false) {
+    fun pairNotice(pk: String, text: String, peerId: String?, highlight: Boolean = false, ok: Boolean = false, title: String = "PushArmor") {
         val id = pairId(pk)
         val b = NotificationCompat.Builder(context, peersChannel)
-            .setSmallIcon(R.drawable.ic_notify).setColor(NAVY).setContentTitle("PushArmor").setContentText(text)
+            .setSmallIcon(R.drawable.ic_notify).setColor(NAVY).setContentTitle(title).setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setContentIntent(openApp("peers", if (highlight) peerId else null)).setAutoCancel(true)
         if (ok) b.addAction(0, "OK", dismiss(TAG_PAIR, id))

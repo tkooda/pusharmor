@@ -59,7 +59,7 @@ class PairingLayoutTest {
         RuntimeEnvironment.setQualifiers("w${width}dp-h900dp-xhdpi")
         RuntimeEnvironment.setFontScale(2f)
         // As in the pairing card: 16 dp list margin, 16 dp card padding, 12 dp plate padding on each side.
-        UiHostActivity.content = { Box(Modifier.fillMaxWidth().padding(horizontal = 44.dp)) { FingerprintPlate("GZJ3", "Pixel 9 Pro XL") } }
+        UiHostActivity.content = { Box(Modifier.fillMaxWidth().padding(horizontal = 44.dp)) { FingerprintPlate("GZJ3") } }
         val c = Robolectric.buildActivity(UiHostActivity::class.java).setup()
         idle()
         val a = c.get()

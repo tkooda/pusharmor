@@ -69,7 +69,7 @@ class RowFitTest {
         Box(Modifier.width((widthDp - 32).dp)) {
             ListItem(leadingContent = { Box(Modifier.width(40.dp)) }, headlineContent = { Text("Missing phone") },
                 supportingContent = {
-                    LinesBesideIcons({ Text("Command line"); Text("(missing)") }) {
+                    LinesBesideIcons({ Text("Added: 2026-11-23"); Text("(missing)") }) {
                         PeerStatusIcons(listOf("Send screen", "Content in notifications", "Content on lock screen", "Watch", "Sharing shortcut")
                             .map { PaIcons.Send to PeerStatus(it, true) })
                     }
@@ -80,18 +80,18 @@ class RowFitTest {
 
     @Test fun deviceRowKeepsIconsBesideTheLinesAt411dp() {
         deviceRow(411, 1.0f)
-        assertTrue("${icons()} ${box("Command line")}", icons().left >= box("Command line").right && icons().top < box("(missing)").bottom)
+        assertTrue("${icons()} ${box("Added: 2026-11-23")}", icons().left >= box("Added: 2026-11-23").right && icons().top < box("(missing)").bottom)
     }
 
     @Test fun deviceRowPutsIconsUnderTheLinesAt360dp() {
         deviceRow(360, 1.0f)
-        assertEquals(1, lines("Command line")); assertEquals(1, lines("(missing)"))
+        assertEquals(1, lines("Added: 2026-11-23")); assertEquals(1, lines("(missing)"))
         assertTrue("${icons()}", icons().top >= box("(missing)").bottom)
     }
 
     @Test fun deviceRowPutsIconsUnderTheLinesAtLargeFont() {
         deviceRow(411, 1.5f)
-        assertEquals(1, lines("Command line"))
+        assertEquals(1, lines("Added: 2026-11-23"))
         assertTrue("${icons()}", icons().top >= box("(missing)").bottom)
     }
 

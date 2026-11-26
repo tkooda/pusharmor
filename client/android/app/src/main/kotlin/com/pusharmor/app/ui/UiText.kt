@@ -467,6 +467,18 @@ object UiText {
         PairStart.NOT_READY -> "\"$name\" can't pair right now. Open PushArmor on that device, then try again."
     }
 
+    /** A device as the app names it: its name, else "New Android device" (its name is not known until it pairs). */
+    fun peerLabel(name: String?, platform: String): String = name ?: "New ${com.pusharmor.app.notify.AppEffects.platformLabel(platform)} device"
+    /** Pairing card title while the codes show. */
+    fun pairWithNew(platform: String): String = "Pair with new ${com.pusharmor.app.notify.AppEffects.platformLabel(platform)} device"
+    /** Pairing card title after Codes match here, until the other device confirms. */
+    fun awaitingResponse(platform: String): String = "Awaiting ${com.pusharmor.app.notify.AppEffects.platformLabel(platform)} device's response"
+    /** Text under the pairing code. */
+    const val CONFIRM_CODE = "Confirm the other device shows this code."
+    /** Notice title and text when a device with no known name asks to pair. */
+    const val NEW_DEVICE_WANTS_TO_PAIR = "A new device wants to pair"
+    fun newDeviceWithId(platform: String, deviceId: String): String = "${com.pusharmor.app.notify.AppEffects.platformLabel(platform)} device with ID $deviceId"
+
     /** Notice when a device in the half state sends a new pairing request. */
     fun pairAgainNotice(x: String?): String = "${quoted(x, "A device")} wants to pair again. Tap Pair again on its row."
 

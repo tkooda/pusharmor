@@ -15,6 +15,6 @@ class ShortcutLabelTest {
         val b = Session.shortcutLabel(Peer(id = "b", platform = "ios", created = 1_762_300_800))
         assertNotEquals("Device", a)
         assertNotEquals(a, b)
-        assertEquals(true, a.contains("device added"))
+        assertEquals("New Android device", a)
     }
 }

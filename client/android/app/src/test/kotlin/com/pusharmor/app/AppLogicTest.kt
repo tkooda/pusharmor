@@ -39,7 +39,7 @@ class AppLogicTest {
     }
 
     @Test fun cliPlatformLabelAndIcon() {
-        assertEquals("Command line", AppEffects.platformLabel("cli"))
+        assertEquals("CLI", AppEffects.platformLabel("cli"))
         assertEquals(PaIcons.Terminal, platformIcon("cli"))
         assertEquals(PaIcons.Devices, platformIcon("other"))
     }

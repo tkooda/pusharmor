@@ -293,6 +293,17 @@ class UiTextTest {
         assertEquals(listOf("d", "c", "b", "e", "a"), sorted.map { it.id })
     }
 
+    @Test fun newDeviceTexts() {
+        assertEquals("New Firefox device", UiText.peerLabel(null, "firefox"))
+        assertEquals("New CLI device", UiText.peerLabel(null, "cli"))
+        assertEquals("Pixel 8", UiText.peerLabel("Pixel 8", "android"))
+        assertEquals("Pair with new Firefox device", UiText.pairWithNew("firefox"))
+        assertEquals("Awaiting Firefox device's response", UiText.awaitingResponse("firefox"))
+        assertEquals("Confirm the other device shows this code.", UiText.CONFIRM_CODE)
+        assertEquals("A new device wants to pair", UiText.NEW_DEVICE_WANTS_TO_PAIR)
+        assertEquals("Firefox device with ID 130-772-845", UiText.newDeviceWithId("firefox", "130-772-845"))
+    }
+
     @Test fun limitRowText() {
         assertEquals("Trusts 0 devices. Trusted by 0.", UiText.limitRow(0, 0, reachable = true, loggedOut = false))
         assertEquals("Trusts 1 device. Trusted by 1.", UiText.limitRow(1, 1, reachable = true, loggedOut = false))
