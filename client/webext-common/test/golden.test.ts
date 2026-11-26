@@ -15,6 +15,7 @@ import {
   type AnyPush,
   commitHash,
   crockford,
+  deviceId,
   emailHash,
   fingerprintHash,
   idMatchesKeys,
@@ -411,6 +412,10 @@ test("golden: url_parse", () => {
 
 test("golden: phone", () => {
   for (const c of G.phone.cases) assert.equal(isPhone(c.input), c.phone, JSON.stringify(c.input));
+});
+
+test("golden: device_id", () => {
+  for (const c of G.device_id.cases) assert.equal(deviceId(d(c.id)), c.device_id, c.name);
 });
 
 describe("golden: must_fail", () => {

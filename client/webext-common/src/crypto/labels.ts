@@ -167,3 +167,11 @@ export async function validPeerEntry(id: Uint8Array, signPub: Uint8Array, encPub
   if (!(await idMatchesKeys(id, signPub, encPub, myAccount))) return false;
   return (await isValidPub(signPub)) && (await isValidPub(encPub));
 }
+
+/** Device ID: id bytes 9..14 (first 5 keyhash bytes) as an unsigned int mod 1e9, shown "NNN-NNN-NNN". */
+export function deviceId(idRaw: Uint8Array): string {
+  let v = 0;
+  for (let i = ACCOUNT_LEN; i < ACCOUNT_LEN + 5; i++) v = v * 256 + idRaw[i]!;
+  const d = String(v % 1000000000).padStart(9, "0");
+  return d.slice(0, 3) + "-" + d.slice(3, 6) + "-" + d.slice(6);
+}

@@ -3,6 +3,7 @@ import type { PeerView, Reply, Req } from "../core/rpc.ts";
 import { T } from "../core/texts.ts";
 import type { ThemeStore } from "./theme.ts";
 import { b64urlDecode } from "../crypto/b64url.ts";
+import { deviceId } from "../crypto/labels.ts";
 import { BUSY, type Busy, readBusy } from "../model/busy.ts";
 
 export type Call = (req: Req) => Promise<Reply>;
@@ -370,12 +371,7 @@ export function accountLine(st: { email: string | null; reg: string | null }): s
   return st.email && st.reg !== "logged_out" ? T.signedInAs(st.email) : null;
 }
 
-/** The short device ID the command line prints: the first 6 hex chars of the id without its 9 account bytes. */
-export function shortDeviceId(id: string): string {
-  return Array.from(b64urlDecode(id).slice(9), (b) => b.toString(16).padStart(2, "0")).join("").slice(0, 6);
-}
-
 /** Extra line on an unpaired command line device: To pair, run this on "name": pusharmor pair ID (the command never breaks). */
 export function pairCommandLine(name: string, selfId: string): HTMLElement {
-  return h("div", { class: "t2 line" }, 'To pair, run this on "' + name + '": ', h("code", { class: "paircmd" }, "pusharmor pair " + shortDeviceId(selfId)));
+  return h("div", { class: "t2 line" }, 'To pair, run this on "' + name + '": ', h("code", { class: "paircmd" }, "pusharmor pair " + deviceId(b64urlDecode(selfId))));
 }

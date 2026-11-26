@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { b64urlEncode } from "../src/crypto/b64url.ts";
 import { renderPeers } from "../src/ui/peersview.ts";
-import { type UiEnv, shortDeviceId } from "../src/ui/dom.ts";
+import type { UiEnv } from "../src/ui/dom.ts";
 import { N } from "./fakedom.ts";
 
-// 9 account bytes, then keyhash || mac: the CLI shows hex of bytes 9.. (first 6 chars)
+// 9 account bytes, then keyhash || mac: the device ID is bytes 9..14 mod 1e9 (0x385805aabb = 241994934971)
 const id = b64urlEncode(Uint8Array.from([1, 2, 3, 4, 5, 6, 7, 8, 9, 0x38, 0x58, 0x05, 0xaa, 0xbb, 0xcc]));
 const all = (n: N): N[] => [n, ...n.kids.flatMap(all)];
 const peer = (over: object) => ({ id: "p1", label: "Server", platform: "cli", lines: [], actions: [], countdown: null, fingerprint: null, pk: null, greyed: null, hidden: false, sendable: true, approvesMe: false, paired: false, ...over });
@@ -19,14 +19,10 @@ async function draw(peers: object[]): Promise<N> {
 }
 const texts = (r: N) => all(r).map((n) => n.textContent);
 
-test("short device id is the first 6 hex chars after the account bytes", () => {
-  assert.equal(shortDeviceId(id), "385805");
-});
-
 test("an unpaired command line row shows the pair command with the code", async () => {
   const r = await draw([paired, peer({})]);
-  assert.ok(texts(r).includes('To pair, run this on "Server": pusharmor pair 385805'));
-  assert.ok(all(r).some((n) => n.tag === "code" && n.textContent === "pusharmor pair 385805"));
+  assert.ok(texts(r).includes('To pair, run this on "Server": pusharmor pair 994-934-971'));
+  assert.ok(all(r).some((n) => n.tag === "code" && n.textContent === "pusharmor pair 994-934-971"));
 });
 
 test("no pair command for a paired command line row, a non-command-line row, or a hidden one", async () => {
