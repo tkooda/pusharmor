@@ -470,12 +470,14 @@ object UiText {
     fun peerLabel(name: String?, platform: String): String = name?.let(DeviceName::display) ?: "New ${com.pusharmor.app.notify.AppEffects.platformLabel(platform)} device"
     /**
      * [p]'s name where only a name shows (send chips, Send to, History, notifications, share targets): "Pixel 8 (907-331-064)"
-     * when another of [all] shows the same name ignoring case, else just the name.
+     * when another of [all] shows the same name ignoring case, else just the name. A paired device clashes only with
+     * another paired device; a device not paired clashes with any of [all], so the ID goes on it, never on the paired one.
      */
     fun distinctLabel(p: Peer, all: Collection<Peer>): String {
         val l = peerLabel(p.name, p.platform)
         val key = DeviceName.fold(l)
-        val clash = all.any { it.id != p.id && DeviceName.fold(peerLabel(it.name, it.platform)) == key }
+        val mine = pairedForName(p)
+        val clash = all.any { it.id != p.id && (!mine || pairedForName(it)) && DeviceName.fold(peerLabel(it.name, it.platform)) == key }
         return if (clash) "$l (${shortDeviceId(p.id)})" else l
     }
     /** Rename to a name another device already has (two lines). */

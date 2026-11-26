@@ -207,11 +207,14 @@ internal fun devicesShown(others: List<Peer>, pairing: Set<String>): List<Peer> 
 /** The devices a shown name must differ from (send chips, share targets, notifications, shortcuts): the ones the Devices list shows. */
 internal fun listedPeers(peers: List<Peer>, selfId: String?, pairing: Set<String>): List<Peer> = devicesShown(others(peers, selfId), pairing)
 
-/** The devices History names (each row's sender, and the devices a sent row went to): a History name must differ only from these. */
-internal fun historyPeers(peers: List<Peer>, rows: List<com.pusharmor.store.HistoryEntity>): List<Peer> {
+/** The devices a History name must differ from: the ones History names (each row's sender, and the devices a sent row went to), and every paired device. */
+internal fun historyPeers(peers: List<Peer>, selfId: String?, rows: List<com.pusharmor.store.HistoryEntity>): List<Peer> {
     val ids = rows.flatMap { listOfNotNull(it.peerId) + it.toRow().results.keys }.toSet()
-    return peers.filter { it.id in ids }
+    return peers.filter { it.id != selfId && (it.id in ids || pairedForName(it)) }
 }
+
+/** A paired device for the name ID rule: not removed, not rejected, and not waiting to pair. */
+internal fun pairedForName(p: Peer): Boolean = !p.removed && !p.deniedByMe && !waitingToPair(p)
 
 /** The Rejected devices section: the rejected devices the Devices list leaves out; Pair on one ends the rejection. */
 internal fun devicesRejected(others: List<Peer>, pairing: Set<String>): List<Peer> = others.filter { rejectedHidden(it, pairing) }
@@ -1306,8 +1309,8 @@ fun HistoryScreen(vm: AppViewModel, onPair: () -> Unit = {}, onSend: () -> Unit 
     val historyPrefs by vm.prefs.collectAsState()
     androidx.activity.compose.BackHandler(enabled = picked.isNotEmpty()) { picked = emptyList() }
     DisposableEffect(Unit) { onDispose { picked = emptyList() } }
-    // A History name gets its ID only when another device History names has the same name.
-    val named = remember(peers, rows) { historyPeers(peers, rows) }
+    // A History name gets its ID only when another device History names, or a paired device, has the same name.
+    val named = remember(peers, rows, me) { historyPeers(peers, me?.id, rows) }
     fun nameOf(id: String) = peers.firstOrNull { it.id == id }?.let { UiText.distinctLabel(it, named) + if (it.removed) " (removed)" else "" } ?: "(removed)"
     val view = remember(rows, peers, chip, dirs) { historyView(rows, chip, dirs, ::nameOf) }
     // A delete still pending on other devices: the devices left; a row with none left (removed, logged out) goes.
