@@ -279,8 +279,8 @@ struct PairingCardView: View {
                             .foregroundColor(.secondaryText)
                         if !awaiting, let c = p.created {
                             Text("Added: " + PeerLabel.addedDate(c))
-                                .font(.subheadline)
-                                .foregroundColor(.secondaryText)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
                         if again {
                             StatusLine(kind: .notPaired, text: Core.pairAgainStatus(p))
@@ -494,8 +494,8 @@ struct RejectedSection: View {
                                         .foregroundColor(.secondaryText)
                                     if let c = p.created {
                                         Text("Added: " + PeerLabel.addedDate(c))
-                                            .font(.subheadline)
-                                            .foregroundColor(.secondaryText)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
                                     }
                                     StatusLine(kind: .notPaired, text: "Not paired")
                                 }
@@ -621,8 +621,8 @@ struct PeerRowView: View {
                     .foregroundColor(.secondaryText)
                 if let c = p.created {
                     Text("Added: " + PeerLabel.addedDate(c))
-                        .font(.subheadline)
-                        .foregroundColor(.secondaryText)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
                 // The status icons sit at the right end of the status line; on their own line
                 // under it only when they do not fit there.

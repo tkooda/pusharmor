@@ -20,7 +20,7 @@ struct LimitPickerView: View {
                                         .font(.caption).foregroundColor(.secondaryText)
                                 }
                                 Text("Added: " + PeerLabel.addedDate(e.created))
-                                    .font(.caption).foregroundColor(.secondaryText)
+                                    .font(.caption2).foregroundStyle(.secondary)
                                 Text(S.trusts(e.approves, trustedBy: e.approvedBy))
                                     .font(.caption).foregroundColor(.secondaryText)
                                 if !e.reachable {
