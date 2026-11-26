@@ -1248,6 +1248,12 @@ def log(level, msg):
     print(level + ": " + msg, file=sys.stderr, flush=True)
 
 
+def note(msg):
+    """A message for the person at the terminal (not data): on stderr, so stdout carries only data."""
+    if sys.stderr is not None:
+        print(msg, file=sys.stderr, flush=True)
+
+
 def stdin_tty():
     """False also when stdin is closed (<&-)."""
     return sys.stdin is not None and sys.stdin.isatty()
@@ -1255,8 +1261,11 @@ def stdin_tty():
 
 def ask(prompt):
     """input(); typed text that is not UTF-8 reads as one character that matches no answer."""
+    if sys.stderr is not None:
+        sys.stderr.write(prompt)
+        sys.stderr.flush()
     try:
-        return input(prompt)
+        return input()
     except UnicodeDecodeError:
         return "\ufffd"
 
@@ -2083,6 +2092,7 @@ class Ctx:
         self.settings, self.keys, self.api = {}, None, None
         self.mode, self.target, self.emit, self.last_fetch, self.skipped = "", None, None, 0, False
         self.also = set()  # pair: the other devices already shown as also wanting to pair
+        self.hinted = False  # listen: the hint to use --files was shown
 
     @property
     def me(self):
@@ -3071,20 +3081,19 @@ def format_record(rec, fmt):
             exp = str(v["expires"])
         out += "Size: %d bytes\nExpires: %s\n" % (v["size"], exp)
         out += ("File: %s\n" % _clean(rec["file"]) if rec["file"] else "Error: %s\n" % rec["error"] if "error" in rec
-                else "File: not downloaded. To download files, run: pusharmor listen --files DIR\n")
+                else "File: not downloaded\n")
     return out
 
 
 def _relay_lines(pipe, out, failed):
-    """Each line the notify program writes, as it comes, with "cmd: " in front. A failed write is kept
-    for the caller, and the rest is read and dropped so the program never blocks on a full pipe."""
+    """Each line the notify program writes, as it comes and unchanged. A failed write is kept for the
+    caller, and the rest is read and dropped so the program never blocks on a full pipe."""
     for raw in iter(pipe.readline, b""):
         if failed:
             continue
-        line = raw.decode("utf-8", "replace")
-        line = line[:-1] if line.endswith("\n") else line
         try:
-            print("cmd: " + (line[:-1] if line.endswith("\r") else line), file=out, flush=True)
+            out.write(raw.decode("utf-8", "replace"))
+            out.flush()
         except (OSError, ValueError) as e:
             failed.append(e)
     pipe.close()
@@ -3129,7 +3138,7 @@ def cmd_login(cx, args):
         with cx.store.state(write=False) as d:
             reg = d.get("reg")
         if reg == "registered":
-            print("This device is already logged in.")
+            note("This device is already logged in.")
             return EXIT_OK
         purpose = "l" if reg == "logged_out" else "r"
     else:
@@ -3138,7 +3147,7 @@ def cmd_login(cx, args):
             k[name], k[name + "_pub"] = new_key()
         cx.keys = cx.api.keys = k
     link = "%s/auth/cli#%s%s" % (SITE, purpose, b64e(sha256(cx.keys["sign_pub"])[:16]))
-    print("Open this URL in a browser and log in:\n\n  %s\n\nThen paste the code from the page here." % link)
+    note("Open this URL in a browser and log in:\n\n  %s\n\nThen paste the code from the page here." % link)
     shown, tries, code = time.time(), 0, None
     while True:
         if code is None:
@@ -3152,10 +3161,10 @@ def cmd_login(cx, args):
                 if tries >= CODE_TRIES:
                     raise Fail("The code was not accepted after %d tries. Run `pusharmor login` to get a new code."
                                % CODE_TRIES)
-                print("The code is not correct. Copy the whole code from the page and paste it again.")
+                note("The code is not correct. Copy the whole code from the page and paste it again.")
                 continue
         if time.time() - shown > LINK_LIFE_S:
-            print("The code expired. Open the URL to get a new code:\n\n  %s\n" % link)
+            note("The code expired. Open the URL to get a new code:\n\n  %s\n" % link)
             shown, code = time.time(), None
             continue
         try:
@@ -3165,14 +3174,14 @@ def cmd_login(cx, args):
             if e.status == 401 and e.error == "unknown peer":
                 raise
             if e.status == 401 and e.error == "ticket expired":
-                print("The code expired. Open the URL to get a new code:\n\n  %s\n" % link)
+                note("The code expired. Open the URL to get a new code:\n\n  %s\n" % link)
                 shown, code = time.time(), None
                 continue
             if e.status == 401 and e.error in ("bad ticket", "invalid ticket"):
                 code, tries = None, tries + 1
                 if tries >= CODE_TRIES:
                     raise Fail(BAD_LINK)
-                print("The code is not correct. Check it and paste it again.")
+                note("The code is not correct. Check it and paste it again.")
                 continue
             raise Fail(e.reason())
         except TempFail as e:
@@ -3180,7 +3189,7 @@ def cmd_login(cx, args):
                 raise Fail(str(e))
     with cx.store.state(write=False) as d:
         name = name_display(d["name"])
-    print('Logged in. This device is named "%s". Next: run pusharmor pair to see your devices.' % name)
+    note('Logged in. This device is named "%s". Next: run pusharmor pair to see your devices.' % name)
     return EXIT_OK
 
 
@@ -3262,11 +3271,11 @@ def choose_evict(peers):
             if isinstance(p, dict) and isinstance(p.get("id"), str) and len(p["id"]) == 40 and b64ok(p["id"])]
     n = lambda v: v if type(v) is int else 0
     rows.sort(key=lambda p: (n(p.get("approves")) + n(p.get("approved_by")), n(p.get("created"))))  # fewest pairings, then oldest
-    print("This account already has %d devices, the most it can have. To add this device, remove one or more."
+    note("This account already has %d devices, the most it can have. To add this device, remove one or more."
           " A removed device must log in again and pair with every device again." % len(rows))
     for i, p in enumerate(rows, 1):
         added = time.strftime("%Y-%m-%d", gmtime(p["created"] if type(p.get("created")) is int else 0))
-        print("  %d  %s  %s  added %s" % (i, id_hex(p["id"])[:6], platform_label(str(p.get("platform", ""))), added))
+        note("  %d  %s  %s  added %s" % (i, id_hex(p["id"])[:6], platform_label(str(p.get("platform", ""))), added))
     try:
         a = ask("Numbers to remove (for example: 1 3), or Enter to stop: ")
     except EOFError:
@@ -3322,12 +3331,12 @@ def cmd_logout(cx, args):
     if reg != "registered":
         if reg == "logged_out":
             retry_pending_logout(cx)
-        print("This device is already logged out." if reg == "logged_out" else "This device is not logged in.")
+        note("This device is already logged out." if reg == "logged_out" else "This device is not logged in.")
         return EXIT_OK
     cx.setup()
     with cx.store.state() as d:
         d["reg"], d["logout_pending"] = "logged_out", True
-    print("Logged out. Run `pusharmor login` to log in again.")
+    note("Logged out. Run `pusharmor login` to log in again.")
     retry_pending_logout(cx)
     with cx.store.state(write=False) as d:
         if d.get("logout_pending"):
@@ -3477,7 +3486,7 @@ def cmd_pair(cx, args):
         if p is None:
             raise Fail(SEND_WHY["unknown"])
         if p["pinned"] and p["ruling"] == "approved" and p["approves_me"]:
-            print('Paired with "%s".' % name)
+            note('Paired with "%s".' % name)
             return EXIT_OK
         r, wait = "sent", 'Waiting for "%s". Open PushArmor on it to continue pairing. Press Ctrl+C to stop.' % name
         if e and e["state"] == "shown" and not e["approved"]:
@@ -3486,7 +3495,7 @@ def cmd_pair(cx, args):
                 if r not in ("sent", "429"):
                     raise Fail(pair_reason(r))
             first = False
-            print("\nCompare pairing code: %s\n" % e["fingerprint"])
+            note("\nCompare pairing code: %s\n" % e["fingerprint"])
             try:
                 while True:
                     a = ask('Does "%s" show the same code? [y/N] ' % name).strip().lower()
@@ -3494,14 +3503,14 @@ def cmd_pair(cx, args):
                         break
                 yes = a in ("y", "yes")
             except EOFError:
-                print()  # Ctrl-D leaves the cursor after the prompt
+                note("")  # Ctrl-D leaves the cursor after the prompt
                 raise Fail("No answer was given. Run `pusharmor pair %s` again." % sid)
             if not yes:
                 try:
                     deny(cx, x)
                 except (ApiError, TempFail) as err:
                     raise could_not(err, "reject", name)
-                print('Did not pair with "%s".' % name)
+                note('Did not pair with "%s".' % name)
                 return EXIT_ERR
             try:
                 r = approve(cx, x)
@@ -3559,6 +3568,9 @@ def cmd_listen(cx, args):
             except FileFail as e:
                 rec["error"] = str(e)
                 log("warning", str(e))
+        if rec["type"] == "file" and folder is None and not cx.hinted:
+            cx.hinted = True
+            log("info", "To download files, run: pusharmor listen --files DIR")
         if args.exec:
             return run_exec(args.exec, rec)
         print(format_record(rec, fmt), flush=True)
@@ -3667,7 +3679,7 @@ def send_file(cx, args):
         t = email.utils.format_datetime(datetime.datetime.fromtimestamp(expires, datetime.timezone.utc).astimezone())
     except (OverflowError, OSError, ValueError):
         t = str(expires)
-    print('The file "%s" expires %s.' % (name, t))
+    note('The file "%s" expires %s.' % (name, t))
     return code
 
 
@@ -3712,7 +3724,7 @@ def post_send(cx, m, names):
                 p["logged_out"] = True
             if p and r == "not listening":
                 p["listening"] = False
-    print("Sent to %d of %d device%s." % (len(m) - len(failed), len(m), "" if len(m) == 1 else "s"))
+    note("Sent to %d of %d device%s." % (len(m) - len(failed), len(m), "" if len(m) == 1 else "s"))
     return EXIT_SEND if failed else EXIT_OK
 
 
@@ -3739,7 +3751,7 @@ def cmd_rename(cx, args):
     cx.need()
     with cx.store.state(write=False) as d:
         if d.get("name") == name:
-            print('This device is already named "%s".' % name)
+            note('This device is already named "%s".' % name)
             return EXIT_OK
     k = cx.keys
 
@@ -3751,7 +3763,7 @@ def cmd_rename(cx, args):
     allow_list_call(cx, "PATCH", "/v1/peers/" + cx.me, lambda m, names: {"name": names, "m": m}, content)
     with cx.store.state() as d:
         d["name"] = name
-    print('This device is now named "%s".' % name)
+    note('This device is now named "%s".' % name)
     return EXIT_OK
 
 
@@ -3772,18 +3784,18 @@ def cmd_delete(cx, args):
         if not stdin_tty():
             raise Fail("Removing needs your answer in a terminal. Add --yes to remove without asking.", EXIT_USAGE)
         if not ask_yes(q):
-            print("Nothing removed.")
+            note("Nothing removed.")
             return EXIT_ERR
     allow_list_call(cx, "DELETE", "/v1/peers/" + x, lambda m, _: {"m": m}, lambda *a: ("remove", x))
     if x == cx.me:
         cx.store.wipe()
-        print("This device was removed from your account, and its local files were deleted.")
+        note("This device was removed from your account, and its local files were deleted.")
         return EXIT_OK
     with cx.store.state() as d:
         d["peers"].pop(x, None)
         d["pairs"].pop(x, None)
         d["my_allow"] = [i for i in d["my_allow"] if i != x]
-    print('Removed "%s".' % name)
+    note('Removed "%s".' % name)
     return EXIT_OK
 
 

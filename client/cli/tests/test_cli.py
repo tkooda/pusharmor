@@ -303,7 +303,7 @@ def test_windows_closed_pipe_exits_quietly(as_windows, tmp_path, monkeypatch, ca
 
     monkeypatch.setattr(sys, "stdout", ClosedPipe())
     assert run(tmp_path, "logout") == 1
-    assert capsys.readouterr().err == ""
+    assert capsys.readouterr().err == "This device is not logged in.\n"
 
 
 # ---- files ----
@@ -500,7 +500,7 @@ def test_login_code_tries(net, tmp_path, monkeypatch, capsys):
     answers(monkeypatch, "short", CODE[:-1] + "!", "'" + CODE + "x'")
     assert run(tmp_path, "login") == 1
     out = capsys.readouterr()
-    assert pa.re.search(r"\n\n  https://pusharmor\.com/auth/cli#r[A-Za-z0-9_-]{22}\s", out.out)
+    assert pa.re.search(r"\n\n  https://pusharmor\.com/auth/cli#r[A-Za-z0-9_-]{22}\s", out.err) and out.out == ""
     assert "after 3 tries" in out.err and net.log == []
     assert not os.path.exists(tmp_path / "keys")
 
@@ -515,7 +515,7 @@ def test_typed_text_that_is_not_utf8(net, tmp_path, monkeypatch, capsys):
     me = login(monkeypatch, tmp_path / "b")
     monkeypatch.setattr(pa, "input", bad, raising=False)
     assert run(tmp_path / "b", "delete", pa.device_id(me)) == 1
-    assert "Nothing removed." in capsys.readouterr().out and me in net.peers
+    assert "Nothing removed." in capsys.readouterr().err and me in net.peers
 
 
 def test_login_registers_and_confirms(net, tmp_path, monkeypatch, capsys):
@@ -528,9 +528,9 @@ def test_login_registers_and_confirms(net, tmp_path, monkeypatch, capsys):
     if os.name != "nt":  # no POSIX modes on Windows
         assert os.stat(tmp_path / "keys").st_mode & 0o777 == 0o700
         assert os.stat(tmp_path / "keys" / "private.toml").st_mode & 0o777 == 0o600
-    out = capsys.readouterr().out
+    out = capsys.readouterr().err
     assert "#r" + pa.b64e(pa.sha256(pa.b64d(p["sign_pub"]))[:16]) in out
-    assert run(tmp_path, "login") == 0 and "already logged in" in capsys.readouterr().out
+    assert run(tmp_path, "login") == 0 and "already logged in" in capsys.readouterr().err
 
 
 def test_login_that_cannot_save_removes_the_device(net, tmp_path, monkeypatch, capsys):
@@ -572,8 +572,8 @@ def test_pair_send_listen(net, tmp_path, monkeypatch, capsys):
     assert da["peers"][idb]["approves_me"] and db["peers"][ida]["approves_me"]
     assert da["peers"][idb]["pairing_id"] == db["peers"][ida]["pairing_id"]
     assert da["pairs"] == {} and db["pairs"] == {}
-    out = capsys.readouterr().out
-    assert len(re.findall(r"(?:^|(?<=\n))\nCompare pairing code: [0-9A-Z]{4}\n(?=\n)", out)) == 2
+    out = capsys.readouterr().err
+    assert len(re.findall(r"\nCompare pairing code: [0-9A-Z]{4}\n\n", out)) == 2  # both pair runs share stderr
     assert out.count("Paired with ") == 2
 
     assert run(a, "devices") == 0
@@ -618,18 +618,18 @@ def test_pair_send_listen(net, tmp_path, monkeypatch, capsys):
 def test_device_names_in_stdout_are_in_double_quotes(net, tmp_path, monkeypatch, capsys):
     a, b = tmp_path / "a", tmp_path / "b"
     ida = login(monkeypatch, a)
-    assert 'Logged in. This device is named "%s". Next:' % state(a)["name"] in capsys.readouterr().out
+    assert 'Logged in. This device is named "%s". Next:' % state(a)["name"] in capsys.readouterr().err
     idb = pair_two(monkeypatch, net, a, b, ids=(ida, login(monkeypatch, b)))[1]
     capsys.readouterr()
     assert run(a, "rename", "Desk") == 0
-    assert capsys.readouterr().out == 'This device is now named "Desk".\n'
+    assert capsys.readouterr().err == 'This device is now named "Desk".\n'
     name = state(a)["peers"][idb]["name"]
     prompts = []
-    monkeypatch.setattr(pa, "input", lambda prompt="": prompts.append(prompt) or "y", raising=False)
+    monkeypatch.setattr(pa, "ask", lambda prompt="": prompts.append(prompt) or "y")
     assert run(a, "delete", pa.device_id(idb)) == 0
     assert prompts == ['Remove "%s" from your account? "%s" must log in again and pair with every device again. '
                        "[y/N] " % (name, name)]
-    assert capsys.readouterr().out == 'Removed "%s".\n' % name
+    assert capsys.readouterr().err == 'Removed "%s".\n' % name
 
 
 def test_ctrl_d_at_the_fingerprint_prompt_keeps_the_pairing(net, tmp_path, monkeypatch, capsys):
@@ -701,7 +701,7 @@ def pair_with_b_answer(monkeypatch, net, a, b, ida, idb, answer):
         prompts.append(prompt)
         return answers.pop(0) if len(answers) > 1 else answers[0]
 
-    monkeypatch.setattr(pa, "input", inp, raising=False)
+    monkeypatch.setattr(pa, "ask", inp)
     codes = {}
     before = net.count(idb)
     ta = threading.Thread(target=lambda: codes.__setitem__("a", run(a, "pair", pa.device_id(idb))), name="a")
@@ -725,7 +725,7 @@ def test_pair_prompt_answers(answer, paired, net, tmp_path, monkeypatch, capsys)
     name = pa.peer_label(state(b)["peers"][ida])
     assert len(pair_with_b_answer.prompts) == 1
     assert re.fullmatch(r'Does ".+" show the same code\? \[y/N\] ', pair_with_b_answer.prompts[0])
-    out = capsys.readouterr().out
+    out = capsys.readouterr().err
     assert ('Paired with "%s".' % name in out) == paired
 
 
@@ -736,7 +736,7 @@ def test_pair_prompt_asks_again_on_other_input(net, tmp_path, monkeypatch, capsy
     name = pa.peer_label(state(b)["peers"][ida])
     assert len(pair_with_b_answer.prompts) == 3
     assert len(set(pair_with_b_answer.prompts)) == 1
-    assert 'Paired with "' in capsys.readouterr().out
+    assert 'Paired with "' in capsys.readouterr().err
 
 
 def test_failed_reject_says_unable_to_reject(net, tmp_path, monkeypatch, capsys):
@@ -902,7 +902,7 @@ def test_listen_exec_program_output_is_prefixed_line_by_line(net, tmp_path, monk
 
     class Out(io.StringIO):
         def write(self, s):
-            if s.startswith("cmd: out one"):
+            if s.startswith("out one"):
                 seen.append(s)
                 gate.touch()
             return super().write(s)
@@ -912,10 +912,9 @@ def test_listen_exec_program_output_is_prefixed_line_by_line(net, tmp_path, monk
     out = Out()
     monkeypatch.setattr(sys, "stdout", out)
     assert run(b, "listen", "--exec", str(prog)) == 130
-    assert seen and out.getvalue() == "cmd: out one\ncmd: out two\n"
-    err = capsys.readouterr().err.splitlines()
-    assert [x for x in err if x.startswith("cmd: ")] == ["cmd: err", "cmd: last"] * 2
-    assert all(x.startswith(("cmd: ", "info: ")) for x in err)
+    assert seen and out.getvalue() == "out one\nout two\n"
+    err = capsys.readouterr().err
+    assert err.count("err\r\nlast") == 2 and "cmd: " not in err
 
 
 @pytest.mark.skipif(os.name == "nt", reason="the notify program is a shell script")
@@ -1254,7 +1253,7 @@ def test_send_to_24_devices_is_one_call(net, tmp_path, monkeypatch, capsys):
     capsys.readouterr()
     assert run(a, "send", "hi") == 0
     assert net.log.count(("POST", "/v1/send")) == sends + 1
-    assert capsys.readouterr().out.endswith("Sent to 24 of 24 devices.\n")
+    assert capsys.readouterr().err.endswith("Sent to 24 of 24 devices.\n")
 
 
 def test_send_no_devices_and_logout(net, tmp_path, monkeypatch, capsys):
@@ -1295,13 +1294,13 @@ def test_logout_local_first_and_retried(net, tmp_path, monkeypatch, capsys):
     # not logged in or already logged out: exit 0, plain sentence
     capsys.readouterr()
     assert run(tmp_path, "logout") == 0
-    assert "already logged out" in capsys.readouterr().out
+    assert "already logged out" in capsys.readouterr().err
 
 
 def test_logout_not_logged_in(net, tmp_path, capsys):
     assert run(tmp_path, "logout") == 0
     cap = capsys.readouterr()
-    assert "not logged in" in cap.out and "pusharmor login" not in cap.out + cap.err
+    assert "not logged in" in cap.err and cap.out == "" and "pusharmor login" not in cap.err
 
 
 def test_logout_pending_dropped_when_device_gone(net, tmp_path, monkeypatch):
@@ -1383,6 +1382,7 @@ def test_relay_error_text_is_cleaned_and_short(net, tmp_path, monkeypatch, capsy
 
 def test_send_too_long(net, tmp_path, monkeypatch, capsys):
     login(monkeypatch, tmp_path)
+    capsys.readouterr()
     assert run(tmp_path, "send", "x" * 2049) == 2
     assert capsys.readouterr().err.splitlines() == ["error: Unable to send. The message is longer than 2000 characters."]
 
@@ -2111,7 +2111,7 @@ def test_send_per_device_error_is_one_line(word, line, net, tmp_path, monkeypatc
     capsys.readouterr()
     assert run(a, "send", "hi") == pa.EXIT_SEND
     cap = capsys.readouterr()
-    assert cap.err.splitlines() == ["error: " + line % name] and cap.out == "Sent to 0 of 1 device.\n"
+    assert cap.err.splitlines() == ["error: " + line % name, "Sent to 0 of 1 device."] and cap.out == ""
 
 
 def test_pair_result_word_is_never_shown_raw(net, tmp_path, monkeypatch, capsys):
@@ -2301,6 +2301,7 @@ def test_command_texts_are_the_approved_sentences(net, tmp_path, monkeypatch, ca
     net.hooks[("POST", "peers")] = lambda *a: net.reply(503, {})
     monkeypatch.setattr(pa.time, "sleep", lambda s: None)
     assert err_of(0, "logout") == (
+        "Logged out. Run `pusharmor login` to log in again.\n"
         "warning: The relay server could not be reached yet. PushArmor will try again the next time it runs.\n")
 
 
@@ -2310,23 +2311,28 @@ def test_login_ctrl_d_at_the_code_prompt(net, tmp_path, monkeypatch, capsys):
 
     monkeypatch.setattr(pa, "input", eof, raising=False)
     assert run(tmp_path, "login") == 1
-    assert capsys.readouterr().err == "error: Unable to log in. No code was entered. Run `pusharmor login` again.\n"
+    cap = capsys.readouterr()
+    assert cap.out == "" and cap.err.startswith("Open this URL in a browser and log in:\n")
+    assert cap.err.endswith("\nCode: error: Unable to log in. No code was entered. Run `pusharmor login` again.\n")
 
 
 def test_every_stderr_line_has_a_severity_prefix(net, tmp_path, monkeypatch, capsys):
     a, b = tmp_path / "a", tmp_path / "b"
     capsys.readouterr()
     pair_two(monkeypatch, net, a, b)
+    cap = capsys.readouterr()
+    assert cap.out == ""  # login and pair: prompts and messages only, all on stderr
+    assert any(x.startswith('info: Waiting for "') and x.endswith(" Press Ctrl+C to stop.") for x in cap.err.splitlines())
     assert run(a, "send", "hi") == 0
+    cap = capsys.readouterr()
+    assert cap.out == "" and cap.err == "Sent to 1 of 1 device.\n"
     net.stop.set()
     assert run(b, "listen", "--json") == 130
     cap = capsys.readouterr()
     lines = cap.err.splitlines()
     assert lines and all(x.startswith(("error: ", "warning: ", "info: ")) for x in lines)
     assert "info: Listening. Press Ctrl+C to stop." in lines and "info: Stopped." in lines
-    assert "Sent to 1 of 1 device." in cap.out.splitlines() and not any("Sent to" in x for x in lines)
-    assert any(x.startswith('info: Waiting for "') and x.endswith(" Press Ctrl+C to stop.") for x in lines)
-    assert not any(x.startswith(("error: ", "warning: ", "info: ")) for x in cap.out.splitlines())
+    assert [json.loads(x)["body"] for x in cap.out.splitlines()] == ["hi"]
 
 
 def test_login_link_too_old_says_the_code_expired(net, tmp_path, monkeypatch, capsys):
@@ -2340,7 +2346,7 @@ def test_login_link_too_old_says_the_code_expired(net, tmp_path, monkeypatch, ca
 
     monkeypatch.setattr(pa, "input", code_then_eof, raising=False)
     assert run(tmp_path, "login") == 1
-    out = capsys.readouterr().out
+    out = capsys.readouterr().err
     assert "The code expired. Open the URL to get a new code:\n\n  %s/auth/cli#" % pa.SITE in out
 
 
@@ -2357,7 +2363,7 @@ def test_rename_saves_the_name_with_spaces_cleaned_up(net, tmp_path, monkeypatch
     capsys.readouterr()
     assert run(tmp_path, "rename", "  Desk   top ") == 0
     assert state(tmp_path)["name"] == "Desk top"
-    assert capsys.readouterr().out == 'This device is now named "Desk top".\n'
+    assert capsys.readouterr().err == 'This device is now named "Desk top".\n'
 
 
 def test_rename_to_the_same_name_makes_no_network_call(net, tmp_path, monkeypatch, capsys):
@@ -2368,7 +2374,7 @@ def test_rename_to_the_same_name_makes_no_network_call(net, tmp_path, monkeypatc
     capsys.readouterr()
     before = len(net.log)
     assert run(a, "rename", name) == 0
-    assert capsys.readouterr().out == 'This device is already named "%s".\n' % name
+    assert capsys.readouterr().err == 'This device is already named "%s".\n' % name
     assert len(net.log) == before and state(a)["name"] == name
 
 
@@ -2949,7 +2955,7 @@ def test_send_file_then_listen_files_saves_it(net, tmp_path, monkeypatch, capsys
     a, b, ida, idb, src = _file_pair(net, tmp_path, monkeypatch, data)
     capsys.readouterr()
     assert run(a, "send", "-f", str(src)) == 0
-    out = capsys.readouterr().out
+    out = capsys.readouterr().err
     assert "Sent to 1 of 1 device." in out and 'The file "report.pdf" expires ' in out
     assert len(net.posts) == 1 and int(net.posts[0]["Content-Length"]) == len(data) + 28
     dest = tmp_path / "dl"
@@ -2970,7 +2976,8 @@ def test_listen_without_files_prints_name_size_expires_and_a_hint(net, tmp_path,
     assert run(a, "send", "--file", str(src)) == 0
     code, cap = _listen_files(net, b, capsys)
     assert "Type: file\n" in cap.out and "Body: a b.txt\nSize: 10 bytes\nExpires: " in cap.out
-    assert "File: not downloaded. To download files, run: pusharmor listen --files DIR\n" in cap.out
+    assert "File: not downloaded\n" in cap.out and "--files" not in cap.out
+    assert cap.err.count("info: To download files, run: pusharmor listen --files DIR\n") == 1
     assert net.gets == []
 
 

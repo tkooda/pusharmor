@@ -57,6 +57,11 @@ distribution:
 - `pusharmor delete ID` - remove a device from your account (this device too). It asks
   first; without a terminal it needs `--yes`.
 
+Only `devices` and `listen` write to stdout, and only their data. Prompts, messages,
+hints, and errors go to stderr. The output of an `--exec` program passes through
+unchanged. Without `--files DIR`, a received file shows `File: not downloaded`, and
+listen prints the hint to use `--files DIR` once on stderr.
+
 Run `pusharmor COMMAND --help` for details. Files live in `~/.config/pusharmor`
 (or `$XDG_CONFIG_HOME/pusharmor`, `$PUSHARMOR_CONFIG`, or `--config DIR`).
 On Windows they live in `%APPDATA%\PushArmor` (or `%PUSHARMOR_CONFIG%`, or `--config DIR`).
