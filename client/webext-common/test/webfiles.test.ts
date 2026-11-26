@@ -66,7 +66,7 @@ test("settings: one auto-download picker Off to 100 MB (default 50 MB), the help
   assert.deepEqual([0, 10_000_000, 25_000_000, 50_000_000, 100_000_000].map(F.pickerLabel), ["Off", "Up to 10 MB", "Up to 25 MB", "Up to 50 MB", "Up to 100 MB"]);
   assert.equal(F.pickerValue(undefined), 50_000_000);
   assert.equal(F.pickerValue(7), 50_000_000);
-  assert.equal(F.HELPER, "Larger files expire sooner, between 1 and 24 hours after they are sent");
+  assert.equal(F.HELPER, "Each received file is available to download for 1 to 24 hours after it is sent, depending on its size");
   assert.equal(F.STORAGE_TITLE, "Storage for sent and received files");
   assert.equal(F.STORAGE_HELPER, "When full, the oldest files are removed from this device");
   assert.deepEqual(F.storageOptions(null).map(F.storageLabel), ["100 MB", "500 MB", "1 GB", "5 GB"]);

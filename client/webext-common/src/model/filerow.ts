@@ -5,7 +5,7 @@ import type { FinalCode } from "./filerules.ts";
 import { PICKER_SIZES, DEFAULT_PICKER } from "./filerules.ts";
 import { cutFileName, sanitizeName, splitExt } from "./filename.ts";
 
-export const HELPER = "Larger files expire sooner, between 1 and 24 hours after they are sent";
+export const HELPER = "Each received file is available to download for 1 to 24 hours after it is sent, depending on its size";
 export const AUTO_TITLE = "Download automatically";
 export const STORAGE_TITLE = "Storage for sent and received files";
 export const STORAGE_HELPER = "When full, the oldest files are removed from this device";
