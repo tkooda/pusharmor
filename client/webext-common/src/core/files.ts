@@ -8,9 +8,9 @@ import { BUSY, STEP } from "../model/busy.ts";
 import { FILE_DAMAGED, catchUpDue, storageFullText } from "../model/filerules.ts";
 
 /** A decrypt that could not run (not a damaged file and not short of memory). */
-export const fileOpenFailed = (name: string): string => 'Unable to decrypt "' + name + '"\nTry again';
+export const fileOpenFailed = (name: string): string => 'Unable to decrypt "' + cutFileName(name) + '"\nTry again';
 import { DOWNLOAD_FAILED, type FileState, decryptPlan, kind, sniffImage, storageLimit, storageOptions, toRemove, tooLarge, unreadable } from "../model/filerow.ts";
-import { sanitizeName } from "../model/filename.ts";
+import { cutFileName, sanitizeName } from "../model/filename.ts";
 import type { FileValue } from "../model/message.ts";
 import type { HistoryRow } from "../store/db.ts";
 import type { FileStore } from "../store/files.ts";

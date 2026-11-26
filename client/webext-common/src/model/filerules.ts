@@ -1,6 +1,7 @@
 // File transfer rules: the auto-download decision, the upload and download
 // status table, and the free-storage check. Pure functions only.
 import { MAX_FILE } from "../crypto/filecrypt.ts";
+import { cutFileName } from "./filename.ts";
 
 /** Auto-download picker limits in bytes: Off, Up to 10 MB, 25 MB, 50 MB, 100 MB. */
 export const PICKER_SIZES: readonly number[] = [0, 10_000_000, 25_000_000, 50_000_000, 100_000_000];
@@ -25,7 +26,7 @@ export function enoughStorage(free: number | null, size: number): boolean {
 }
 
 export function storageFullText(op: "upload" | "download", name: string): string {
-  return "Not enough storage to " + (op === "upload" ? "send" : "download") + ' "' + name + '"';
+  return "Not enough storage to " + (op === "upload" ? "send" : "download") + ' "' + cutFileName(name) + '"';
 }
 
 export type FinalCode =

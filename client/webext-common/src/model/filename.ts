@@ -3,6 +3,18 @@
 
 const RESERVED = new Set(["CON", "PRN", "AUX", "NUL", ...[1, 2, 3, 4, 5, 6, 7, 8, 9].flatMap((i) => ["COM" + i, "LPT" + i])]);
 
+/** A file name in a toast or error is at most this many characters, cut in the middle (the same on every client). */
+export const NAME_CUT = 24;
+
+/** The name cut in the middle to NAME_CUT characters: head, "...", and a tail a third of the kept characters. */
+export function cutFileName(name: string): string {
+  const cps = [...name];
+  if (cps.length <= NAME_CUT) return name;
+  const keep = NAME_CUT - 3;
+  const tail = Math.floor(keep / 3);
+  return cps.slice(0, keep - tail).join("") + "..." + cps.slice(cps.length - tail).join("");
+}
+
 /** [base, ".ext"] when the text after the last dot is 1-10 ASCII letters or digits, else [name, ""]. */
 export function splitExt(name: string): [string, string] {
   const i = name.lastIndexOf(".");

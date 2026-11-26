@@ -3,7 +3,7 @@
 import { BLOB_OVERHEAD, MAX_FILE } from "../crypto/filecrypt.ts";
 import type { FinalCode } from "./filerules.ts";
 import { PICKER_SIZES, DEFAULT_PICKER } from "./filerules.ts";
-import { sanitizeName, splitExt } from "./filename.ts";
+import { cutFileName, sanitizeName, splitExt } from "./filename.ts";
 
 export const HELPER = "Larger files expire sooner, between 1 and 24 hours after they are sent";
 export const AUTO_TITLE = "Download automatically";
@@ -22,10 +22,11 @@ export const PLACEHOLDER = "Type or paste a URL or text, or drop a file here";
 /** A pasted, dropped, or chosen file while the message box holds text: one type per message. */
 export const PASTE_IMAGE_CLEAR = "Clear the message to add a file";
 
-export const noMemoryToast = (name: string): string => 'Not enough memory to decrypt "' + name + '"';
-export const tooLarge = (name: string): string => '"' + name + '" is too large to send';
-export const unreadable = (name: string): string => 'Unable to read "' + name + '"';
-export const saved = (name: string): string => 'Saved "' + name + '"';
+// the file name in these is cut in the middle (cutFileName) so the whole message fits
+export const noMemoryToast = (name: string): string => 'Not enough memory to decrypt "' + cutFileName(name) + '"';
+export const tooLarge = (name: string): string => '"' + cutFileName(name) + '" is too large to send';
+export const unreadable = (name: string): string => 'Unable to read "' + cutFileName(name) + '"';
+export const saved = (name: string): string => 'Saved "' + cutFileName(name) + '"';
 
 // ---- auto-download picker ----
 
