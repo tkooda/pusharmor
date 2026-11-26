@@ -9,6 +9,12 @@ import java.time.format.DateTimeFormatter
  * names, and "base (N).ext" on a collision.
  */
 object FileName {
+    /** Longest file name in a toast or error; a longer one is cut in the middle (see [cut]). */
+    const val CUT_MAX = 24
+
+    /** [name] cut in the middle to [CUT_MAX] characters: its first 14, "...", and its last 7 (the extension). */
+    fun cut(name: String): String = if (name.length <= CUT_MAX) name else name.take(14) + "..." + name.takeLast(7)
+
     private val RESERVED = setOf("CON", "PRN", "AUX", "NUL") + (1..9).flatMap { listOf("COM$it", "LPT$it") }
     private val EXT = Regex("[A-Za-z0-9]{1,10}")
     private val ALNUM = Regex("[A-Za-z0-9]")

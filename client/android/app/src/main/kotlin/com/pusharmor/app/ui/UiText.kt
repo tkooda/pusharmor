@@ -41,8 +41,8 @@ object UiText {
      * Longest file name in a toast or error: a longer name is cut in the middle (start and extension kept), so
      * "\"<name>\" is too large to send" fits in 2 toast lines on a 360 dp phone. The same on every client.
      */
-    const val FILE_NAME_MAX = 24
-    fun cutFile(name: String): String = middleEllipsis(name) { it.length <= FILE_NAME_MAX }
+    const val FILE_NAME_MAX = com.pusharmor.protocol.FileName.CUT_MAX
+    fun cutFile(name: String): String = com.pusharmor.protocol.FileName.cut(name)
 
     /** Toast and snackbar text: no line ends with a period. Inline text, dialogs, and notifications keep theirs; an ellipsis stays. */
     fun brief(text: String): String =
@@ -264,7 +264,7 @@ object UiText {
 
     fun directSendingFileList(file: String): String = "Sending \"$file\" to:"
     /** Line 2 of the error of a Direct Share file send that the app closed during. */
-    fun directSendClosed(file: String): String = "PushArmor closed before \"$file\" was sent. Share it again"
+    fun directSendClosed(file: String): String = "PushArmor closed before \"${cutFile(file)}\" was sent. Share it again"
 
     fun directSendingList(type: ContentType): String =
         "Sending ${when (type) { ContentType.URL -> "URL"; ContentType.TEL -> "phone number"; ContentType.TEXT -> "text" }} to:"

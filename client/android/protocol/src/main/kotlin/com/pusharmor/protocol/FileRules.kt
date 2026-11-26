@@ -40,7 +40,7 @@ object FileRules {
     /** [free]: bytes free on the device's storage; null = unknown (no check). */
     fun enoughStorage(free: Long?, size: Long): Boolean = free == null || free >= 2 * size + FREE_MARGIN
 
-    fun storageFullText(upload: Boolean, name: String): String = "Not enough storage to " + (if (upload) "send" else "download") + " \"" + name + "\""
+    fun storageFullText(upload: Boolean, name: String): String = "Not enough storage to " + (if (upload) "send" else "download") + " \"" + FileName.cut(name) + "\""
 
     enum class FinalCode {
         QUOTA, // 429 file quota

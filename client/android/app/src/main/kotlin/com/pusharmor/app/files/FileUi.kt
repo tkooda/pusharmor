@@ -26,7 +26,7 @@ object FileUi {
 
     // A name in a toast or error is cut in the middle to fit (UiText.cutFile).
     fun noMemoryToast(name: String) = "Not enough memory to decrypt \"${com.pusharmor.app.ui.UiText.cutFile(name)}\""
-    fun decryptFailed(name: String) = "Unable to decrypt \"$name\"\nTry again"
+    fun decryptFailed(name: String) = "Unable to decrypt \"${com.pusharmor.app.ui.UiText.cutFile(name)}\"\nTry again"
     fun tooLarge(name: String) = "\"${com.pusharmor.app.ui.UiText.cutFile(name)}\" is too large to send"
     fun unreadable(name: String) = "Unable to read \"${com.pusharmor.app.ui.UiText.cutFile(name)}\""
 

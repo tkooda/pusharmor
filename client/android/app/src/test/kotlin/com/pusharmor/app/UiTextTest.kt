@@ -34,6 +34,8 @@ class UiTextTest {
         assertEquals("Unable to save \"my-very-long-v...026.jpg\"", UiText.unableSave(long))
         assertEquals("Unable to copy \"my-very-long-v...026.jpg\"", UiText.unableCopy(long))
         assertEquals("No app can open \"my-very-long-v...026.jpg\".", com.pusharmor.app.ui.noAppOpens(long))
+        assertEquals("Unable to send.\nPushArmor closed before \"my-very-long-v...026.jpg\" was sent. Share it again",
+            com.pusharmor.app.files.DirectSendService.closedText(long))
     }
 
     @Test fun shareSheetToastTexts() {

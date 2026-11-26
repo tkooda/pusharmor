@@ -99,6 +99,7 @@ class FileUiTest {
         assertEquals(Status.DecryptFailed, FileUi.status(s.copy(downloaded = true, decryptError = true), false, 128, false, 100, 3600, 0))
         assertEquals(Status.DecryptFailed, FileUi.status(s.copy(downloaded = true, decryptError = true), false, 128, false, 100, 3600, 3600))
         assertEquals("Unable to decrypt \"a.pdf\"\nTry again", FileUi.decryptFailed("a.pdf"))
+        assertEquals("Unable to decrypt \"my-very-long-v...026.jpg\"\nTry again", FileUi.decryptFailed("my-very-long-vacation-photo-2026.jpg"))
         assertEquals(Status.Ready, FileUi.status(s.copy(plain = "a.pdf"), false, 0, true, 100, 3600, 0))
         assertEquals(Status.Expired, FileUi.status(s.copy(code = FinalCode.EXPIRED, text = "Expired"), false, 0, false, 100, 3600, 0))
         assertEquals(Status.Failed("Deleted", false, null), FileUi.status(s.copy(code = FinalCode.DELETED, text = "Deleted"), false, 0, false, 100, 3600, 0))

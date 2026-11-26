@@ -66,6 +66,12 @@ class FileTest {
         assertTrue(FileRules.enoughStorage(2 * 1000 + 10_000_000L, 1000))
         assertTrue(!FileRules.enoughStorage(2 * 1000 + 10_000_000L - 1, 1000))
         assertEquals("Not enough storage to download \"a.pdf\"", FileRules.storageFullText(false, "a.pdf"))
+        // a long name is cut in the middle to 24 characters: its first 14, "...", and its last 7
+        val long = "my-very-long-vacation-photo-2026.jpg"
+        assertEquals("my-very-long-v...026.jpg", FileName.cut(long))
+        assertEquals("x".repeat(24), FileName.cut("x".repeat(24)))
+        assertEquals("Not enough storage to download \"my-very-long-v...026.jpg\"", FileRules.storageFullText(false, long))
+        assertEquals("Not enough storage to send \"my-very-long-v...026.jpg\"", FileRules.storageFullText(true, long))
         assertEquals("Not enough storage to send \"a.pdf\"", FileRules.storageFullText(true, "a.pdf"))
     }
 
