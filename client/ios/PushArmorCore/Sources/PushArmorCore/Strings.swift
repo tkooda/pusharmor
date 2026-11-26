@@ -79,6 +79,8 @@ public enum S {
     public static func sentTo(_ n: Int, _ m: Int) -> String { "Sent to \(n) of \(m) " + (m == 1 ? "device" : "devices") }
     /// History line for a message that reached its one recipient (F22).
     public static func sentToOne(_ x: String) -> String { "Sent to \"\(x)\"" }
+    /// History title of a send to two or more devices: "Sent to N devices" when every one got it.
+    public static func historySentTo(_ n: Int, _ m: Int) -> String { m >= 2 && n == m ? "Sent to \(m) devices" : sentTo(n, m) }
     /// Send banner when every chosen device got the message.
     public static func messageSentTo(_ x: String) -> String { "Message sent to \"\(x)\"" }
     public static func messageSentTo(count n: Int) -> String { "Message sent to \(n) devices" }

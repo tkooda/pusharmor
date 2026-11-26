@@ -209,7 +209,7 @@ struct HistoryRowView: View {
         guard let obj = results else { return nil }
         if let name = soleRecipientName { return S.sentToOne(name) }
         let sent = obj.values.filter { $0 == "sent" }.count
-        return S.sentTo(sent, obj.count)
+        return S.historySentTo(sent, obj.count)
     }
 
     /// The one recipient's name when the message went to exactly one device and reached it (F22).
