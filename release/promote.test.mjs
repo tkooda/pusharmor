@@ -691,7 +691,11 @@ function fakeAscApi(t, versions) {
   process.env.ASC_API_KEY_ID = "KEY";
   process.env.ASC_API_ISSUER_ID = "ISSUER";
   const md5 = (d) => createHash("md5").update(d).digest("hex");
-  const shots = screenshotFiles("appstore").map((f) => ({ id: "shot-" + f.name, attributes: { fileName: f.name, sourceFileChecksum: md5(f.data), assetDeliveryState: { state: "COMPLETE" } } }));
+  const uploaded = (store) => screenshotFiles(store).map((f) => ({ id: "shot-" + f.name, attributes: { fileName: f.name, sourceFileChecksum: md5(f.data), assetDeliveryState: { state: "COMPLETE" } } }));
+  const shots = uploaded("appstore");
+  // the iPad shots too, once their folder is committed
+  const ipad = existsSync(join(ROOT, "store", "screenshots", "appstore-ipad", "en-US"));
+  const sets = [{ id: "set1", attributes: { screenshotDisplayType: IOS_SCREENSHOT_TYPE } }, ...(ipad ? [{ id: "set2", attributes: { screenshotDisplayType: IPAD_SCREENSHOT_TYPE } }] : [])];
   const routes = [
     ["GET", /^\/v1\/apps\?/, { data: [{ id: "app1", attributes: { bundleId: "com.pusharmor.app" } }] }],
     ["GET", /^\/v1\/builds\?/, { data: [{ id: "build-new", attributes: { processingState: "VALID", expired: false, usesNonExemptEncryption: false } }] }],
@@ -700,8 +704,9 @@ function fakeAscApi(t, versions) {
     ["GET", /^\/v1\/appStoreVersions\/[^/]+\/appStoreVersionLocalizations$/, { data: [{ id: "loc1", attributes: { locale: "en-US" } }] }],
     ["GET", /^\/v1\/apps\/app1\/appInfos$/, { data: [{ id: "info1", attributes: { state: "PREPARE_FOR_SUBMISSION" } }] }],
     ["GET", /^\/v1\/appInfos\/info1\/appInfoLocalizations$/, { data: [{ id: "il1", attributes: { locale: "en-US" } }] }],
-    ["GET", /^\/v1\/appStoreVersionLocalizations\/loc1\/appScreenshotSets$/, { data: [{ id: "set1", attributes: { screenshotDisplayType: IOS_SCREENSHOT_TYPE } }] }],
+    ["GET", /^\/v1\/appStoreVersionLocalizations\/loc1\/appScreenshotSets$/, { data: sets }],
     ["GET", /^\/v1\/appScreenshotSets\/set1\/appScreenshots$/, { data: shots }],
+    ["GET", /^\/v1\/appScreenshotSets\/set2\/appScreenshots$/, { data: ipad ? uploaded("appstore-ipad") : [] }],
     ["GET", /^\/v1\/appScreenshots\//, { data: { attributes: { assetDeliveryState: { state: "COMPLETE" } } } }],
     ["GET", /^\/v1\/appStoreVersions\/[^/]+\/appStoreReviewDetail$/, { data: { id: "rd1" } }],
     ["GET", /^\/v1\/reviewSubmissions\?/, { data: [] }],
