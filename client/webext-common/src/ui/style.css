@@ -274,8 +274,16 @@ button.dellight { height: 32px; border-color: transparent; color: var(--err); ba
 .hrow.unread .content, .hrow.unread .who { font-weight: 600; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 .hrow .acts { display: none; margin-top: 8px; }
-.hrow.sel .acts, .hrow:focus-within .acts { display: flex; }
+.hrow.sel .acts { display: flex; }
 .hrow.closed:not(.sel) .acts { display: none; }
+/* a send to 2+ devices: Recipients (an open row only) lists each device with Sent or Failed */
+.rcpt { margin-top: 8px; font-size: 13px; line-height: 1.53847; }
+.hrow:not(.sel) .rcpt { display: none; }
+.rcpt summary { cursor: pointer; color: var(--ink2); }
+.rcpt-list { list-style: none; margin: 4px 0 0; padding: 0; }
+.rcpt-list li { display: flex; gap: 8px; }
+.rcpt-list .rn { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rcpt-list .rs { flex: none; color: var(--ink2); }
 /* a collapsed file row shows only its sender line and name: no size and type, no expiry */
 .hrow:not(.sel) .xd { display: none; }
 button.ac { height: 28px; padding: 0 10px 0 8px; gap: 5px; font-size: 12px; color: var(--ink); background: var(--card); }

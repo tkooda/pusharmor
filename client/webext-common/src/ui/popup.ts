@@ -974,7 +974,7 @@ function saveText(env: UiEnv, text: string, ms: number): void {
 }
 
 /** A History row as the background lists it: a file row also has its download percent and whether its decrypted file is here. */
-export type HistRow = HistoryRow & { sender: string; notDeleted?: string[]; pct?: number; here?: boolean };
+export type HistRow = HistoryRow & { sender: string; notDeleted?: string[]; pct?: number; here?: boolean; recipients?: { name: string; ok: boolean }[] };
 
 /** Full-window image view: the image fits; a click toggles its real size (scroll to move); Esc or Close ends it. */
 function viewImage(blob: Blob, name: string): void {
@@ -1103,6 +1103,9 @@ async function decryptRows(env: UiEnv, id: number | null = null): Promise<void> 
   return decrypting;
 }
 
+/** Each History row's own collapse, for a row that another row's select closes. */
+const unselects = new WeakMap<HTMLElement, () => void>();
+
 /** A History row; a row redrawn in place of `prev` keeps its open or closed state, its cut name, and its bold (unread) look. */
 function historyRow(env: UiEnv, r: HistRow, now: number, ctl: SelectCtl, prev?: HTMLElement): HTMLElement {
   const full = new Date(r.received).toLocaleString();
@@ -1119,7 +1122,7 @@ function historyRow(env: UiEnv, r: HistRow, now: number, ctl: SelectCtl, prev?: 
     return row;
   }
   const sent = r.results ? Object.values(r.results).filter((v) => v === "sent").length : (r.targets?.length ?? 0);
-  const whoText = r.dir === "out" ? T.sentToNofM(sent, r.targets?.length ?? 0) : r.sender;
+  const whoText = r.dir === "out" ? T.sentTitle(sent, r.targets?.length ?? 0) : r.sender;
   const who = idLabel(h("span", { class: "who", id: "h-" + r.id + "-who" }), whoText);
   // Sent to one device: name it in quotes; the name truncates inside them (F22).
   if (r.dir === "out" && r.targets?.length === 1 && sent === 1 && r.sender) {
@@ -1144,8 +1147,16 @@ function historyRow(env: UiEnv, r: HistRow, now: number, ctl: SelectCtl, prev?: 
     row.classList.add("unread");
     col.append(h("span", { class: "sr", role: "img", "aria-label": "Unread" }));
   }
+  // a send to 2+ devices: Recipients opens a list of the devices with Sent or Failed; it starts closed
+  const rcpt = r.recipients && r.recipients.length >= 2
+    ? h("details", { class: "rcpt" }, h("summary", {}, "Recipients"),
+        h("ul", { class: "rcpt-list" }, ...r.recipients.map((x) => h("li", {}, idLabel(h("span", { class: "rn" }), x.name), h("span", { class: "rs" }, x.ok ? "Sent" : "Failed")))))
+    : null;
   // a tap on the selected row (not its buttons) collapses it; another row selects.
-  const sync = () => content.setAttribute("aria-expanded", String(row.classList.contains("sel")));
+  const sync = () => {
+    content.setAttribute("aria-expanded", String(row.classList.contains("sel")));
+    if (rcpt && !row.classList.contains("sel")) (rcpt as HTMLDetailsElement).open = false;
+  };
   // an expanded URL row wraps the full URL; collapsed, it goes back to one line with the middle cut
   const select = () => {
     for (const o of Array.from(row.parentElement?.querySelectorAll<HTMLElement>(".hrow.sel") ?? [])) {
@@ -1153,6 +1164,7 @@ function historyRow(env: UiEnv, r: HistRow, now: number, ctl: SelectCtl, prev?: 
       o.classList.remove("sel");
       const u = o.querySelector<HTMLElement>(".content[data-full]");
       if (u) midEllipsis(u, u.dataset.full ?? "");
+      unselects.get(o)?.();
     }
     row.classList.remove("closed");
     row.classList.add("sel");
@@ -1175,6 +1187,7 @@ function historyRow(env: UiEnv, r: HistRow, now: number, ctl: SelectCtl, prev?: 
     row.classList.remove("unread");
     select();
   };
+  unselects.set(row, sync);
   if (prev?.classList.contains("closed")) row.classList.add("closed");
   if (prev?.classList.contains("sel")) select();
   // the name as the replaced row cut it, until the next fit
@@ -1190,7 +1203,7 @@ function historyRow(env: UiEnv, r: HistRow, now: number, ctl: SelectCtl, prev?: 
   });
   row.addEventListener("click", (ev: Event) => {
     const t = ev.target as Element | null;
-    if (t?.closest(".acts")) return;
+    if (t?.closest(".acts, .rcpt")) return;
     if (t?.closest(".content") || row.classList.contains("sel")) markRead();
     else select();
   });
@@ -1216,6 +1229,7 @@ function historyRow(env: UiEnv, r: HistRow, now: number, ctl: SelectCtl, prev?: 
     const fails = Object.values(r.results).filter((v) => v !== "sent").length;
     if (fails) col.append(h("div", { class: "dim" }, fails + " not delivered"));
   }
+  if (rcpt) col.append(rcpt);
   if (r.type !== "unknown" && (!isFile || main.childElementCount)) col.append(acts);
   row.append(h("div", { class: "av" }, icon(isFile ? fileIcon(r.content) : r.dir === "in" ? "received" : "sent", 18)), col);
   wireSelect(row, r.id ?? 0, ctl, "h-" + r.id + "-who h-" + r.id + "-c");

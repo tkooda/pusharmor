@@ -64,6 +64,8 @@ export const T = {
   removeConfirm: (x: string) => "Remove " + quoted(x) + " from this account? It must log in again and pair with every device again.",
   removedDevice: (x: string) => "Removed " + quoted(x) + ".",
   sentToNofM: (n: number, m: number) => "Sent to " + n + " of " + m + (m === 1 ? " device" : " devices"),
+  /** History title of a sent item: "Sent to N devices" when 2+ devices all got it, else "Sent to S of N devices". */
+  sentTitle: (n: number, m: number) => (m >= 2 && n === m ? "Sent to " + m + " devices" : "Sent to " + n + " of " + m + (m === 1 ? " device" : " devices")),
   sentToOne: (x: string) => 'Sent to "' + x + '"',
   messageSentToOne: (x: string) => 'Message sent to "' + x + '"',
   googleNotInBrowser: "Google login is not available in this browser\nUse email login",

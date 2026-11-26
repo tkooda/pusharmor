@@ -24,6 +24,12 @@ export interface Reply {
   restart?: boolean; // the login page starts again at its first step
 }
 
+/** A device a send to 2+ devices went to (History Recipients): its name, and whether it got the message. */
+export interface Recipient {
+  name: string;
+  ok: boolean;
+}
+
 export interface PeerView {
   id: string;
   label: string;
@@ -399,7 +405,7 @@ export class Rpc {
     return { self: self ? { id: self.id, name: displayName(await e.myName()) } : null, peers: out, allowContent: (await e.settings()).allowContent };
   }
 
-  async history(): Promise<(HistoryRow & { sender: string; notDeleted?: string[] })[]> {
+  async history(): Promise<(HistoryRow & { sender: string; notDeleted?: string[]; recipients?: Recipient[] })[]> {
     const e = this.e;
     const waiting = await e.settleDeletes();
     const peers = new Map((await e.db.peers()).map((p) => [p.id, p]));
@@ -410,10 +416,13 @@ export class Rpc {
     // History names: every paired device, and the other devices History names (a removed one too)
     const named = new Map<string, string>();
     for (const r of rows) {
-      const id = r.peer ?? (r.dir === "out" && r.targets?.length === 1 ? r.targets[0]! : null);
-      const p = id ? peers.get(id) : undefined;
-      const raw = p?.name ?? (r.peer ? r.peer_name : null) ?? null;
-      if (id && !named.has(id) && (p || raw !== null)) named.set(id, raw !== null ? displayName(raw) : rowLabel(p!));
+      // a send to 2+ devices names each of them under Recipients
+      const ids = r.peer ? [r.peer] : r.dir === "out" ? (r.targets ?? []) : [];
+      for (const id of ids) {
+        const p = peers.get(id);
+        const raw = p?.name ?? (r.peer ? r.peer_name : null) ?? null;
+        if (!named.has(id) && (p || raw !== null)) named.set(id, raw !== null ? displayName(raw) : rowLabel(p!));
+      }
     }
     const devs = (await e.labelDevices()).filter((d) => d.paired || named.has(d.id));
     const self = await e.self();
@@ -434,7 +443,11 @@ export class Rpc {
       const left = waiting.get(r.id!);
       // a file: its download percent while one runs, and whether its decrypted file is here
       const fx = r.type === "file" ? { pct: f?.running.get(r.id!), here: here.has(fileKey(r.id!)) } : {};
-      return left ? { ...r, ...fx, sender, notDeleted: left.map((id) => peerLabel(peers.get(id))) } : { ...r, ...fx, sender };
+      // a send to 2+ devices: each device and whether it got the message
+      const rc = r.dir === "out" && !r.peer && (r.targets?.length ?? 0) >= 2
+        ? { recipients: r.targets!.map((id) => ({ name: short.get(id) ?? peerLabel(peers.get(id)), ok: r.results ? r.results[id] === "sent" : true })) }
+        : {};
+      return left ? { ...r, ...fx, ...rc, sender, notDeleted: left.map((id) => peerLabel(peers.get(id))) } : { ...r, ...fx, ...rc, sender };
     });
   }
 }
