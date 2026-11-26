@@ -1431,6 +1431,11 @@ def test_format_blocks():
     assert out[3].startswith("Date: ") and out[4] == "Body: a\tb" and out[5] == " c\\d?"
 
 
+def test_file_size_has_no_thousands_separators():
+    rec = dict(REC, type="file", body="a.pdf", _file={"size": 12345678, "expires": 0})
+    assert "\nSize: 12345678 bytes\n" in pa.format_record(rec, "blocks")
+
+
 def test_format_blocks_drops_bidi_and_line_separators():
     rec = dict(REC, body="a\u202eb\u2066c\u2028d\u061ce")
     out = pa.format_record(rec, "blocks")
