@@ -17,7 +17,8 @@ export function checkName(s: string): { error: string; name: null } | { error: n
   const name = squeeze(s);
   const cps = [...name];
   if (cps.length === 0) return { error: "Name too short", name: null };
-  if (cps.some((ch) => !allowed(ch)) || cps[0] === "-" || cps.length > 32) return { error: "Invalid characters", name: null };
+  if (cps.length > 32) return { error: "Name too long\nUse 32 characters or fewer", name: null };
+  if (cps.some((ch) => !allowed(ch)) || cps[0] === "-") return { error: "Invalid characters", name: null };
   return { error: null, name };
 }
 

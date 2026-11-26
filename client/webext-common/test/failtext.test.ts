@@ -362,6 +362,9 @@ test("a device name that is not allowed says Invalid characters or Name too shor
   assert.equal(await fails(rpc, "rename", { name: 'Lap"top' }), "Invalid characters");
   assert.equal(await fails(rpc, "rename", { name: "Lap!top" }), "Invalid characters");
   assert.equal(await fails(rpc, "rename", { name: "-Laptop" }), "Invalid characters");
+  // longer than 32 characters: what is wrong and what to do
+  assert.equal(await fails(rpc, "rename", { name: "x".repeat(33) }), "Name too long\nUse 32 characters or fewer");
+  assert.equal(await fails(rpc, "rename", { name: "!".repeat(40) }), "Name too long\nUse 32 characters or fewer");
   assert.equal(await fails(rpc, "rename", { name: "  " }), "Name too short");
 });
 
