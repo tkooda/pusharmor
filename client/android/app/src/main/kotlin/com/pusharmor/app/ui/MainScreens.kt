@@ -1844,12 +1844,6 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
                 add { m -> SettingRow("Push method", modifier = m, value = pushName(pushNow),
                     valueColor = if (pushName(pushNow) == UiText.PUSH_NONE_AVAILABLE) cs.error else null) { pickPush = true } }
             })
-            SectionHeader("History")
-            GroupedList(listOf<@Composable (Modifier) -> Unit>(
-                { m -> SettingRow("Delete messages older than", modifier = m, value = UiText.days(days)) { pickDays = true } },
-                { m -> SwitchRow("Sync deletions", b(Settings.K.SYNC_DELETIONS, true), sub = "Manually deleting on this device will also delete on your other devices.",
-                    modifier = m.then(pad)) { vm.setPref(Settings.K.SYNC_DELETIONS, it) } },
-            ))
             SectionHeader("Files")
             Text(com.pusharmor.app.files.FileUi.HELPER, Modifier.padding(start = 32.dp, end = 16.dp, bottom = 8.dp),
                 style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant)
@@ -1860,6 +1854,12 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
                 { m -> SettingRow(fu.ON_WIFI, modifier = m, value = fu.pickerLabel(fu.picker(prefs?.get(Settings.K.FILE_WIFI)))) { pickFile = "wifi" } },
                 { m -> SettingRow(fu.ON_MOBILE, modifier = m, value = fu.pickerLabel(fu.picker(prefs?.get(Settings.K.FILE_MOBILE)))) { pickFile = "mobile" } },
                 { m -> SettingRow(fu.STORAGE_TITLE, fu.STORAGE_HELPER, modifier = m, value = fu.storageLabel(fu.storageLimit(prefs?.get(Settings.K.FILE_STORAGE), vm.g.files.totalBytes()))) { pickFile = "storage" } },
+            ))
+            SectionHeader("History")
+            GroupedList(listOf<@Composable (Modifier) -> Unit>(
+                { m -> SettingRow("Delete messages older than", modifier = m, value = UiText.days(days)) { pickDays = true } },
+                { m -> SwitchRow("Sync deletions", b(Settings.K.SYNC_DELETIONS, true), sub = "Manually deleting on this device will also delete on your other devices.",
+                    modifier = m.then(pad)) { vm.setPref(Settings.K.SYNC_DELETIONS, it) } },
             ))
             SectionHeader("Account")
             me?.email?.let { email ->

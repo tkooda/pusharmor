@@ -232,6 +232,12 @@ class FileRowsTest {
         assertTrue("Files" in t)
         assertTrue("Storage for sent and received files" in t)
         assertTrue("When full, the oldest files are removed from this device" in t)
+        // the Files section sits directly above the History section
+        val heads = shown.filter { it in setOf("Appearance", "Sending", "Notifications", "Files", "History", "Account") }
+        assertEquals(heads.toString(), listOf("Files", "History"), heads.dropWhile { it != "Files" }.take(2))
+        assertEquals(heads.toString(), heads.indexOf("Files") + 1, heads.indexOf("History"))
+        assertTrue(shown.toString(), shown.indexOf("When full, the oldest files are removed from this device") < shown.indexOf("History"))
+        assertTrue(shown.toString(), shown.indexOf("History") < shown.indexOf("Delete messages older than"))
         close(c)
     }
 }
