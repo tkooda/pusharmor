@@ -60,4 +60,31 @@ public enum DeviceName {
         if u.first == "-" { u[0] = "?" }
         return string(u)
     }
+
+    /// ASCII case fold: A-Z become a-z, nothing else changes.
+    public static func fold(_ s: String) -> String {
+        string(s.unicodeScalars.map { $0.value >= 65 && $0.value <= 90 ? Unicode.Scalar($0.value + 32)! : $0 })
+    }
+
+    /// A setup default that equals another device's name (ignoring ASCII case) gets " (N)", N the
+    /// smallest number from 2 that gives a free name; the base is cut so the name keeps 32 code
+    /// points, with trailing spaces trimmed before the suffix.
+    public static func uniqueDefault(_ base: String, taken: [String]) -> String {
+        let used = Set(taken.map(fold))
+        if !used.contains(fold(base)) { return base }
+        var n = 2
+        while true {
+            let suffix = Array(" (\(n))".unicodeScalars)
+            var cut = Array(base.unicodeScalars.prefix(max(0, maxLength - suffix.count)))
+            while cut.last == " " { cut.removeLast() }
+            let name = string(cut + suffix)
+            if !used.contains(fold(name)) { return name }
+            n += 1
+        }
+    }
+
+    /// Rename: another device on the account that already has exactly this name.
+    public static func usedBy(_ name: String, peers: [Peer]) -> Peer? {
+        peers.first { $0.state != .removed && $0.name == name }
+    }
 }

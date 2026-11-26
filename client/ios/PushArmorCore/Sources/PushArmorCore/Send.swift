@@ -59,7 +59,7 @@ extension Core {
         for id in recipients {
             let res = results[id.text] ?? "failed"
             let p = try? store.peer(id)
-            let label = PeerLabel.label(p)
+            let label = shownName(p)
             if recipients.count == 1 { soleName = label }
             switch res {
             case "sent": sent += 1
@@ -211,7 +211,7 @@ extension Core {
             }
         }
         let names = targets.filter { pending.contains($0.text) }
-            .map { (name: PeerLabel.label(try? store.peer($0)), word: failed[$0.text] ?? "failed:") }
+            .map { (name: shownName(try? store.peer($0)), word: failed[$0.text] ?? "failed:") }
         let notice = ErrorCopy.deleteResultText(names, error: callError)
         await localDone?(notice)
         let fileNotice = await deleteFilesOnServer(fileIds)

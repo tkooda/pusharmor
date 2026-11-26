@@ -207,6 +207,11 @@ struct SettingsView: View {
         guard renaming else { return }
         let c = DeviceName.checkInput(name)
         guard let n = c.name else { model.toast = c.error; return }
+        // another device already has this exact name: say which, and keep the field open
+        if n != model.me?.name, let q = DeviceName.usedBy(n, peers: model.peers) {
+            model.toast = S.nameUsed(PeerLabel.label(q), q.id)
+            return
+        }
         renaming = false
         if n != model.me?.name { Task { await model.rename(n) } }
     }

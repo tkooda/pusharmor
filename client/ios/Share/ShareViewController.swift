@@ -103,6 +103,9 @@ final class ShareModel: ObservableObject {
         await route()
     }
 
+    /// A device's name, with its ID when another device shows the same name.
+    func label(_ p: Peer) -> String { core?.shownName(p) ?? PeerLabel.label(p) }
+
     /// One other approved peer in the All set: send at once; else a picker (All + peers).
     func route() async {
         if all.count == 1 {
@@ -121,7 +124,7 @@ final class ShareModel: ObservableObject {
         sending = true
         let text = self.text, type = self.type, allCount = all.count
         let chosen = all.filter { ids.contains($0.id) }
-        sendNames = PeerLabel.sorted(chosen).map { PeerLabel.label($0) }
+        sendNames = PeerLabel.sorted(chosen).map { label($0) }
         sendCaption = sendNames.count > 1 ? S.sendingHeader(type) : S.sending(type, to: sendNames)
         sendStep = 0
         sendRetry = 0
@@ -160,7 +163,7 @@ final class ShareModel: ObservableObject {
         sending = true
         let allCount = all.count
         let chosen = all.filter { ids.contains($0.id) }
-        sendNames = PeerLabel.sorted(chosen).map { PeerLabel.label($0) }
+        sendNames = PeerLabel.sorted(chosen).map { label($0) }
         sendCaption = FileUi.sending(f.name, to: sendNames)
         sendStep = 0
         sendRetry = 0
@@ -394,7 +397,7 @@ struct ShareView: View {
                             Button("All") { Task { await model.send(to: model.all.map { $0.id }) } }
                         }
                         ForEach(model.all, id: \.id.text) { p in
-                            Button(PeerLabel.label(p)) { Task { await model.send(to: [p.id]) } }
+                            Button(model.label(p)) { Task { await model.send(to: [p.id]) } }
                         }
                     }
                 case .done(let msg), .failed(let msg):

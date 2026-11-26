@@ -42,13 +42,16 @@ extension Core {
     }
 
     /// The 6.2 banner for a History message row.
+    /// A device's name in notices and toasts, with its ID when another device shows the same name.
+    public func shownName(_ p: Peer?) -> String { PeerLabel.label(p, among: (try? store.peers()) ?? []) }
+
     public func banner(forRow row: HistoryRow) -> Banner {
         let pid = row.peerId.flatMap { PeerId(text: $0) }
         let peer = pid.flatMap { try? store.peer($0) }
         let ls = lockSettings
         let body = LockScreen.body(mainShow: ls.show, peerShow: peer?.lockShow ?? true, mainContent: ls.content,
                                    peerContent: peer?.showContent ?? true, locked: hooks?.isProtectedDataLocked() ?? false,
-                                   peerName: peer?.noticeName ?? S.aPeer, content: row.content)
+                                   peerName: shownName(peer), content: row.content)
         let cat: BannerCategory
         let tap: Banner.Tap
         switch row.type {
@@ -56,7 +59,7 @@ extension Core {
         case "tel": cat = .tel; tap = .detail
         default: cat = .text; tap = .detail
         }
-        let title = body == row.content ? peer.map { S.quoted($0.noticeName) } ?? S.unknownSender : S.title
+        let title = body == row.content ? peer.map { S.quoted(shownName($0)) } ?? S.unknownSender : S.title
         return Banner(body: body, locKey: nil, category: cat, threadId: pid.map(Banner.peerThread) ?? Banner.dropThread,
                       rowid: row.rowid, tap: tap, title: title)
     }
@@ -234,7 +237,7 @@ extension Core {
     /// The banner a control type shows (also re-presented for a seen-n duplicate).
     func controlBanner(_ c: MessageContent, peer p: Peer?, name: String?, me: PeerId, removed: Int? = nil) -> Banner? {
         let id = p?.id
-        let nm = p?.noticeName ?? S.aPeer
+        let nm = shownName(p)
         switch c {
         case .approve: return noticeBanner(S.approved(p?.state == .approved ? nm : S.aPeer), peer: id, category: .event, tap: .peers(id?.text))
         case .rename:
@@ -310,7 +313,7 @@ extension Core {
             try store.savePeer(p)
         case .rename(let f):
             guard let name = r.name else { return nil }
-            let old = p.noticeName
+            let old = shownName(p)
             if Int64(f.n) > p.nameN { p.name = name; p.nameN = Int64(f.n) }
             try store.savePeer(p)
             a.banner = noticeBanner(S.renamed(old, DeviceName.display(name)), peer: from, category: .event, tap: .peers(from.text))

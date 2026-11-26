@@ -132,9 +132,9 @@ extension Core {
                 banner = pairRequestBanner(peer, from: from, me: me)
             }
         case .halfState:
-            banner = pairBanner(S.pairAgain(PeerLabel.label(peer)), n: from, x: me, peer: from, category: .notice)
+            banner = pairBanner(S.pairAgain(shownName(peer)), n: from, x: me, peer: from, category: .notice)
         case .crossing:
-            banner = pairBanner(S.pairCrossing(PeerLabel.label(peer)), n: me, x: from, peer: from)
+            banner = pairBanner(S.pairCrossing(shownName(peer)), n: me, x: from, peer: from)
         case .couldNotRead:
             return drop(mode)
         }

@@ -63,6 +63,10 @@ public enum S {
     public static func stillHolds(_ x: String) -> String { "\"\(x)\" still holds an earlier pairing. On \"\(x)\", tap Cancel pairing request, then tap Send again." }
     public static func notPairedOn(_ x: String) -> String { "Not paired on \"\(x)\"" }
     public static func declinedBy(_ x: String) -> String { "Rejected by \"\(x)\"" }
+    /// Rename to a name another device already has: line 1 names it, line 2 the next step.
+    public static func nameUsed(_ x: String, _ id: PeerId) -> String {
+        "Name already used by \"\(x)\" (\(Ids.deviceId(id.raw)))\nRemove that device, or rename it on that device"
+    }
     public static func removeConfirm(_ x: String) -> String {
         "Remove \"\(x)\" from this account? \"\(x)\" must log in again and pair with every device again."
     }
@@ -400,4 +404,14 @@ public enum PeerLabel {
     }
 
     public static func sorted(_ peers: [Peer]) -> [Peer] { sortedByName(peers) { label($0) } }
+
+    /// The label in places that show only a name: when another device's shown name is the same
+    /// ignoring ASCII case, its device ID follows, as "Pixel 8 (907-331-064)".
+    public static func label(_ p: Peer?, among peers: [Peer]) -> String {
+        guard let p = p else { return S.aPeer }
+        let l = label(p)
+        let key = DeviceName.fold(l)
+        let clash = peers.contains { $0.id.text != p.id.text && DeviceName.fold(label($0)) == key }
+        return clash ? l + " (" + Ids.deviceId(p.id.raw) + ")" : l
+    }
 }

@@ -256,7 +256,7 @@ struct PairingCardView: View {
     private var awaiting: Bool { entry != nil && p.state == .approved && !p.approveVerified }
 
     private var title: String {
-        if again { return label }
+        if again { return PeerLabel.label(p) }   // the card shows the ID, so never with it
         guard let e = entry else { return S.pairWith(name: name, platform: p.platform) }
         if awaiting { return S.awaitingResponse(name: name, platform: p.platform) }
         switch e.state {
@@ -487,7 +487,7 @@ struct RejectedSection: View {
                             HStack(alignment: .top, spacing: 14) {
                                 IconTile(platformSymbol(p.platform))
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(model.label(p)).font(.body)
+                                    Text(PeerLabel.label(p)).font(.body)
                                     Text("ID: " + Ids.deviceId(p.id.raw))
                                         .font(.subheadline)
                                         .foregroundColor(.secondaryText)
@@ -605,7 +605,8 @@ struct PeerRowView: View {
             IconTile(platformSymbol(p.platform))
                 .opacity(greyed ? 0.6 : 1)
             VStack(alignment: .leading, spacing: 2) {
-                Text(removed ? label + " (removed)" : label)
+                // the card shows the ID, so the name never carries it
+                Text(removed ? PeerLabel.label(p) + " (removed)" : PeerLabel.label(p))
                     .font(.body)
                     .foregroundColor(greyed ? .secondaryText : .primary)
                 // The status icons sit right of lines 2-3 only; the name keeps its full width.

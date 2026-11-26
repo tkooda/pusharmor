@@ -120,12 +120,34 @@ final class InboxTests: XCTestCase {
         XCTAssertEqual(t.paired.map { $0.name }, ["Gone"])
     }
 
+    /// Name-only places: a name another device also shows (ignoring ASCII case) carries its ID;
+    /// rename refuses a name another device has exactly.
+    func testSameNames() {
+        func peer(_ b: UInt8, _ name: String?, state: PeerState = .approved) -> Peer {
+            var p = Peer(id: PeerId(raw: Data([0x10] + [UInt8](repeating: b, count: 29)))!)
+            p.name = name
+            p.state = state
+            return p
+        }
+        let a = peer(1, "Pixel 8"), b = peer(2, "pixel 8"), c = peer(3, "Tablet"), gone = peer(4, "Old", state: .removed)
+        let all = [a, b, c, gone]
+        XCTAssertEqual(PeerLabel.label(a, among: all), "Pixel 8 (" + Ids.deviceId(a.id.raw) + ")")
+        XCTAssertEqual(PeerLabel.label(b, among: all), "pixel 8 (" + Ids.deviceId(b.id.raw) + ")")
+        XCTAssertEqual(PeerLabel.label(c, among: all), "Tablet")
+        XCTAssertEqual(PeerLabel.label(nil, among: all), S.aPeer)
+        XCTAssertEqual(DeviceName.usedBy("Pixel 8", peers: all)?.id.text, a.id.text)
+        XCTAssertNil(DeviceName.usedBy("PIXEL 8", peers: all))
+        XCTAssertNil(DeviceName.usedBy("Old", peers: all))
+        XCTAssertEqual(S.nameUsed("Pixel 8", a.id),
+                       "Name already used by \"Pixel 8\" (" + Ids.deviceId(a.id.raw) + ")\nRemove that device, or rename it on that device")
+    }
+
     /// A received name shows with every disallowed character as "?", in lists and notices.
     func testShownNameFiltered() {
         var p = Peer(id: PeerId(raw: Data(repeating: 7, count: 30))!)
         p.name = "-a!b\u{2019}c"
         XCTAssertEqual(PeerLabel.label(p), "?a?b?c")
-        XCTAssertEqual(p.noticeName, "?a?b?c")
+        XCTAssertEqual(PeerLabel.label(p, among: [p]), "?a?b?c")
     }
 
     func testAddedDate() {

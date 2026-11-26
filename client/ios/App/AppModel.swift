@@ -876,7 +876,8 @@ final class AppModel: ObservableObject {
 
     // MARK: peers and pairing
 
-    func label(_ p: Peer) -> String { PeerLabel.label(p) }
+    /// A device's name where no ID shows next to it: with its ID when another device shows the same name.
+    func label(_ p: Peer) -> String { PeerLabel.label(p, among: peers) }
 
     func pair(_ p: Peer) async {
         guard let core = core else { return }

@@ -281,6 +281,12 @@ final class GoldenTests: XCTestCase {
             let got = DeviceName.display(str(c["input"]))
             XCTAssertEqual(Array(got.unicodeScalars), Array(str(c["shown"]).unicodeScalars), str(c["input"]).debugDescription)
         }
+        let clash = s["clash_cases"] as! [J]
+        XCTAssertFalse(clash.isEmpty)
+        for c in clash {
+            let got = DeviceName.uniqueDefault(str(c["base"]), taken: (c["taken"] as! [Any]).map(str))
+            XCTAssertEqual(Array(got.unicodeScalars), Array(str(c["name"]).unicodeScalars), str(c["base"]).debugDescription)
+        }
     }
 
     // MARK: messages

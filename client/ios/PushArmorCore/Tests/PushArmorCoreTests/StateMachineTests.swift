@@ -2842,7 +2842,8 @@ final class StateMachineTests: XCTestCase {
         _ = w.take(x.id)
         _ = w.take(y.id)
         let a = try XCTUnwrap(try n.core.store.history().first { $0.content == "a" })
-        let label = PeerLabel.label(try n.core.store.peer(x.id))
+        let label = n.core.shownName(try n.core.store.peer(x.id))   // both are "Xdev": the ID follows
+        XCTAssertTrue(label.hasPrefix("Xdev ("))
         w.rows[x.id.text]!.push = false
         let notice = try await n.core.deleteHistoryRows([a.rowid])
         XCTAssertEqual(notice, "Unable to delete on \"\(label)\"\nOpen PushArmor on it to resolve.")
@@ -2871,7 +2872,7 @@ final class StateMachineTests: XCTestCase {
         let a = try XCTUnwrap(try n.core.store.history().first { $0.content == "a" })
         w.rows[x.id.text]!.push = false
         w.rows[y.id.text]!.push = false
-        let names = try n.core.syncTargets().map { PeerLabel.label(try n.core.store.peer($0)) }
+        let names = try n.core.syncTargets().map { n.core.shownName(try n.core.store.peer($0)) }   // same name: IDs follow
         let notice = try await n.core.deleteHistoryRows([a.rowid])
         XCTAssertEqual(notice, "Unable to delete on \"\(names[0])\" and \"\(names[1])\"")
         XCTAssertEqual(try n.core.store.historyRow(a.rowid)?.delPending.count, 2)
