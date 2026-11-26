@@ -100,5 +100,15 @@ class DevicesScreenTest {
         val texts = nodes(v).map { text(it) }
         assertTrue(texts.toString(), texts.contains("Device 0") && texts.contains("Device 1"))
         assertEquals(texts.toString(), listOf("Added: " + UiText.addedDate(1_795_392_000L)), texts.filter { it.startsWith("Added: ") })
+        // the Added line is smaller than the ID line, in the dim secondary color
+        fun styleOf(prefix: String, i: Int = 0): androidx.compose.ui.text.TextStyle {
+            val r = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+            nodes(v).filter { text(it).startsWith(prefix) }[i].config[SemanticsActions.GetTextLayoutResult].action?.invoke(r)
+            return r.first().layoutInput.style
+        }
+        val added = styleOf("Added: ")
+        val id = styleOf("ID: ", 1)
+        assertTrue("${added.fontSize} ${id.fontSize}", added.fontSize.value < id.fontSize.value)
+        assertEquals(com.pusharmor.app.ui.theme.LightColors.onSurfaceVariant, added.color)
     }
 }

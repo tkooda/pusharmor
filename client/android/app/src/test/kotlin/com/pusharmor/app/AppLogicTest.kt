@@ -324,6 +324,15 @@ class AppLogicTest {
         assertFalse(settings.contains("Keep messages for"))
     }
 
+    @Test fun addedLinesUseTheSmallDimStyle() {
+        // Devices cards, pairing cards, and the device-limit picker
+        val main = source("ui/MainScreens.kt")
+        assertEquals(2, Regex("UiText.addedLine\\(p.created\\)\\?.let \\{ AddedLine\\(it\\) \\}").findAll(main).count())
+        assertTrue(main.contains("Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)"))
+        assertTrue(source("ui/SignInScreens.kt").contains("UiText.addedLine(p.created)?.let { AddedLine(it) }"))
+        assertEquals(3, Regex("addedLine\\(").findAll(main + source("ui/SignInScreens.kt")).count())
+    }
+
     @Test fun chooseFileIsASecondaryTextButton() {
         assertEquals("Or choose a file...", com.pusharmor.app.files.FileUi.CHOOSE_FILE)
         // a stock text button, not the outlined call-to-action style; Send stays the one main button

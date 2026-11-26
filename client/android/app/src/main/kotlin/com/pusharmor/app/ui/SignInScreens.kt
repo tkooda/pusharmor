@@ -431,8 +431,11 @@ fun LimitScreen(vm: AppViewModel, onDone: () -> Unit) {
                     leadingContent = { Checkbox(on, null) },
                     headlineContent = { Text(AppEffects.platformLabel(p.platform)) },
                     supportingContent = {
-                        Text(listOfNotNull("ID: ${UiText.shortDeviceId(p.id)}", UiText.addedLine(p.created),
-                            UiText.limitRow(p.approves, p.approvedBy, p.reachable, p.loggedOut)).joinToString("\n"))
+                        Column {
+                            Text("ID: ${UiText.shortDeviceId(p.id)}")
+                            UiText.addedLine(p.created)?.let { AddedLine(it) }
+                            Text(UiText.limitRow(p.approves, p.approvedBy, p.reachable, p.loggedOut))
+                        }
                     },
                 )
             }

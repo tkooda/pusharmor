@@ -723,7 +723,7 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
                     // A device with no known name already names its platform ("New Android device").
                     if (p.name != null) Text(AppEffects.platformLabel(p.platform))
                     Text("ID: ${UiText.shortDeviceId(p.id)}")
-                    UiText.addedLine(p.created)?.let { Text(it) }
+                    UiText.addedLine(p.created)?.let { AddedLine(it) }
                 }, {
                     if (lines.isEmpty()) { val (k, w) = UiText.status(p); StatusLine(k, w) } else Column { for (l in lines) Text(l) }
                 }) {
@@ -796,6 +796,12 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
             }
         }
     }
+}
+
+/** The "Added: 2026-11-23" line of a device: smaller and dimmer than its "ID:" line. */
+@Composable
+internal fun AddedLine(text: String) {
+    Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 /** Small non-interactive icons for the per-device settings; greyed when off; one combined label for the group. */
@@ -919,7 +925,7 @@ private fun PairingCard(vm: AppViewModel, p: Peer, row: PairingRow, now: Long, m
                 // The title names the platform unless it shows a known name.
                 if (title == p.name) Text(AppEffects.platformLabel(p.platform), style = body, color = cs.onSurfaceVariant)
                 Text("ID: ${UiText.shortDeviceId(p.id)}", style = body, color = cs.onSurfaceVariant)
-                if (!awaiting) UiText.addedLine(p.created)?.let { Text(it, style = body, color = cs.onSurfaceVariant) }
+                if (!awaiting) UiText.addedLine(p.created)?.let { AddedLine(it) }
             }
         }
         Spacer(Modifier.height(16.dp))
