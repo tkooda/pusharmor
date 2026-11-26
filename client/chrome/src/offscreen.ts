@@ -5,7 +5,8 @@
 // It also keeps the blob URLs of saved files (the popup's download link uses them),
 // so a popup that closes during the Save-as dialog does not end the download.
 // With no job and no save for IDLE_MS it closes itself; the service worker also
-// closes it on its next start when it reports idle.
+// closes it on its next start when it reports idle. An offscreen document has only
+// the runtime messaging APIs, so the client name comes in each job message.
 import { type FileWorker, type JobReq, octetUrl, openWorker } from "../../webext-common/src/core/fileworker.ts";
 import { browser } from "./shim.ts";
 
@@ -18,15 +19,17 @@ const saves = new Map<string, number>(); // blob URL -> made at
 let active = 0;
 let lastUse = Date.now();
 
-const worker = openWorker(
-  "chrome/" + browser.runtime.getManifest().version,
-  (id, have, total) => void browser.runtime.sendMessage({ op: "fileProgress", id, have, total }).catch(() => undefined),
-  async (blob) => {
-    const url = octetUrl(blob);
-    saves.set(url, Date.now());
-    return { url };
-  },
-);
+let worker: (() => Promise<FileWorker>) | null = null;
+const makeWorker = (client: string) =>
+  openWorker(
+    client,
+    (id, have, total) => void browser.runtime.sendMessage({ op: "fileProgress", id, have, total }).catch(() => undefined),
+    async (blob) => {
+      const url = octetUrl(blob);
+      saves.set(url, Date.now());
+      return { url };
+    },
+  );
 let w: FileWorker | null = null;
 
 function idle(): boolean {
@@ -40,7 +43,7 @@ function idle(): boolean {
 }
 
 browser.runtime.onMessage.addListener((msg, _sender, respond) => {
-  const m = msg as { target?: unknown; req?: JobReq | { op: "idle" } } | null;
+  const m = msg as { target?: unknown; req?: JobReq | { op: "idle" }; client?: string } | null;
   if (m?.target !== "offscreen" || !m.req) return false;
   if (m.req.op === "idle") {
     respond({ idle: idle() });
@@ -49,6 +52,7 @@ browser.runtime.onMessage.addListener((msg, _sender, respond) => {
   const req = m.req;
   active++;
   lastUse = Date.now();
+  worker ??= makeWorker(m.client ?? "chrome");
   void worker()
     .then((x) => ((w = x), x.run(req)))
     .then(respond, () => respond(null))

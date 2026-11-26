@@ -10,6 +10,7 @@ function closingBrowser(): { b: Browser; jobs: () => number } {
   const b = {
     runtime: {
       getContexts: async () => [{}],
+      getManifest: () => ({ name: "PushArmor", version: "1.2.3" }),
       sendMessage: async (m: { req: { op: string } }) => {
         if (m.req.op === "idle") return { idle: false };
         jobs++;

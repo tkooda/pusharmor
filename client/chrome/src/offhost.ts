@@ -40,7 +40,7 @@ export function offscreenHost(b: Browser): FileHost {
           }
           let r: unknown;
           try {
-            r = await b.runtime.sendMessage({ target: "offscreen", req });
+            r = await b.runtime.sendMessage({ target: "offscreen", req, client: "chrome/" + b.runtime.getManifest().version });
           } catch {
             if (attempt === 0 && req.op !== "decrypt") continue; // closed under the job: a new document, once
             throw new HostGone();
