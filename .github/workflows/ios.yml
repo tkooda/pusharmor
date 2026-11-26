@@ -423,7 +423,7 @@ jobs:
           - shard: rest
             filter: -only-testing:PushArmorUITests -skip-testing:PushArmorUITests/BrandScreensTests -skip-testing:PushArmorUITests/IPadLayoutTests
           - shard: ipad
-            device: iPad Pro 13-inch (M4)
+            device: iPad Pro 13-inch (M5)
             filter: -only-testing:PushArmorUITests/IPadLayoutTests
     permissions: {}
     steps:

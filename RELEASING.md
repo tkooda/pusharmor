@@ -226,7 +226,7 @@ runs the iOS UI tests and the iOS 17 job: they are not in the per-change gate.
 The app runs on iPhone and iPad (`TARGETED_DEVICE_FAMILY: "1,2"` in
 `client/ios/project.yml`), so App Store Connect requires 13-inch iPad
 screenshots too. The screenshots workflow captures them on the iPad Pro
-13-inch (M4) simulator (2064x2752) as the artifact `screenshots-ipad`; put
+13-inch (M5) simulator (2064x2752) as the artifact `screenshots-ipad`; put
 them in `store/screenshots/appstore-ipad/en-US/`. Promote sends the 6.9-inch
 iPhone screenshots (`store/screenshots/appstore/en-US/`) and, when that folder
 exists, the iPad screenshots as the 13-inch iPad set

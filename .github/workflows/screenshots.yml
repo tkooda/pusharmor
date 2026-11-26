@@ -88,7 +88,7 @@ jobs:
           if-no-files-found: error
 
   ios:
-    name: iOS (iPhone 17 Pro Max 1320x2868, iPad Pro 13-inch (M4) 2064x2752 simulators)
+    name: iOS (iPhone 17 Pro Max 1320x2868, iPad Pro 13-inch (M5) 2064x2752 simulators)
     runs-on: macos-26
     timeout-minutes: 70
     permissions:
@@ -171,7 +171,7 @@ jobs:
       - name: iPad screenshots on the simulator
         if: ${{ !inputs.ios_all_screens }}
         working-directory: client/ios
-        run: bash tools/screenshots.sh "$RUNNER_TEMP/shots/ipad" "iPad Pro 13-inch (M4)"
+        run: bash tools/screenshots.sh "$RUNNER_TEMP/shots/ipad" "iPad Pro 13-inch (M5)"
       - name: Check the iPad screenshots
         if: ${{ !inputs.ios_all_screens }}
         run: node release/check-screenshots.mjs ipad "$RUNNER_TEMP/shots/ipad" --flatten
