@@ -39,12 +39,17 @@ final class FileScreensTests: XCTestCase {
         XCTAssertEqual(at.compactMap { $0 }, at.compactMap { $0 }.sorted())
     }
 
-    /// History: a file row shows its state and buttons under it and never opens; decrypts run
-    /// only while History shows.
+    /// History: a file row starts closed and a tap opens or closes it like a text row (one row
+    /// open at a time); its state shows under it, its buttons only while open; VoiceOver says
+    /// Expanded or Collapsed; decrypts run only while History shows.
     func testHistoryFileRows() throws {
         let row = try source("App/Views/HistoryView.swift")
-        XCTAssertTrue(row.contains("if let f = file, !selecting { FileRowDetail(file: f, outgoing: outgoing).padding(.leading, textInset + 10) }"))
-        XCTAssertTrue(row.contains("if isUnknownType || isFile { return }"))
+        XCTAssertTrue(row.contains("if let f = file, !selecting, fileDetailShows(f) { FileRowDetail(file: f, outgoing: outgoing).padding(.leading, textInset + 10) }"))
+        XCTAssertTrue(row.contains("private var fileOpen: Bool { expanded && !selecting && isFile }"))
+        XCTAssertTrue(row.contains("if fileOpen { return true }\n        if case .ready = model.fileStatus(f) { return false }"))
+        XCTAssertTrue(row.contains("if isUnknownType { return }\n        model.detailRow = HistoryExpand.tap("))
+        XCTAssertFalse(row.contains("if isUnknownType || isFile { return }"))
+        XCTAssertTrue(row.contains(".accessibilityValue(isEvent || isUnknownType || selecting ? \"\" : (isOpen || fileOpen ? \"Expanded\" : \"Collapsed\"))"))
         XCTAssertTrue(row.contains("let pending = effective == .all ? model.pendingSends : []"))
         XCTAssertTrue(row.contains("ForEach(pending, id: \\.id) { PendingSendRow(file: $0) }"))
         XCTAssertTrue(row.contains("if rows.isEmpty && pending.isEmpty {"))

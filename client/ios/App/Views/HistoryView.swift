@@ -153,7 +153,7 @@ struct HistoryRowView: View {
     private var isEvent: Bool { row.type == "event" }
     /// A message type from a newer version: it shows S.unknownType and does not open.
     private var isUnknownType: Bool { row.type == "unknown" }
-    /// A file row: its state and buttons show under it, and it does not open.
+    /// A file row: its state shows under it; open, its buttons show too.
     private var isFile: Bool { row.type == "file" }
     private var file: FileRecord? { isFile ? model.files[row.rowid] : nil }
 
@@ -180,6 +180,16 @@ struct HistoryRowView: View {
     }
 
     private var isOpen: Bool { expanded && !selecting && !isEvent && !isUnknownType && !isFile }
+
+    /// A file row opened by a tap: its buttons show.
+    private var fileOpen: Bool { expanded && !selecting && isFile }
+
+    /// A closed file row whose file is on this device has nothing under its name: no buttons.
+    private func fileDetailShows(_ f: FileRecord) -> Bool {
+        if fileOpen { return true }
+        if case .ready = model.fileStatus(f) { return false }
+        return true
+    }
 
     private var contentText: String {
         if isUnknownType { return S.unknownType }
@@ -212,7 +222,7 @@ struct HistoryRowView: View {
         VStack(alignment: .leading, spacing: 12) {
             summary
             if isOpen { MessageDetailView(row: row, notDeletedOn: notDeletedOn) }
-            if let f = file, !selecting { FileRowDetail(file: f, outgoing: outgoing).padding(.leading, textInset + 10) }
+            if let f = file, !selecting, fileDetailShows(f) { FileRowDetail(file: f, outgoing: outgoing).padding(.leading, textInset + 10) }
         }
     }
 
@@ -281,7 +291,7 @@ struct HistoryRowView: View {
         .onLongPressGesture { if selecting { onToggle() } else { onLongPress() } }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(a11yLabel)
-        .accessibilityValue(isEvent || isUnknownType || isFile || selecting ? "" : (isOpen ? "Expanded" : "Collapsed"))
+        .accessibilityValue(isEvent || isUnknownType || selecting ? "" : (isOpen || fileOpen ? "Expanded" : "Collapsed"))
         .accessibilityAddTraits(selecting && selected ? [.isButton, .isSelected] : (selecting || !isEvent ? AccessibilityTraits.isButton : []))
         .accessibilityAction { selecting ? onToggle() : tap() }
         .accessibilityAction(named: "Select") { if selecting { onToggle() } else { onLongPress() } }
@@ -343,7 +353,7 @@ struct HistoryRowView: View {
     private func tap() {
         if isEvent { return }
         model.markRead(row)
-        if isUnknownType || isFile { return }
+        if isUnknownType { return }
         model.detailRow = HistoryExpand.tap(open: model.detailRow?.rowid, tapped: row.rowid) == nil ? nil : row
     }
 }
