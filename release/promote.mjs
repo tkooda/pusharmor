@@ -109,8 +109,15 @@ export function readListing(store, root = STORE_DIR) {
   return out;
 }
 
-/** Problems with the listing text and screenshots of one store; empty passes. */
-export function listingProblems(store, root = STORE_DIR) {
+/** True when the iOS app targets iPad (TARGETED_DEVICE_FAMILY holds 2 in client/ios/project.yml). */
+export function iosSupportsIpad(projectYml = join(ROOT, "client", "ios", "project.yml")) {
+  const text = readFileSync(projectYml, "utf8");
+  return [...text.matchAll(/TARGETED_DEVICE_FAMILY:\s*"?([\d,\s]+)"?/g)].some((m) => m[1].split(",").map((x) => x.trim()).includes("2"));
+}
+
+/** Problems with the listing text and screenshots of one store; empty passes.
+ *  The App Store needs iPad shots when the iOS build supports iPad. */
+export function listingProblems(store, root = STORE_DIR, ipadSupported = store === "appstore" && iosSupportsIpad()) {
   const dir = join(root, "listing", store, LOCALE);
   const bad = [];
   let files;
@@ -143,6 +150,7 @@ export function listingProblems(store, root = STORE_DIR) {
   }
   const ipad = join(root, "screenshots", "appstore-ipad", LOCALE);
   if (store === "appstore" && existsSync(ipad)) bad.push(...checkDir("ipad", ipad).map((p) => "appstore-ipad screenshots: " + p));
+  else if (store === "appstore" && ipadSupported) bad.push(ipad + ": missing (the iOS build supports iPad)");
   return bad;
 }
 
