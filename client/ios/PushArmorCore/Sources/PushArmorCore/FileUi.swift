@@ -3,7 +3,7 @@ import Foundation
 /// What the file screens show and decide: pure functions only, so the tables are unit tested.
 /// The words match the Android app and the browser extensions.
 public enum FileUi {
-    public static let helper = "Larger files expire sooner, between 1 and 24 hours after they are sent"
+    public static let helper = "Each received file is available to download for 1 to 24 hours after it is sent, depending on its size"
     /// The line directly above the two auto-download pickers.
     public static let autoDownloadHelper = "Download received files automatically up to these sizes"
     public static let filesHeader = "Files"

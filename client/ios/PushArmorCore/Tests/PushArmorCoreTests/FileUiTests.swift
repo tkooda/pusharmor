@@ -8,7 +8,7 @@ final class FileUiTests: XCTestCase {
     let now: Int64 = 1_800_000_000
 
     func testWords() {
-        XCTAssertEqual(FileUi.helper, "Larger files expire sooner, between 1 and 24 hours after they are sent")
+        XCTAssertEqual(FileUi.helper, "Each received file is available to download for 1 to 24 hours after it is sent, depending on its size")
         XCTAssertEqual(FileUi.autoDownloadHelper, "Download received files automatically up to these sizes")
         XCTAssertEqual(FileUi.onWifi, "On Wi-Fi")
         XCTAssertEqual(FileUi.onMobile, "On mobile data")
