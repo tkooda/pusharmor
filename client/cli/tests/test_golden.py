@@ -60,10 +60,11 @@ def test_keys():
         assert b64e(helpers.peer_id(secret, p["account"], kh)) == p["id"]
         assert pa.id_matches(b64d(p["id"]), p["account"], p["sign_pub"], p["enc_pub"])
         assert pa.peer_keys_ok(p["id"], p["account"], p["sign_pub"], p["enc_pub"]) == (p["sign_pub"] != p["enc_pub"])
-        ids = [peer(n)["id"] for n in G["keys"]["peers"]]
-        assert pa.resolve_id(pa.id_hex(p["id"])[:6].upper(), ids) == p["id"]
-        assert pa.resolve_id(p["id"], ids) == p["id"]
-    assert pa.resolve_id("12345", []) is None
+
+
+def test_device_id():
+    for c in G["device_id"]["cases"]:
+        assert pa.device_id(c["id"]) == c["device_id"], c
 
 
 def test_new_key_sign_verify():

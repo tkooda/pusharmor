@@ -89,12 +89,12 @@ def pair_two(monkeypatch, net, a, b, ids=None):
     monkeypatch.setattr(pa, "input", lambda prompt="": "y", raising=False)
     codes = {}
     before = net.count(idb)
-    ta = threading.Thread(target=lambda: codes.__setitem__("a", run(a, "pair", pa.id_hex(idb)[:6])))
+    ta = threading.Thread(target=lambda: codes.__setitem__("a", run(a, "pair", pa.device_id(idb))))
     ta.start()
     end = time.time() + 10
     while net.count(idb) == before and time.time() < end:
         time.sleep(0.02)
-    tb = threading.Thread(target=lambda: codes.__setitem__("b", run(b, "pair", pa.id_hex(ida)[:8])))
+    tb = threading.Thread(target=lambda: codes.__setitem__("b", run(b, "pair", pa.device_id(ida))))
     tb.start()
     ta.join(30)
     tb.join(30)
@@ -129,6 +129,22 @@ def test_send_help_shows_d_and_to(capsys):
     with pytest.raises(SystemExit):
         pa.main(["send", "--help"])
     assert re.search(r"-d( ID)?, --to ID", capsys.readouterr().out)  # Python 3.13 writes the metavar once
+
+
+def test_device_id_must_match_exactly():
+    one = pa.b64e(bytes(9) + bytes.fromhex("0102030405") + bytes(16))
+    two = pa.b64e(bytes(9) + bytes.fromhex("0102030405") + b"\x01" * 16)
+    other = pa.b64e(bytes(9) + bytes.fromhex("0a0b0c0d0e") + bytes(16))
+    cx = type("Cx", (), {"me": other})()
+    d = {"name": "laptop", "peers": {i: {"name": n} for i, n in ((one, "one"), (two, "two"), (other, "x"))}}
+    assert pa.match_device(cx, d, pa.device_id(other), [one, other]) == other
+    for text in (pa.device_id(other).replace("-", ""), pa.id_hex(other)[:6], other, " " + pa.device_id(other)):
+        with pytest.raises(pa.Fail) as e:
+            pa.match_device(cx, d, text, [one, other])
+        assert str(e.value) == 'No device matches "%s". Run `pusharmor devices` to see device IDs.' % text
+    with pytest.raises(pa.Fail) as e:
+        pa.match_device(cx, d, pa.device_id(one), [one, two, other])
+    assert '"one" and "two"' in str(e.value) and pa.device_id(one) in str(e.value)
 
 
 def test_parse_args_per_command():
@@ -444,7 +460,7 @@ def test_typed_text_that_is_not_utf8(net, tmp_path, monkeypatch, capsys):
     assert "The code was not accepted after 3 tries. Run `pusharmor login` to get a new code." in capsys.readouterr().err
     me = login(monkeypatch, tmp_path / "b")
     monkeypatch.setattr(pa, "input", bad, raising=False)
-    assert run(tmp_path / "b", "delete", pa.id_hex(me)[:8]) == 1
+    assert run(tmp_path / "b", "delete", pa.device_id(me)) == 1
     assert "Nothing removed." in capsys.readouterr().out and me in net.peers
 
 
@@ -508,7 +524,7 @@ def test_pair_send_listen(net, tmp_path, monkeypatch, capsys):
 
     assert run(a, "pair") == 0
     listing = capsys.readouterr().out
-    assert "this device" in listing and "paired" in listing and pa.id_hex(idb)[:6] in listing
+    assert "this device" in listing and "paired" in listing and pa.device_id(idb) in listing
 
     # write-ahead counter: n is on disk before the POST reaches the relay server
     n0 = da["peers"][idb]["n"]
@@ -520,7 +536,7 @@ def test_pair_send_listen(net, tmp_path, monkeypatch, capsys):
     assert run(a, "send", "https://example.com/a b") == 0
     del net.hooks[("POST", "send")]
     monkeypatch.setattr(sys, "stdin", Stdin(tty=False, data="line one\n\tline two\n".encode()))
-    assert run(a, "send", "-d", pa.id_hex(idb)[:6]) == 0
+    assert run(a, "send", "-d", pa.device_id(idb)) == 0
     monkeypatch.setattr(sys, "stdin", Stdin())
 
     net.stop.set()
@@ -539,7 +555,7 @@ def test_pair_send_listen(net, tmp_path, monkeypatch, capsys):
 
     # delete the other device: it gets a remove message and wipes itself on receive
     answers(monkeypatch, "y")
-    assert run(a, "delete", pa.id_hex(idb)[:6]) == 0
+    assert run(a, "delete", pa.device_id(idb)) == 0
     assert idb not in net.peers and idb not in state(a)["peers"]
     assert run(b, "listen") == 3
     assert not os.path.exists(b / "keys" / "private.toml")
@@ -556,7 +572,7 @@ def test_device_names_in_stdout_are_in_double_quotes(net, tmp_path, monkeypatch,
     name = state(a)["peers"][idb]["name"]
     prompts = []
     monkeypatch.setattr(pa, "input", lambda prompt="": prompts.append(prompt) or "y", raising=False)
-    assert run(a, "delete", pa.id_hex(idb)[:6]) == 0
+    assert run(a, "delete", pa.device_id(idb)) == 0
     assert prompts == ['Remove "%s" from your account? "%s" must log in again and pair with every device again. '
                        "[y/N] " % (name, name)]
     assert capsys.readouterr().out == 'Removed "%s".\n' % name
@@ -576,23 +592,23 @@ def test_ctrl_d_at_the_fingerprint_prompt_keeps_the_pairing(net, tmp_path, monke
     monkeypatch.setattr(pa, "input", inp, raising=False)
     codes = {}
     before = net.count(idb)
-    ta = threading.Thread(target=lambda: codes.__setitem__("a", run(a, "pair", pa.id_hex(idb)[:6])))
+    ta = threading.Thread(target=lambda: codes.__setitem__("a", run(a, "pair", pa.device_id(idb))))
     ta.start()
     end = time.time() + 10
     while net.count(idb) == before and time.time() < end:
         time.sleep(0.02)
     capsys.readouterr()
-    tb = threading.Thread(target=lambda: codes.__setitem__("b", run(b, "pair", pa.id_hex(ida)[:8])), name="b")
+    tb = threading.Thread(target=lambda: codes.__setitem__("b", run(b, "pair", pa.device_id(ida))), name="b")
     tb.start()
     tb.join(30)
     assert codes.get("b") == 1 and not eof[0]
     err = capsys.readouterr().err
     sid = err.split("Run `pusharmor pair ")[1].split("`")[0]
-    assert "No answer was given. Run `pusharmor pair %s` again.\n" % sid in err and pa.id_hex(ida).startswith(sid)
+    assert "No answer was given. Run `pusharmor pair %s` again.\n" % sid in err and sid == pa.device_id(ida)
     assert not any(m == "POST" and "/deny/" in path for m, path in net.log)
     sb = state(b)
     assert sb["pairs"][ida]["state"] == "shown" and sb["peers"][ida]["pinned"]
-    tb = threading.Thread(target=lambda: codes.__setitem__("b", run(b, "pair", pa.id_hex(ida)[:8])), name="b")
+    tb = threading.Thread(target=lambda: codes.__setitem__("b", run(b, "pair", pa.device_id(ida))), name="b")
     tb.start()
     tb.join(30)
     ta.join(30)
@@ -615,7 +631,7 @@ def test_abort_in_shown_drops_the_pin_and_keeps_the_ruling(net, tmp_path, monkey
     p = state(b)["peers"][ida]
     assert state(b)["pairs"][ida]["c_N"] == pa.b64e(b"d" * 32)
     assert not p["pinned"] and p["pairing_id"] == "" and p["ruling"] == "none"  # the new request clears "denied"
-    assert 'failed. Run: `pusharmor pair %s` to start again.' % pa.id_hex(ida)[:6] in capsys.readouterr().err
+    assert 'failed. Run: `pusharmor pair %s` to start again.' % pa.device_id(ida) in capsys.readouterr().err
 
 
 def pair_with_b_answer(monkeypatch, net, a, b, ida, idb, answer):
@@ -634,12 +650,12 @@ def pair_with_b_answer(monkeypatch, net, a, b, ida, idb, answer):
     monkeypatch.setattr(pa, "input", inp, raising=False)
     codes = {}
     before = net.count(idb)
-    ta = threading.Thread(target=lambda: codes.__setitem__("a", run(a, "pair", pa.id_hex(idb)[:6])), name="a")
+    ta = threading.Thread(target=lambda: codes.__setitem__("a", run(a, "pair", pa.device_id(idb))), name="a")
     ta.start()
     end = time.time() + 10
     while net.count(idb) == before and time.time() < end:
         time.sleep(0.02)
-    tb = threading.Thread(target=lambda: codes.__setitem__("b", run(b, "pair", pa.id_hex(ida)[:8])), name="b")
+    tb = threading.Thread(target=lambda: codes.__setitem__("b", run(b, "pair", pa.device_id(ida))), name="b")
     tb.start()
     tb.join(30)
     ta.join(30)
@@ -698,7 +714,7 @@ def test_rejected_device_is_listed_as_rejected_until_it_asks_again_or_pair_id_ru
     capsys.readouterr()
     assert run(b, "pair") == 0
     out = capsys.readouterr().out
-    row = [l for l in out.splitlines() if pa.id_hex(ida)[:6] in l]
+    row = [l for l in out.splitlines() if pa.device_id(ida) in l]
     assert len(row) == 1 and row[0].endswith("  rejected") and "this device" in out
     assert out.index("this device") < out.index(row[0])
     assert "To pair with a device: pusharmor pair ID" in out
@@ -707,11 +723,11 @@ def test_rejected_device_is_listed_as_rejected_until_it_asks_again_or_pair_id_ru
     assert "  rejected" in capsys.readouterr().out
     # pair ID pairs with the rejected device and clears the denied state
     monkeypatch.setattr(pa, "PAIR_WAIT_S", 1)
-    assert run(b, "pair", pa.id_hex(ida)[:8]) == 1
+    assert run(b, "pair", pa.device_id(ida)) == 1
     assert state(b)["peers"][ida]["ruling"] == "none"
     capsys.readouterr()
     assert run(b, "pair") == 0
-    assert pa.id_hex(ida)[:6] in capsys.readouterr().out
+    assert pa.device_id(ida) in capsys.readouterr().out
 
 
 def test_incoming_request_shows_a_rejected_device_again(net, tmp_path, monkeypatch, capsys):
@@ -725,13 +741,13 @@ def test_incoming_request_shows_a_rejected_device_again(net, tmp_path, monkeypat
     capsys.readouterr()
     assert run(b, "pair") == 0
     out = capsys.readouterr().out
-    assert any(pa.id_hex(ida)[:6] in l and l.endswith("  rejected") for l in out.splitlines())
+    assert any(pa.device_id(ida) in l and l.endswith("  rejected") for l in out.splitlines())
     pa.on_commit(cx, ida, b"d" * 32, "yes")
     assert state(b)["peers"][ida]["ruling"] == "none"
     capsys.readouterr()
     assert run(b, "pair") == 0
     out = capsys.readouterr().out
-    assert pa.id_hex(ida)[:6] in out and "rejected" not in out
+    assert pa.device_id(ida) in out and "rejected" not in out
 
 
 def test_abort_then_decides_the_new_commit(net, tmp_path, monkeypatch, capsys):
@@ -747,8 +763,8 @@ def test_abort_then_decides_the_new_commit(net, tmp_path, monkeypatch, capsys):
     e = state(b)["pairs"][ida]
     assert e["role"] == "X" and e["c_N"] == pa.b64e(b"d" * 32)
     err = capsys.readouterr().err
-    assert 'failed. Run: `pusharmor pair %s` to start again.' % pa.id_hex(ida)[:6] in err
-    assert "wants to pair. Run: `pusharmor pair %s`" % pa.id_hex(ida)[:6] in err
+    assert 'failed. Run: `pusharmor pair %s` to start again.' % pa.device_id(ida) in err
+    assert "wants to pair. Run: `pusharmor pair %s`" % pa.device_id(ida) in err
 
 
 def test_peer_list_opens_stored_remove_messages(net, tmp_path, monkeypatch, capsys):
@@ -760,7 +776,7 @@ def test_peer_list_opens_stored_remove_messages(net, tmp_path, monkeypatch, caps
     # a removes c; the relay server keeps the remove for b, and b reads it from the peer list, not the push
     assert run(a, "pair") == 0  # a lists c
     answers(monkeypatch, "y")
-    assert run(a, "delete", pa.id_hex(idc)[:6]) == 0
+    assert run(a, "delete", pa.device_id(idc)) == 0
     m = net.peers[idb]["rm"].pop(idc)
     net.topics[state(b)["topic"]].pop()  # b missed the push of the remove
     capsys.readouterr()
@@ -880,17 +896,17 @@ def test_pair_timeouts_quote_the_device_name(net, tmp_path, monkeypatch, capsys)
     login(monkeypatch, a)
     idb = login(monkeypatch, b)
     monkeypatch.setattr(pa, "PAIR_WAIT_S", 0.5)
-    assert run(a, "pair", pa.id_hex(idb)[:6]) == 1
+    assert run(a, "pair", pa.device_id(idb)) == 1
     d = state(a)
     d["peers"][idb].update(name="bee", pinned=True)
     d["pairs"][idb]["started"] -= 15 * 86400
     (a / "devices.toml").write_text(pa.toml_dumps(d))
     capsys.readouterr()
-    assert run(a, "pair", pa.id_hex(idb)[:6]) == 1
+    assert run(a, "pair", pa.device_id(idb)) == 1
     err = capsys.readouterr().err
-    assert 'Pairing with "bee" timed out. Run: `pusharmor pair %s` to start again.\n' % pa.id_hex(idb)[:6] in err
+    assert 'Pairing with "bee" timed out. Run: `pusharmor pair %s` to start again.\n' % pa.device_id(idb) in err
     assert ('error: Unable to pair with "bee". It did not answer in time. Run: `pusharmor pair %s` to try again.\n'
-            % pa.id_hex(idb)[:6] in err)
+            % pa.device_id(idb) in err)
     assert 'info: Waiting for "bee". Open PushArmor on it to continue pairing. Press Ctrl+C to stop.\n' in err
 
 
@@ -898,11 +914,11 @@ def test_device_list_shows_a_device_that_wants_to_pair(net, tmp_path, monkeypatc
     a, b = tmp_path / "a", tmp_path / "b"
     ida, idb = login(monkeypatch, a), login(monkeypatch, b)
     monkeypatch.setattr(pa, "PAIR_WAIT_S", 0.5)
-    assert run(a, "pair", pa.id_hex(idb)[:6]) == 1  # a's commit waits in b's push cache
+    assert run(a, "pair", pa.device_id(idb)) == 1  # a's commit waits in b's push cache
     capsys.readouterr()
     for cmd in ("devices", "pair"):
         assert run(b, cmd) == 0
-        row = [x for x in capsys.readouterr().out.splitlines() if x.startswith(pa.id_hex(ida)[:6])]
+        row = [x for x in capsys.readouterr().out.splitlines() if x.startswith(pa.device_id(ida))]
         assert len(row) == 1 and row[0].endswith("  wants to pair"), row
 
 
@@ -917,7 +933,7 @@ def test_another_device_that_wants_to_pair_is_shown_once(net, tmp_path, monkeypa
         notes = [pa.pair_note(cx, d, ida, '"%s" wants to pair. Compare the code: pusharmor pair %s'),
                  pa.pair_note(cx, d, ida, '"%s" wants to pair. Run: `pusharmor pair %s`')]
         name = pa.peer_label(d["peers"][ida])
-    assert notes == [("info", '"%s" also wants to pair. Run: `pusharmor pair %s`' % (name, pa.id_hex(ida)[:6])), None]
+    assert notes == [("info", '"%s" also wants to pair. Run: `pusharmor pair %s`' % (name, pa.device_id(ida))), None]
 
 
 @pytest.mark.skipif(os.name == "nt", reason="no POSIX modes on Windows")
@@ -1203,7 +1219,7 @@ def test_closed_stdin(net, tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(sys, "stdin", None)  # pusharmor ... <&-
     assert run(tmp_path, "send") == 2 and run(tmp_path, "send", "-") == 2
     assert run(tmp_path, "pair", "abcdef") == 2 and run(tmp_path / "new", "login") == 2
-    assert run(tmp_path, "delete", pa.id_hex(me)[:8]) == 2
+    assert run(tmp_path, "delete", pa.device_id(me)) == 2
     assert "Traceback" not in capsys.readouterr().err
 
 
@@ -1220,17 +1236,17 @@ def test_bad_config_path_is_named(net, tmp_path, capsys):
 def test_delete_self(net, tmp_path, monkeypatch):
     pid = login(monkeypatch, tmp_path)
     answers(monkeypatch, "y")
-    assert run(tmp_path, "delete", pa.id_hex(pid)[:6]) == 0
+    assert run(tmp_path, "delete", pa.device_id(pid)) == 0
     assert pid not in net.peers and not os.path.exists(tmp_path / "devices.toml")
 
 
 def test_delete_non_tty_needs_yes(net, tmp_path, monkeypatch, capsys):
     pid = login(monkeypatch, tmp_path)
     monkeypatch.setattr(sys, "stdin", Stdin(tty=False))
-    assert run(tmp_path, "delete", pa.id_hex(pid)[:6]) == 2
+    assert run(tmp_path, "delete", pa.device_id(pid)) == 2
     assert "Removing needs your answer in a terminal. Add --yes to remove without asking." in capsys.readouterr().err
     assert pid in net.peers
-    assert run(tmp_path, "delete", pa.id_hex(pid)[:6], "--yes") == 0
+    assert run(tmp_path, "delete", pa.device_id(pid), "--yes") == 0
     assert pid not in net.peers
 
 
@@ -1922,7 +1938,7 @@ def test_remove_message_for_this_device_is_confirmed_first(net, tmp_path, monkey
 
     net.hooks[("DELETE", "peers")] = keep
     answers(monkeypatch, "y")
-    assert run(a, "delete", pa.id_hex(idb)[:6]) == 0
+    assert run(a, "delete", pa.device_id(idb)) == 0
     net.hooks.clear()
     net.deliver(idb, got[idb])
     net.stop.set()
@@ -2012,7 +2028,7 @@ def test_pair_result_word_is_never_shown_raw(net, tmp_path, monkeypatch, capsys)
     idb = login(monkeypatch, b)
     net.hooks[("POST", "pair")] = lambda *x: net.reply(200, {"r": "denied"})
     capsys.readouterr()
-    assert run(a, "pair", pa.id_hex(idb)[:6]) == 1
+    assert run(a, "pair", pa.device_id(idb)) == 1
     name = pa.peer_label(state(a)["peers"][idb])
     err = capsys.readouterr().err.splitlines()
     assert err[-1] == 'error: Unable to pair with "%s". It is not paired with this device.' % name
@@ -2158,7 +2174,7 @@ def test_peers_list_with_my_relay_fault_is_accepted(net, tmp_path, monkeypatch, 
     capsys.readouterr()
     assert run(a, "pair") == 0
     cap = capsys.readouterr()
-    assert pa.id_hex(idb)[:6] in cap.out and cap.err == ""
+    assert pa.device_id(idb) in cap.out and cap.err == ""
 
 
 def test_command_texts_are_the_approved_sentences(net, tmp_path, monkeypatch, capsys):
@@ -2171,11 +2187,11 @@ def test_command_texts_are_the_approved_sentences(net, tmp_path, monkeypatch, ca
     assert err_of(2, "send") == "error: Unable to send. There is no message to send. Give a message, or pipe text into pusharmor send.\n"
     assert err_of(2, "send", "   ") == "error: Unable to send. The message is empty.\n"
     assert err_of(1, "send", "--to", "abcdef", "hi") == (
-        'error: Unable to send. No device matches "abcdef". Run `pusharmor pair` to see your devices.\n')
+        'error: Unable to send. No device matches "abcdef". Run `pusharmor devices` to see device IDs.\n')
     assert err_of(2, "rename", 'bad "name"') == (
         "error: Unable to rename this device. The name must be 1 to 32 plain ASCII characters, with no double quote.\n")
-    assert err_of(1, "pair", pa.id_hex(me)[:6]) == (
-        'error: Unable to pair with "%s". This is the device you are using. Choose another device.\n' % pa.id_hex(me)[:6])
+    assert err_of(1, "pair", pa.device_id(me)) == (
+        'error: Unable to pair with "%s". This is the device you are using. Choose another device.\n' % pa.device_id(me))
     monkeypatch.setattr(pa, "ntfy_open", lambda url, timeout: (_ for _ in ()).throw(OSError("down")))
     assert err_of(pa.EXIT_TEMP, "listen") == (
         "error: Unable to turn on notifications. The push service at ntfy.sh could not be reached. Check your internet connection and try again.\n")
@@ -2464,11 +2480,11 @@ def test_pair_again_sends_the_open_again_and_says_when_it_fails(net, tmp_path, m
                                                            if path == "/v1/pair/" + hi.id else None)
     lo.pump()  # not in a pair run for hi: no error here
     assert lo.entry(hi)["state"] == "shown"
-    short = pa.id_hex(hi.id)[:6]
+    short = pa.device_id(hi.id)
     assert capsys.readouterr().err.splitlines()[-1] == (
         'warning: Unable to continue pairing with "%s". %s Run: `pusharmor pair %s` to try again.'
         % (pa.peer_label(state(lo.cfg)["peers"][hi.id]), pa.SERVER_DOWN, short))
-    assert run(lo.cfg, "pair", pa.id_hex(hi.id)[:8]) == 1
+    assert run(lo.cfg, "pair", pa.device_id(hi.id)) == 1
     assert capsys.readouterr().err.splitlines()[-1] == 'error: Unable to pair with "%s". %s' % (
         pa.peer_label(state(lo.cfg)["peers"][hi.id]), pa.SERVER_DOWN)
 

@@ -189,15 +189,11 @@ def id_hex(id_b64):
     return b64d(id_b64)[9:].hex()
 
 
-def resolve_id(text, ids):
-    """Id for a full b64url id or a unique id_hex prefix of >= 6 chars, else None."""
-    if text in ids:
-        return text
-    t = text.lower()
-    if len(t) < 6 or not re.fullmatch(r"[0-9a-f]+", t):
-        return None
-    hits = [i for i in ids if id_hex(i).startswith(t)]
-    return hits[0] if len(hits) == 1 else None
+def device_id(id_b64):
+    """Device ID shown to users: id bytes 9..14 (the first 5 keyhash bytes) as a big-endian integer,
+    mod 1000000000, as 9 digits "NNN-NNN-NNN"."""
+    d = "%09d" % (int.from_bytes(b64d(id_b64)[9:14], "big") % 1000000000)
+    return "%s-%s-%s" % (d[:3], d[3:6], d[6:])
 
 
 # ---- signed requests ----
@@ -2012,16 +2008,6 @@ def peer_label(p):
     return "%s device added %s %d" % (platform_label(p["platform"]), MONTHS[t.tm_mon - 1], t.tm_mday)
 
 
-def short_id(i, ids):
-    """6 hex chars, longer only when another id shares the prefix."""
-    h = id_hex(i)
-    others = [id_hex(x) for x in ids if x != i]
-    for n in range(6, len(h)):
-        if not any(o.startswith(h[:n]) for o in others):
-            return h[:n]
-    return h
-
-
 def default_name():
     n = "".join(c for c in socket.gethostname() if NAME_RE.fullmatch(c))[:32].strip()
     return n or "Command line"
@@ -2388,10 +2374,8 @@ def receive_pair(cx, pt):
         if r not in ("sent", "429") and cx.mode == "pair" and frm == cx.target:
             raise Fail(pair_reason(r))  # its fingerprint would never show; pair again sends it
         if r not in ("sent", "429"):
-            with cx.store.state(write=False) as d:
-                sid = short_id(frm, d["peers"])
             log("warning", 'Unable to continue pairing with "%s". %s Run: `pusharmor pair %s` to try again.'
-                % (peer_label(p), pair_reason(r), sid))
+                % (peer_label(p), pair_reason(r), device_id(frm)))
 
 
 def pair_note(cx, d, x, text):
@@ -2404,7 +2388,7 @@ def pair_note(cx, d, x, text):
             return None
         cx.also.add(x)
         text = '"%s" also wants to pair. Run: `pusharmor pair %s`'
-    return ("info", text % (peer_label(d["peers"].get(x)), short_id(x, d["peers"])))
+    return ("info", text % (peer_label(d["peers"].get(x)), device_id(x)))
 
 
 def on_commit(cx, frm, c_n, listed):
@@ -2635,7 +2619,7 @@ def sweep(cx):
                 unpin(p)
                 dropped = True
                 log("info", 'Pairing with "%s" timed out. Run: `pusharmor pair %s` to start again.'
-                    % (peer_label(p), short_id(x, d["peers"])))
+                    % (peer_label(p), device_id(x)))
     if dropped:
         reconcile_allow(cx)
 
@@ -3297,13 +3281,21 @@ def cmd_logout(cx, args):
     return EXIT_OK
 
 
+def match_device(cx, d, text, ids):
+    """The one id in ids whose device ID is exactly text (NNN-NNN-NNN)."""
+    hits = [i for i in ids if device_id(i) == text]
+    if not hits:
+        raise Fail('No device matches "%s". Run `pusharmor devices` to see device IDs.' % text)
+    if len(hits) > 1:
+        names = " and ".join('"%s"' % (d["name"] if i == cx.me else peer_label(d["peers"].get(i))) for i in hits)
+        raise Fail("More than one device has the device ID %s: %s. Remove one of them, then try again."
+                   % (text, names))
+    return hits[0]
+
+
 def resolve_peer(cx, text, with_self=False):
     with cx.store.state(write=False) as d:
-        ids = list(d["peers"]) + ([cx.me] if with_self else [])
-    x = resolve_id(text, ids)
-    if x is None:
-        raise Fail('No device matches "%s". Run `pusharmor pair` to see your devices.' % text)
-    return x
+        return match_device(cx, d, text, list(d["peers"]) + ([cx.me] if with_self else []))
 
 
 def peer_status(p, e):
@@ -3358,15 +3350,14 @@ def pair_list(cx, hint=False):
     resend_waiting(cx)
     drain_cache(cx)
     with cx.store.state(write=False) as d:
-        ids = list(d["peers"]) + [cx.me]
-        rows = [("ID", "NAME", "DEVICE", "STATUS"), (short_id(cx.me, ids), d["name"], "Command line", "this device")]
+        rows = [("ID", "NAME", "DEVICE", "STATUS"), (device_id(cx.me), d["name"], "Command line", "this device")]
         rejected = []
         for pid, p in sorted(d["peers"].items(), key=lambda kv: kv[1]["created"]):
             if p["ruling"] == "denied" and pid not in d["pairs"]:
                 # rejected: listed last until it asks again or pair ID is run
-                rejected.append((short_id(pid, ids), peer_label(p), platform_label(p["platform"]), "rejected"))
+                rejected.append((device_id(pid), peer_label(p), platform_label(p["platform"]), "rejected"))
                 continue
-            rows.append((short_id(pid, ids), peer_label(p), platform_label(p["platform"]),
+            rows.append((device_id(pid), peer_label(p), platform_label(p["platform"]),
                          peer_status(p, d["pairs"].get(pid))))
         rows += rejected
     w = [max(len(r[i]) for r in rows) for i in range(3)]
@@ -3408,7 +3399,7 @@ def cmd_pair(cx, args):
     while True:
         with cx.store.state(write=False) as d:
             p, e = d["peers"].get(x), d["pairs"].get(x)
-            sid = short_id(x, d["peers"])
+            sid = device_id(x)
         name = peer_label(p)
         if p is None:
             raise Fail(SEND_WHY["unknown"])
@@ -3615,9 +3606,7 @@ def seal_to_targets(cx, args, type_, value):
         if args.to:
             targets = []
             for t in args.to:
-                pid = resolve_id(t, list(d["peers"]))
-                if pid is None:
-                    raise Fail('No device matches "%s". Run `pusharmor pair` to see your devices.' % t)
+                pid = match_device(cx, d, t, list(d["peers"]))
                 if pid not in ready:
                     p = d["peers"][pid]
                     why = ("unknown" if p["missing"] else "unapproved" if not (
