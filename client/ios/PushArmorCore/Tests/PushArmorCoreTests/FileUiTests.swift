@@ -43,11 +43,18 @@ final class FileUiTests: XCTestCase {
     }
 
     func testStorage() {
-        XCTAssertEqual(FileUi.storageSizes.map(FileUi.storageLabel), ["100 MB", "500 MB", "1 GB", "5 GB"])
+        XCTAssertEqual(FileUi.storageSizes.map(FileUi.storageLabel), ["100 MB", "500 MB", "1 GB", "5 GB", "10 GB"])
+        XCTAssertEqual(FileUi.storageSizes.last, 10_000_000_000)
+        XCTAssertEqual(FileUi.storageOptions(total: 64_000 * mb).last, 10_000_000_000)
+        XCTAssertEqual(FileUi.storageOptions(total: 8_000 * mb), [100 * mb, 500 * mb, 1_000 * mb, 5_000 * mb])
         XCTAssertEqual(FileUi.storageOptions(total: nil), FileUi.storageSizes)
         XCTAssertEqual(FileUi.storageOptions(total: 2_000 * mb), [100 * mb, 500 * mb, 1_000 * mb])
         XCTAssertEqual(FileUi.storageOptions(total: 50 * mb), [100 * mb])
-        XCTAssertEqual(FileUi.storageLimit(saved: nil, total: 64_000 * mb), 500 * mb)
+        XCTAssertEqual(FileUi.storageLimit(saved: nil, total: 64_000 * mb), 1_000 * mb)
+        XCTAssertEqual(FileUi.storageLimit(saved: nil, total: 700 * mb), 500 * mb)
+        // a saved choice is kept as saved
+        XCTAssertEqual(FileUi.storageLimit(saved: "500000000", total: 64_000 * mb), 500 * mb)
+        XCTAssertEqual(FileUi.storageLimit(saved: "10000000000", total: 64_000 * mb), 10_000 * mb)
         XCTAssertEqual(FileUi.storageLimit(saved: "5000000000", total: 4_000 * mb), 1_000 * mb)
         XCTAssertEqual(FileUi.storageLimit(saved: nil, total: 200 * mb), 100 * mb)
         let files = [FileUi.Stored(id: 1, at: 10, bytes: 300 * mb), FileUi.Stored(id: 2, at: 20, bytes: 300 * mb),

@@ -83,8 +83,8 @@ public enum FileUi {
 
     // MARK: storage limit
 
-    public static let storageSizes: [Int64] = [100_000_000, 500_000_000, 1_000_000_000, 5_000_000_000]
-    public static let defaultStorage: Int64 = 500_000_000
+    public static let storageSizes: [Int64] = [100_000_000, 500_000_000, 1_000_000_000, 5_000_000_000, 10_000_000_000]
+    public static let defaultStorage: Int64 = 1_000_000_000
 
     public static func storageLabel(_ bytes: Int64) -> String {
         bytes >= 1_000_000_000 ? "\(bytes / 1_000_000_000) GB" : "\(bytes / 1_000_000) MB"
@@ -96,7 +96,7 @@ public enum FileUi {
         return o.isEmpty ? [storageSizes[0]] : o
     }
 
-    /// The limit in force: the saved choice (default 500 MB), else the largest choice that fits.
+    /// The limit in force: the saved choice (default 1 GB), else the largest choice that fits.
     public static func storageLimit(saved: String?, total: Int64?) -> Int64 {
         let o = storageOptions(total: total)
         let s = saved.flatMap { Int64($0) } ?? defaultStorage
