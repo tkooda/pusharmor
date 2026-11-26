@@ -61,6 +61,24 @@ Each section's `"description"` says what it holds and what each leg asserts.
 (0..9) are never used; they are the same on every device. Cases: peers `N`,
 `X`, `Z`, two that pad to `000-000-000`, and all-0xff keyhash bytes.
 
+### device_name
+
+`device_name` is the device name rule: ASCII 32..126 except backtick,
+backslash, double quote, `{ } < > | ! $ ; ?`; 1..32 code points; no leading
+`-`; no padding. "Space cleanup" trims leading and trailing spaces and
+collapses each run of spaces to one. Three legs, each over its own list:
+`input_cases` (`checkInput`: space cleanup, then `error` is `null`, "Name too
+short" for empty, else "Invalid characters", also for more than 32; `name` is
+the name to save, `null` on error), `default_cases` (`setupDefault`: curly
+apostrophes to `'`, other disallowed to `?`, space cleanup, leading `-` to
+`?`, cut to 32 code points) and `display_cases` (`display`: disallowed to `?`,
+space cleanup, leading `-` to `?`, empty shown as `?`, no truncation). A
+system name with an empty result is not a default case: each client uses its
+own fallback. `clash_cases` (`uniqueDefault`): a setup default equal to
+another device's name (ignoring ASCII case) gets the suffix ` (N)` with the
+smallest free N >= 2, the base cut to 32 minus the suffix length and trailing
+spaces trimmed. Reference code is in `ref/names.mjs`.
+
 ### Receiver state in message cases
 
 `messages`, `padded_messages` and `must_fail` cases of kind `message` carry

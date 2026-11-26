@@ -4,6 +4,7 @@ import { writeFileSync } from 'node:fs';
 import { deflateRawSync } from 'node:zlib';
 import { b64d, b64e, cat, hexe, sha256 } from './bytes.mjs';
 import { isValidPriv, pubFromPriv, sign } from './p256.mjs';
+import { checkInput, display, setupDefault, uniqueDefault } from './names.mjs';
 import { accountId, cliCode, deviceId, emailHash, keyhash, mailboxKey, myPushSha256, normalizeEmail, oauthNonce, peerId } from './ids.mjs';
 import {
   commitBody, commitHash, crockford20, fingerprintHash, keysBody, pairDecide, pairHint, pairKey,
@@ -79,7 +80,7 @@ function sortKeys(v) {
 
 export function stableJson(v) {
   const s = JSON.stringify(sortKeys(v), null, 2) + '\n';
-  return s.replace(/[\u0080-\uffff]/g, (c) => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'));
+  return s.replace(/[\u007f-\uffff]/g, (c) => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'));
 }
 
 const hpkeInfo = (r) => ({
@@ -237,6 +238,66 @@ function deviceIdSection() {
       'mod 1000000000, zero-padded to 9 decimal digits, written "NNN-NNN-NNN". Never uses the account bytes 0..9. ' +
       'Assert device_id for each case.',
     cases: cases.map((c) => ({ name: c.name, id: b64e(c.id), device_id: deviceId(c.id) })),
+  };
+}
+
+function clashCases() {
+  const b32 = 'Abcdefghijklmnopqrstuvwxyz 12345';
+  const h30 = 'Hello'.repeat(6);
+  const to9 = [b32].concat([2, 3, 4, 5, 6, 7, 8, 9].map((n) => b32.slice(0, 28) + ' (' + n + ')'));
+  return [
+    { base: h30, taken: [] },
+    { base: h30, taken: [h30] },
+    { base: h30, taken: [h30, 'HelloHelloHelloHelloHelloHel (2)'] },
+    { base: 'Pixel 8', taken: [] },
+    { base: 'Pixel 8', taken: ['Tablet'] },
+    { base: 'Pixel 8', taken: ['Pixel 8'] },
+    { base: 'Pixel 8', taken: ['PIXEL 8', 'pixel 8 (2)'] },
+    { base: 'Pixel 8', taken: ['Pixel 8', 'Pixel 8 (3)'] },
+    { base: b32, taken: [b32] },
+    { base: b32, taken: to9 },
+    { base: 'a'.repeat(27) + ' ' + 'bcd', taken: ['a'.repeat(27) + ' ' + 'bcd'] },
+    { base: 'a'.repeat(32), taken: ['a'.repeat(32), 'a'.repeat(28) + ' (2)'] },
+  ];
+}
+
+function deviceNameSection() {
+  const ex = (ch) => 'a' + ch + 'b';
+  const cases = [
+    'Phone', 'My Laptop', '  My   Laptop  ', 'a  b', ' -a', '- a', 'a' + ' '.repeat(40) + 'b', 'a'.repeat(31) + ' b', '   ', 'a', 'x', 'A-b-c', 'a-', ' ', ' a ', 'a?b', '?', 'it\'s', "Tom's phone", 'Caf\u00e9', '\u00e9',
+    ex('`'), ex('\\'), ex('"'), ex('{'), ex('}'), ex('<'), ex('>'), ex('|'), ex('!'), ex('$'), ex(';'), 'a.b,c:d',
+    '-', '-abc', '--a', '\u2018a\u2019', 'Tom\u2019s', 'Tom\u2018s', '\u201cq\u201d', 'a\u2013b\u2014c',
+    '\ud83d\ude00', 'a\ud83d\ude00b', '\ud83d\udc68\u200d\ud83d\udc69', 'e\u0301', 'a\u0300\u0301',
+    'a\tb', 'a\nb', 'a\rb', 'a\x00b', 'a\x1fb', 'a\x7fb', 'a\x80b', '\u00a0', 'a\u00a0b',
+    'a'.repeat(31), 'a'.repeat(32), 'a'.repeat(33), '\u00e9'.repeat(32), '\u00e9'.repeat(33), '\ud83d\ude00'.repeat(32), '\ud83d\ude00'.repeat(33),
+    '-' + 'a'.repeat(32), 'a'.repeat(31) + '\u2019', 'a'.repeat(31) + '\ud83d\ude00' + 'b',
+  ];
+  const defaults = cases.filter((s) => setupDefault(s) !== '');
+  return {
+    description:
+      'Device name rule. Allowed: ASCII 32..126 except backtick, backslash, double quote, { } < > | ! $ ; ?; 1..32 characters; no ' +
+      'leading "-"; no padding. All lengths and positions count Unicode code points (an astral character such as an emoji ' +
+      'is one). "Space cleanup" means: trim leading and trailing spaces and collapse each run of spaces to one; only the ' +
+      'ASCII space 0x20 is a space (tab, newline and U+00A0 are disallowed characters). Three legs, each over its own cases: ' +
+      '(1) input_cases: for a typed name (setup and rename) apply space cleanup, then check: error must equal the error ' +
+      '(null when accepted) and name must equal the name to save (null on error). Empty after cleanup is "Name too short"; ' +
+      'any disallowed character (including every non-ASCII character and control character), a leading "-", or more than ' +
+      '32 code points is "Invalid characters" (the input field stops typing at 32). ' +
+      '(2) default_cases: setupDefault(input) must equal name: per code point U+2018 and U+2019 become "\'", every other ' +
+      'disallowed character becomes "?"; then space cleanup; then a leading "-" becomes "?"; then keep at most the first ' +
+      '32 code points and trim a trailing space left by the cut. A system name whose result is empty is not a case: each ' +
+      'client then uses its own fallback name. ' +
+      '(3) display_cases: display(input) must equal shown: per code point every disallowed character (curly apostrophes ' +
+      'too) becomes "?"; then space cleanup; then a leading "-" becomes "?"; an empty result is shown as "?". No ' +
+      'truncation and no padding. ' +
+      '(4) clash_cases: uniqueDefault(base, taken) must equal name. base is a setup default; taken lists the other ' +
+      'devices\' names. If base equals no taken name ignoring ASCII case, name is base. Else N is the smallest number >= 2 ' +
+      'whose result equals no taken name ignoring ASCII case; suffix is " (N)"; name is base cut to 32 minus the suffix ' +
+      'length code points, trailing spaces trimmed, then the suffix.',
+    clash_cases: clashCases().map((c) => ({ base: c.base, name: uniqueDefault(c.base, c.taken), taken: c.taken })),
+    default_cases: defaults.map((s) => ({ input: s, name: setupDefault(s) })),
+    display_cases: cases.concat(['']).map((s) => ({ input: s, shown: display(s) })),
+    input_cases: cases.concat(['']).map((s) => ({ input: s, ...checkInput(s) })),
   };
 }
 
@@ -1013,6 +1074,7 @@ export function buildGolden() {
     mailbox: mailboxSection(),
     id_order: idOrderSection(),
     device_id: deviceIdSection(),
+    device_name: deviceNameSection(),
     oauth_nonce: nonceSection(),
     cli_code: cliCodeSection(),
     my_push_sha256: pushSection(),

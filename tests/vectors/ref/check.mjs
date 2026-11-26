@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { b64d, b64e, hexd, hexe, sha256 } from './bytes.mjs';
 import { isValidPub, pubFromPriv, sign, verify } from './p256.mjs';
+import { checkInput, display, setupDefault, uniqueDefault } from './names.mjs';
 import { accountId, cliCode, compareIds, deviceId, emailHash, idMatches, keyhash, mailboxKey, myPushSha256, normalizeEmail, oauthNonce, peerId } from './ids.mjs';
 import {
   commitHash, crockford20, fingerprintHash, openMatchesCommit, openPair, pairDecide, pairHint, pairKey, pairingId, pairTimeout,
@@ -87,6 +88,13 @@ test('email_hash', () => {
 
 test('id_order', () => {
   for (const c of G.id_order.cases) assert.equal(compareIds(c.a, c.b) < 0 ? 'a' : 'b', c.lower, c.name);
+});
+
+test('device_name', () => {
+  for (const c of G.device_name.input_cases) assert.deepEqual(checkInput(c.input), { error: c.error, name: c.name }, JSON.stringify(c.input));
+  for (const c of G.device_name.default_cases) assert.equal(setupDefault(c.input), c.name, JSON.stringify(c.input));
+  for (const c of G.device_name.display_cases) assert.equal(display(c.input), c.shown, JSON.stringify(c.input));
+  for (const c of G.device_name.clash_cases) assert.equal(uniqueDefault(c.base, c.taken), c.name, JSON.stringify(c));
 });
 
 test('device_id', () => {

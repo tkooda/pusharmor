@@ -224,6 +224,955 @@
     ],
     "description": "Device ID shown to users: raw id bytes 9..14 (the first 5 keyhash bytes) as a big-endian unsigned integer, mod 1000000000, zero-padded to 9 decimal digits, written \"NNN-NNN-NNN\". Never uses the account bytes 0..9. Assert device_id for each case."
   },
+  "device_name": {
+    "clash_cases": [
+      {
+        "base": "HelloHelloHelloHelloHelloHello",
+        "name": "HelloHelloHelloHelloHelloHello",
+        "taken": []
+      },
+      {
+        "base": "HelloHelloHelloHelloHelloHello",
+        "name": "HelloHelloHelloHelloHelloHel (2)",
+        "taken": [
+          "HelloHelloHelloHelloHelloHello"
+        ]
+      },
+      {
+        "base": "HelloHelloHelloHelloHelloHello",
+        "name": "HelloHelloHelloHelloHelloHel (3)",
+        "taken": [
+          "HelloHelloHelloHelloHelloHello",
+          "HelloHelloHelloHelloHelloHel (2)"
+        ]
+      },
+      {
+        "base": "Pixel 8",
+        "name": "Pixel 8",
+        "taken": []
+      },
+      {
+        "base": "Pixel 8",
+        "name": "Pixel 8",
+        "taken": [
+          "Tablet"
+        ]
+      },
+      {
+        "base": "Pixel 8",
+        "name": "Pixel 8 (2)",
+        "taken": [
+          "Pixel 8"
+        ]
+      },
+      {
+        "base": "Pixel 8",
+        "name": "Pixel 8 (3)",
+        "taken": [
+          "PIXEL 8",
+          "pixel 8 (2)"
+        ]
+      },
+      {
+        "base": "Pixel 8",
+        "name": "Pixel 8 (2)",
+        "taken": [
+          "Pixel 8",
+          "Pixel 8 (3)"
+        ]
+      },
+      {
+        "base": "Abcdefghijklmnopqrstuvwxyz 12345",
+        "name": "Abcdefghijklmnopqrstuvwxyz 1 (2)",
+        "taken": [
+          "Abcdefghijklmnopqrstuvwxyz 12345"
+        ]
+      },
+      {
+        "base": "Abcdefghijklmnopqrstuvwxyz 12345",
+        "name": "Abcdefghijklmnopqrstuvwxyz (10)",
+        "taken": [
+          "Abcdefghijklmnopqrstuvwxyz 12345",
+          "Abcdefghijklmnopqrstuvwxyz 1 (2)",
+          "Abcdefghijklmnopqrstuvwxyz 1 (3)",
+          "Abcdefghijklmnopqrstuvwxyz 1 (4)",
+          "Abcdefghijklmnopqrstuvwxyz 1 (5)",
+          "Abcdefghijklmnopqrstuvwxyz 1 (6)",
+          "Abcdefghijklmnopqrstuvwxyz 1 (7)",
+          "Abcdefghijklmnopqrstuvwxyz 1 (8)",
+          "Abcdefghijklmnopqrstuvwxyz 1 (9)"
+        ]
+      },
+      {
+        "base": "aaaaaaaaaaaaaaaaaaaaaaaaaaa bcd",
+        "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaa (2)",
+        "taken": [
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaa bcd"
+        ]
+      },
+      {
+        "base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa (3)",
+        "taken": [
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaa (2)"
+        ]
+      }
+    ],
+    "default_cases": [
+      {
+        "input": "Phone",
+        "name": "Phone"
+      },
+      {
+        "input": "My Laptop",
+        "name": "My Laptop"
+      },
+      {
+        "input": "  My   Laptop  ",
+        "name": "My Laptop"
+      },
+      {
+        "input": "a  b",
+        "name": "a b"
+      },
+      {
+        "input": " -a",
+        "name": "?a"
+      },
+      {
+        "input": "- a",
+        "name": "? a"
+      },
+      {
+        "input": "a                                        b",
+        "name": "a b"
+      },
+      {
+        "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa b",
+        "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "input": "a",
+        "name": "a"
+      },
+      {
+        "input": "x",
+        "name": "x"
+      },
+      {
+        "input": "A-b-c",
+        "name": "A-b-c"
+      },
+      {
+        "input": "a-",
+        "name": "a-"
+      },
+      {
+        "input": " a ",
+        "name": "a"
+      },
+      {
+        "input": "a?b",
+        "name": "a?b"
+      },
+      {
+        "input": "?",
+        "name": "?"
+      },
+      {
+        "input": "it's",
+        "name": "it's"
+      },
+      {
+        "input": "Tom's phone",
+        "name": "Tom's phone"
+      },
+      {
+        "input": "Caf\u00e9",
+        "name": "Caf?"
+      },
+      {
+        "input": "\u00e9",
+        "name": "?"
+      },
+      {
+        "input": "a`b",
+        "name": "a?b"
+      },
+      {
+        "input": "a\\b",
+        "name": "a?b"
+      },
+      {
+        "input": "a\"b",
+        "name": "a?b"
+      },
+      {
+        "input": "a{b",
+        "name": "a?b"
+      },
+      {
+        "input": "a}b",
+        "name": "a?b"
+      },
+      {
+        "input": "a<b",
+        "name": "a?b"
+      },
+      {
+        "input": "a>b",
+        "name": "a?b"
+      },
+      {
+        "input": "a|b",
+        "name": "a?b"
+      },
+      {
+        "input": "a!b",
+        "name": "a?b"
+      },
+      {
+        "input": "a$b",
+        "name": "a?b"
+      },
+      {
+        "input": "a;b",
+        "name": "a?b"
+      },
+      {
+        "input": "a.b,c:d",
+        "name": "a.b,c:d"
+      },
+      {
+        "input": "-",
+        "name": "?"
+      },
+      {
+        "input": "-abc",
+        "name": "?abc"
+      },
+      {
+        "input": "--a",
+        "name": "?-a"
+      },
+      {
+        "input": "\u2018a\u2019",
+        "name": "'a'"
+      },
+      {
+        "input": "Tom\u2019s",
+        "name": "Tom's"
+      },
+      {
+        "input": "Tom\u2018s",
+        "name": "Tom's"
+      },
+      {
+        "input": "\u201cq\u201d",
+        "name": "?q?"
+      },
+      {
+        "input": "a\u2013b\u2014c",
+        "name": "a?b?c"
+      },
+      {
+        "input": "\ud83d\ude00",
+        "name": "?"
+      },
+      {
+        "input": "a\ud83d\ude00b",
+        "name": "a?b"
+      },
+      {
+        "input": "\ud83d\udc68\u200d\ud83d\udc69",
+        "name": "???"
+      },
+      {
+        "input": "e\u0301",
+        "name": "e?"
+      },
+      {
+        "input": "a\u0300\u0301",
+        "name": "a??"
+      },
+      {
+        "input": "a\tb",
+        "name": "a?b"
+      },
+      {
+        "input": "a\nb",
+        "name": "a?b"
+      },
+      {
+        "input": "a\rb",
+        "name": "a?b"
+      },
+      {
+        "input": "a\u0000b",
+        "name": "a?b"
+      },
+      {
+        "input": "a\u001fb",
+        "name": "a?b"
+      },
+      {
+        "input": "a\u007fb",
+        "name": "a?b"
+      },
+      {
+        "input": "a\u0080b",
+        "name": "a?b"
+      },
+      {
+        "input": "\u00a0",
+        "name": "?"
+      },
+      {
+        "input": "a\u00a0b",
+        "name": "a?b"
+      },
+      {
+        "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "input": "\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9",
+        "name": "????????????????????????????????"
+      },
+      {
+        "input": "\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9",
+        "name": "????????????????????????????????"
+      },
+      {
+        "input": "\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00",
+        "name": "????????????????????????????????"
+      },
+      {
+        "input": "\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00",
+        "name": "????????????????????????????????"
+      },
+      {
+        "input": "-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "name": "?aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u2019",
+        "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'"
+      },
+      {
+        "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\ud83d\ude00b",
+        "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa?"
+      }
+    ],
+    "description": "Device name rule. Allowed: ASCII 32..126 except backtick, backslash, double quote, { } < > | ! $ ; ?; 1..32 characters; no leading \"-\"; no padding. All lengths and positions count Unicode code points (an astral character such as an emoji is one). \"Space cleanup\" means: trim leading and trailing spaces and collapse each run of spaces to one; only the ASCII space 0x20 is a space (tab, newline and U+00A0 are disallowed characters). Three legs, each over its own cases: (1) input_cases: for a typed name (setup and rename) apply space cleanup, then check: error must equal the error (null when accepted) and name must equal the name to save (null on error). Empty after cleanup is \"Name too short\"; any disallowed character (including every non-ASCII character and control character), a leading \"-\", or more than 32 code points is \"Invalid characters\" (the input field stops typing at 32). (2) default_cases: setupDefault(input) must equal name: per code point U+2018 and U+2019 become \"'\", every other disallowed character becomes \"?\"; then space cleanup; then a leading \"-\" becomes \"?\"; then keep at most the first 32 code points and trim a trailing space left by the cut. A system name whose result is empty is not a case: each client then uses its own fallback name. (3) display_cases: display(input) must equal shown: per code point every disallowed character (curly apostrophes too) becomes \"?\"; then space cleanup; then a leading \"-\" becomes \"?\"; an empty result is shown as \"?\". No truncation and no padding. (4) clash_cases: uniqueDefault(base, taken) must equal name. base is a setup default; taken lists the other devices' names. If base equals no taken name ignoring ASCII case, name is base. Else N is the smallest number >= 2 whose result equals no taken name ignoring ASCII case; suffix is \" (N)\"; name is base cut to 32 minus the suffix length code points, trailing spaces trimmed, then the suffix.",
+    "display_cases": [
+      {
+        "input": "Phone",
+        "shown": "Phone"
+      },
+      {
+        "input": "My Laptop",
+        "shown": "My Laptop"
+      },
+      {
+        "input": "  My   Laptop  ",
+        "shown": "My Laptop"
+      },
+      {
+        "input": "a  b",
+        "shown": "a b"
+      },
+      {
+        "input": " -a",
+        "shown": "?a"
+      },
+      {
+        "input": "- a",
+        "shown": "? a"
+      },
+      {
+        "input": "a                                        b",
+        "shown": "a b"
+      },
+      {
+        "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa b",
+        "shown": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa b"
+      },
+      {
+        "input": "   ",
+        "shown": "?"
+      },
+      {
+        "input": "a",
+        "shown": "a"
+      },
+      {
+        "input": "x",
+        "shown": "x"
+      },
+      {
+        "input": "A-b-c",
+        "shown": "A-b-c"
+      },
+      {
+        "input": "a-",
+        "shown": "a-"
+      },
+      {
+        "input": " ",
+        "shown": "?"
+      },
+      {
+        "input": " a ",
+        "shown": "a"
+      },
+      {
+        "input": "a?b",
+        "shown": "a?b"
+      },
+      {
+        "input": "?",
+        "shown": "?"
+      },
+      {
+        "input": "it's",
+        "shown": "it's"
+      },
+      {
+        "input": "Tom's phone",
+        "shown": "Tom's phone"
+      },
+      {
+        "input": "Caf\u00e9",
+        "shown": "Caf?"
+      },
+      {
+        "input": "\u00e9",
+        "shown": "?"
+      },
+      {
+        "input": "a`b",
+        "shown": "a?b"
+      },
+      {
+        "input": "a\\b",
+        "shown": "a?b"
+      },
+      {
+        "input": "a\"b",
+        "shown": "a?b"
+      },
+      {
+        "input": "a{b",
+        "shown": "a?b"
+      },
+      {
+        "input": "a}b",
+        "shown": "a?b"
+      },
+      {
+        "input": "a<b",
+        "shown": "a?b"
+      },
+      {
+        "input": "a>b",
+        "shown": "a?b"
+      },
+      {
+        "input": "a|b",
+        "shown": "a?b"
+      },
+      {
+        "input": "a!b",
+        "shown": "a?b"
+      },
+      {
+        "input": "a$b",
+        "shown": "a?b"
+      },
+      {
+        "input": "a;b",
+        "shown": "a?b"
+      },
+      {
+        "input": "a.b,c:d",
+        "shown": "a.b,c:d"
+      },
+      {
+        "input": "-",
+        "shown": "?"
+      },
+      {
+        "input": "-abc",
+        "shown": "?abc"
+      },
+      {
+        "input": "--a",
+        "shown": "?-a"
+      },
+      {
+        "input": "\u2018a\u2019",
+        "shown": "?a?"
+      },
+      {
+        "input": "Tom\u2019s",
+        "shown": "Tom?s"
+      },
+      {
+        "input": "Tom\u2018s",
+        "shown": "Tom?s"
+      },
+      {
+        "input": "\u201cq\u201d",
+        "shown": "?q?"
+      },
+      {
+        "input": "a\u2013b\u2014c",
+        "shown": "a?b?c"
+      },
+      {
+        "input": "\ud83d\ude00",
+        "shown": "?"
+      },
+      {
+        "input": "a\ud83d\ude00b",
+        "shown": "a?b"
+      },
+      {
+        "input": "\ud83d\udc68\u200d\ud83d\udc69",
+        "shown": "???"
+      },
+      {
+        "input": "e\u0301",
+        "shown": "e?"
+      },
+      {
+        "input": "a\u0300\u0301",
+        "shown": "a??"
+      },
+      {
+        "input": "a\tb",
+        "shown": "a?b"
+      },
+      {
+        "input": "a\nb",
+        "shown": "a?b"
+      },
+      {
+        "input": "a\rb",
+        "shown": "a?b"
+      },
+      {
+        "input": "a\u0000b",
+        "shown": "a?b"
+      },
+      {
+        "input": "a\u001fb",
+        "shown": "a?b"
+      },
+      {
+        "input": "a\u007fb",
+        "shown": "a?b"
+      },
+      {
+        "input": "a\u0080b",
+        "shown": "a?b"
+      },
+      {
+        "input": "\u00a0",
+        "shown": "?"
+      },
+      {
+        "input": "a\u00a0b",
+        "shown": "a?b"
+      },
+      {
+        "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "shown": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "shown": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "shown": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "input": "\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9",
+        "shown": "????????????????????????????????"
+      },
+      {
+        "input": "\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9",
+        "shown": "?????????????????????????????????"
+      },
+      {
+        "input": "\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00",
+        "shown": "????????????????????????????????"
+      },
+      {
+        "input": "\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00",
+        "shown": "?????????????????????????????????"
+      },
+      {
+        "input": "-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "shown": "?aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u2019",
+        "shown": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa?"
+      },
+      {
+        "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\ud83d\ude00b",
+        "shown": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa?b"
+      },
+      {
+        "input": "",
+        "shown": "?"
+      }
+    ],
+    "input_cases": [
+      {
+        "error": null,
+        "input": "Phone",
+        "name": "Phone"
+      },
+      {
+        "error": null,
+        "input": "My Laptop",
+        "name": "My Laptop"
+      },
+      {
+        "error": null,
+        "input": "  My   Laptop  ",
+        "name": "My Laptop"
+      },
+      {
+        "error": null,
+        "input": "a  b",
+        "name": "a b"
+      },
+      {
+        "error": "Invalid characters",
+        "input": " -a",
+        "name": null
+      },
+      {
+        "error": "Invalid characters",
+        "input": "- a",
+        "name": null
+      },
+      {
+        "error": null,
+        "input": "a                                        b",
+        "name": "a b"
+      },
+      {
+        "error": "Invalid characters",
+        "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa b",
+        "name": null
+      },
+      {
+        "error": "Name too short",
+        "input": "   ",
+        "name": null
+      },
+      {
+        "error": null,
+        "input": "a",
+        "name": "a"
+      },
+      {
+        "error": null,
+        "input": "x",
+        "name": "x"
+      },
+      {
+        "error": null,
+        "input": "A-b-c",
+        "name": "A-b-c"
+      },
+      {
+        "error": null,
+        "input": "a-",
+        "name": "a-"
+      },
+      {
+        "error": "Name too short",
+        "input": " ",
+        "name": null
+      },
+      {
+        "error": null,
+        "input": " a ",
+        "name": "a"
+      },
+      {
+        "error": "Invalid characters",
+        "input": "a?b",
+        "name": null
+      },
+      {
+        "error": "Invalid characters",
+        "input": "?",
+        "name": null
+      },
+      {
+        "error": null,
+        "input": "it's",
+        "name": "it's"
+      },
+      {
+        "error": null,
+        "input": "Tom's phone",
+        "name": "Tom's phone"
+      },
+      {
+        "error": "Invalid characters",
+        "input": "Caf\u00e9",
+        "name": null
+      },
+      {
+        "error": "Invalid characters",
+        "input": "\u00e9",
+        "name": null
+      },
+      {
+        "error": "Invalid characters",
+        "input": "a`b",
+        "name": null
+      },
+      {
+        "error": "Invalid characters",
+        "input": "a\\b",
+        "name": null
+      },
+      {
+        "error": "Invalid characters",
+        "input": "a\"b",
+        "name": null
+      },
+      {
+        "error": "Invalid characters",
+        "input": "a{b",
+        "name": null
+      },
+      {
+        "error": "Invalid characters",
+        "input": "a}b",
+        "name": null
+      },
+      {
+        "error": "Invalid characters",
+        "input": "a<b",
+        "name": null
+      },
+      {
+        "error": "Invalid characters",
+        "input": "a>b",
+        "name": null
+      },
+      {
+        "error": "Invalid characters",
+        "input": "a|b",
+        "name": null
+      },
+      {
+        "error": "Invalid characters",
+        "input": "a!b",
+        "name": null
+      },
+      {
+        "error": "Invalid characters",
+        "input": "a$b",
+        "name": null
+      },
+      {
+        "error": "Invalid characters",
+        "input": "a;b",
+        "name": null
+      },
+      {
+        "error": null,
+        "input": "a.b,c:d",
+        "name": "a.b,c:d"
+      },
+      {
+        "error": "Invalid characters",
+        "input": "-",
+        "name": null
+      },
+      {
+        "error": "Invalid characters",
+        "input": "-abc",
+        "name": null
+      },
+      {
+        "error": "Invalid characters",
+        "input": "--a",
+        "name": null
+      },
+      {
+        "error": "Invalid characters",
+        "input": "\u2018a\u2019",
+        "name": null
+      },
+      {
+        "error": "Invalid characters",
+        "input": "Tom\u2019s",
+        "name": null
+      },
+      {
+        "error": "Invalid characters",
+        "input": "Tom\u2018s",
+        "name": null
+      },
+      {
+        "error": "Invalid characters",
+        "input": "\u201cq\u201d",
+        "name": null
+      },
+      {
+        "error": "Invalid characters",
+        "input": "a\u2013b\u2014c",
+        "name": null
+      },
+      {
+        "error": "Invalid characters",
+        "input": "\ud83d\ude00",
+        "name": null
+      },
+      {
+        "error": "Invalid characters",
+        "input": "a\ud83d\ude00b",
+        "name": null
+      },
+      {
+        "error": "Invalid characters",
+        "input": "\ud83d\udc68\u200d\ud83d\udc69",
+        "name": null
+      },
+      {
+        "error": "Invalid characters",
+        "input": "e\u0301",
+        "name": null
+      },
+      {
+        "error": "Invalid characters",
+        "input": "a\u0300\u0301",
+        "name": null
+      },
+      {
+        "error": "Invalid characters",
+        "input": "a\tb",
+        "name": null
+      },
+      {
+        "error": "Invalid characters",
+        "input": "a\nb",
+        "name": null
+      },
+      {
+        "error": "Invalid characters",
+        "input": "a\rb",
+        "name": null
+      },
+      {
+        "error": "Invalid characters",
+        "input": "a\u0000b",
+        "name": null
+      },
+      {
+        "error": "Invalid characters",
+        "input": "a\u001fb",
+        "name": null
+      },
+      {
+        "error": "Invalid characters",
+        "input": "a\u007fb",
+        "name": null
+      },
+      {
+        "error": "Invalid characters",
+        "input": "a\u0080b",
+        "name": null
+      },
+      {
+        "error": "Invalid characters",
+        "input": "\u00a0",
+        "name": null
+      },
+      {
+        "error": "Invalid characters",
+        "input": "a\u00a0b",
+        "name": null
+      },
+      {
+        "error": null,
+        "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "error": null,
+        "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "error": "Invalid characters",
+        "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "name": null
+      },
+      {
+        "error": "Invalid characters",
+        "input": "\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9",
+        "name": null
+      },
+      {
+        "error": "Invalid characters",
+        "input": "\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9",
+        "name": null
+      },
+      {
+        "error": "Invalid characters",
+        "input": "\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00",
+        "name": null
+      },
+      {
+        "error": "Invalid characters",
+        "input": "\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00",
+        "name": null
+      },
+      {
+        "error": "Invalid characters",
+        "input": "-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "name": null
+      },
+      {
+        "error": "Invalid characters",
+        "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u2019",
+        "name": null
+      },
+      {
+        "error": "Invalid characters",
+        "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\ud83d\ude00b",
+        "name": null
+      },
+      {
+        "error": "Name too short",
+        "input": "",
+        "name": null
+      }
+    ]
+  },
   "email_hash": {
     "cases": [
       {
