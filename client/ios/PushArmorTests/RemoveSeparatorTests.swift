@@ -1,7 +1,8 @@
 import XCTest
 
-/// The device card menu: a stock separator sits directly above "Remove device from account",
-/// so it is set apart from the switches (and from Delete on a missing device).
+/// The device card menu: one stock separator sets the device actions apart from the switches.
+/// It sits directly above "Remove device from account", or on a missing device directly above
+/// "Delete", with Delete and Remove together under it.
 final class RemoveSeparatorTests: XCTestCase {
     func testSeparatorDirectlyAboveRemove() throws {
         let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
@@ -16,7 +17,8 @@ final class RemoveSeparatorTests: XCTestCase {
         XCTAssertEqual(close, remove - 1)
         let open = try XCTUnwrap(lines[..<close].lastIndex(of: "if p.missing {"))
         XCTAssertEqual(lines[open - 1], "Divider()")
-        // missing: Delete, then a separator, then Remove
-        XCTAssertEqual(Array(lines[(open + 1)..<close]), ["Button(\"Delete\") { confirmDelete = true }", "Divider()"])
+        // missing: the separator, Delete, then Remove with no separator between them
+        XCTAssertEqual(Array(lines[(open + 1)..<close]), ["Button(\"Delete\") { confirmDelete = true }"])
+        XCTAssertEqual(lines.filter { $0 == "Divider()" }.count, 1)
     }
 }
