@@ -34,6 +34,10 @@ class AppLogicTest {
         assertEquals(listOf("send", "history", "peers", "settings"), com.pusharmor.app.ui.NAV_TABS.map { it.first })
     }
 
+    @Test fun iosPlatformLabel() {
+        assertEquals("iOS", AppEffects.platformLabel("ios"))
+    }
+
     @Test fun cliPlatformLabelAndIcon() {
         assertEquals("Command line", AppEffects.platformLabel("cli"))
         assertEquals(PaIcons.Terminal, platformIcon("cli"))

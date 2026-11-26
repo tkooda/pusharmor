@@ -63,7 +63,7 @@ class AppEffects(private val g: Graph, private val fcm: Boolean) : Effects {
     override fun selfRemoved(deleted: Boolean) { g.session.onRemovedSignal(deleted = deleted) }
 
     companion object {
-        fun platformLabel(p: String) = when (p) { "android" -> "Android"; "ios" -> "iPhone"; "chrome" -> "Chrome"; "firefox" -> "Firefox"; "cli" -> "Command line"; else -> p }
+        fun platformLabel(p: String) = when (p) { "android" -> "Android"; "ios" -> "iOS"; "chrome" -> "Chrome"; "firefox" -> "Firefox"; "cli" -> "Command line"; else -> p }
         fun dateLabel(created: Long): String = java.text.SimpleDateFormat("MMM d", java.util.Locale.US).format(java.util.Date(created * 1000))
     }
 }
