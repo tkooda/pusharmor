@@ -10,7 +10,7 @@ import { Login, type Purpose } from "./login.ts";
 import { type Files, fileKey } from "./files.ts";
 import { displayName } from "../model/names.ts";
 import { PAIR_AGAIN_PREFIX, PAIR_MSG_PREFIX, allEntries } from "./state.ts";
-import { type ActionId, T, peerLabel, pushVendor, rowLabel } from "./texts.ts";
+import { type ActionId, T, clashLabels, peerLabel, pushVendor, rowLabel } from "./texts.ts";
 
 export interface Req {
   op: string;
@@ -403,11 +403,15 @@ export class Rpc {
     const e = this.e;
     const waiting = await e.settleDeletes();
     const peers = new Map((await e.db.peers()).map((p) => [p.id, p]));
-    const short = await e.nameOnlyLabels();
     const f = e.files as Files | null;
     const here = f ? await f.here().catch(() => new Set<string>()) : new Set<string>();
     // no device status rows: those an older version stored stay in the database, unlisted
-    return (await e.db.history()).filter((r) => !isStatusRow(r)).map((r) => {
+    const rows = (await e.db.history()).filter((r) => !isStatusRow(r));
+    // a name gets its ID only when another device named in History shows the same name
+    const self = await e.self();
+    const named = new Set(rows.map((r) => r.peer ?? (r.dir === "out" && r.targets?.length === 1 ? r.targets[0]! : null)));
+    const short = clashLabels([...peers.values()].filter((p) => named.has(p.id) && !p.removed && p.id !== self?.id).map((p) => ({ id: p.id, label: rowLabel(p) })));
+    return rows.map((r) => {
       const p = r.peer ? peers.get(r.peer) : undefined;
       let sender: string = T.unknownSender;
       if (r.peer) {

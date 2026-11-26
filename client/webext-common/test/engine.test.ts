@@ -2064,6 +2064,58 @@ test("duplicate names: name-only labels add the ID on a clash, Rename refuses an
   assert.equal(await a.e.myName(), "Chrome (2)");
 });
 
+test("duplicate names: the ID shows only on a clash among the devices that place lists (Devices screen; History)", async () => {
+  const { clock, w, a, b } = await setup();
+  const c = await device(w, clock);
+  await pairAndApprove(w, a, b);
+  await pairAndApprove(w, a, c);
+  const bid = deviceId(b64urlDecode(b.id));
+  const cRow = (await a.db.peer(c.id))!;
+  const set = (x: Partial<typeof cRow>) => a.db.put("peers", { ...cRow, ...x });
+  // the devices the Devices screen draws (renderPeers): none under Rejected devices; with no paired device, no hidden one and only waiting or pairing
+  const drawn = async () => {
+    const v = (await new Rpc(a.e).peers()).peers;
+    const listed = v.filter((p) => !p.rejected);
+    return (v.some((p) => p.paired) ? listed : listed.filter((p) => !p.hidden && (p.section === "waiting" || p.section === "pairing"))).map((p) => p.id).sort();
+  };
+  const shown = async () => (await a.e.devicesShown()).map((p) => p.id).sort();
+  const chipB = async () => (await new Rpc(a.e).peers()).peers.find((v) => v.id === b.id)!.chip;
+  // both paired, both shown: the clash shows
+  assert.deepEqual(await shown(), await drawn());
+  assert.equal(await chipB(), "Chrome (" + bid + ")");
+  // c rejected: listed only under Rejected devices, so b reads its plain name in chips, menus, and notifications
+  await set({ pinned: false, ruling: "denied", approves_me: false });
+  assert.deepEqual(await shown(), await drawn());
+  assert.deepEqual(await shown(), [b.id]);
+  assert.equal(await chipB(), "Chrome");
+  assert.equal((await a.e.nameOnlyLabels()).get(b.id), "Chrome");
+  assert.equal(await a.e.peerName(b.id), "Chrome");
+  await a.e.rebuildMenus();
+  assert.deepEqual(a.p.menus.filter((m) => m.id === b.id).map((m) => m.name), ["Chrome"]);
+  // c hidden from Send but paired: the Devices screen still lists it, so the clash shows
+  await set({ hidden: true });
+  assert.deepEqual(await shown(), await drawn());
+  assert.equal(await chipB(), "Chrome (" + bid + ")");
+  // nothing paired: a hidden device waiting to pair is not listed, so no clash
+  const bRow = (await a.db.peer(b.id))!;
+  await a.db.put("peers", { ...bRow, pinned: false, ruling: "none", approves_me: false });
+  await set({ hidden: true, pinned: false, ruling: "none", approves_me: false });
+  assert.deepEqual(await shown(), await drawn());
+  assert.deepEqual(await shown(), [b.id]);
+  assert.equal(await chipB(), "Chrome");
+  // History: only the devices History names clash; c is paired and shown, but only b appears in History
+  await a.db.put("peers", bRow);
+  await set({});
+  assert.equal(await chipB(), "Chrome (" + bid + ")");
+  await a.db.addHistory({ dir: "in", peer: b.id, type: "text", content: "hi", n: 1, pairing_id: null, received: clock.t, read: true });
+  await a.db.addHistory({ dir: "out", peer: null, type: "text", content: "yo", n: 1, pairing_id: null, received: clock.t, read: true, targets: [b.id], results: { [b.id]: "sent" } });
+  assert.deepEqual((await new Rpc(a.e).history()).map((r) => r.sender), ["Chrome", "Chrome"]);
+  // once c appears in History too, both History names carry the ID
+  await a.db.addHistory({ dir: "in", peer: c.id, type: "text", content: "c", n: 2, pairing_id: null, received: clock.t, read: true });
+  const cid = deviceId(b64urlDecode(c.id));
+  assert.deepEqual((await new Rpc(a.e).history()).map((r) => r.sender).sort(), ["Chrome (" + bid + ")", "Chrome (" + bid + ")", "Chrome (" + cid + ")"].sort());
+});
+
 test("clashLabels: only names equal ignoring case get the ID", async () => {
   const { clashLabels } = await import("../src/core/texts.ts");
   const id = (n: number) => b64urlEncode(new Uint8Array(30).fill(n));
