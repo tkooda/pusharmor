@@ -673,6 +673,8 @@ struct PeerMenuItems: View {
         Divider()
         if p.missing {
             Button("Delete") { confirmDelete = true }
+            // Remove stays set apart, under its own separator
+            Divider()
         }
         Button("Remove device from account", role: .destructive) { confirmRemove = true }
             .disabled(model.busy.contains("remove:" + p.id.text))
