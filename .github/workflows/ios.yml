@@ -385,7 +385,9 @@ jobs:
 
   # The UI tests in three shards of about equal time, with the products of
   # ios-build-for-testing. The last two shards skip what the others name, so a
-  # new test class or BrandScreensTests method is never missed.
+  # new test class or BrandScreensTests method is never missed. The ipad shard
+  # runs IPadLayoutTests on an iPad simulator (it skips itself on an iPhone) and
+  # fails when a test was skipped or none passed.
   ios-ui-test:
     name: UI tests (newest simulator, ${{ matrix.shard }})
     needs: ios-build-for-testing
@@ -419,7 +421,10 @@ jobs:
               -skip-testing:PushArmorUITests/BrandScreensTests/testRenameIsInline
               -skip-testing:PushArmorUITests/BrandScreensTests/testContentSwitchAndAccountRow
           - shard: rest
-            filter: -only-testing:PushArmorUITests -skip-testing:PushArmorUITests/BrandScreensTests
+            filter: -only-testing:PushArmorUITests -skip-testing:PushArmorUITests/BrandScreensTests -skip-testing:PushArmorUITests/IPadLayoutTests
+          - shard: ipad
+            device: iPad Pro 13-inch (M4)
+            filter: -only-testing:PushArmorUITests/IPadLayoutTests
     permissions: {}
     steps:
       - name: Select and assert Xcode
@@ -431,9 +436,12 @@ jobs:
           printf '%s\n' "$v" | grep -qx "$XCODE_VERSION"
           printf '%s\n' "$v" | grep -qx "$XCODE_BUILD"
       - name: Simulator present
+        env:
+          DEVICE: ${{ matrix.device }}
         run: |
           xcrun simctl list runtimes | grep -q '^iOS 26\.' || { echo "no iOS 26 simulator runtime"; exit 1; }
-          xcrun simctl list devices available | grep -qF "    $SIM_NAME (" || { echo "no $SIM_NAME simulator"; exit 1; }
+          d="${DEVICE:-$SIM_NAME}"
+          xcrun simctl list devices available | grep -qF "    $d (" || { echo "no $d simulator"; xcrun simctl list devices available; exit 1; }
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: ios-test-products
@@ -445,13 +453,24 @@ jobs:
       - name: xcodebuild test-without-building (${{ matrix.shard }})
         env:
           FILTER: ${{ matrix.filter }}
+          DEVICE: ${{ matrix.device }}
         run: |
           set -- "$RUNNER_TEMP"/dd/Products/*.xctestrun
           if [ "$#" != 1 ] || [ ! -f "$1" ]; then echo "want one .xctestrun file, found: $*"; exit 1; fi
           # shellcheck disable=SC2086
           xcodebuild test-without-building -xctestrun "$1" \
-            -destination "platform=iOS Simulator,name=$SIM_NAME,OS=latest" \
+            -destination "platform=iOS Simulator,name=${DEVICE:-$SIM_NAME},OS=latest" \
             $FILTER -resultBundlePath "$RUNNER_TEMP/PushArmor.xcresult"
+      - name: No skipped iPad tests
+        if: ${{ matrix.shard == 'ipad' }}
+        run: |
+          xcrun xcresulttool get test-results summary --path "$RUNNER_TEMP/PushArmor.xcresult" | python3 -I -c '
+          import json, sys
+          s = json.load(sys.stdin)
+          print("passed %d skipped %d failed %d" % (s["passedTests"], s["skippedTests"], s["failedTests"]))
+          if s["skippedTests"] or not s["passedTests"]:
+              sys.exit("IPadLayoutTests did not run on the iPad simulator")
+          '
       - name: Upload the result bundle
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

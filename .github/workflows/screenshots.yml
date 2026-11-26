@@ -3,8 +3,8 @@ name: screenshots
 # Store screenshots with sample data, on manual dispatch only. Each job runs the
 # debug-only screenshot mode of its client (no Worker call, generic sample peers
 # and example.com links), checks the PNGs with release/check-screenshots.mjs
-# (the iOS job also takes iPad shots, uploaded as screenshots-ipad)
-# (flattened to RGB first) and uploads them as screenshots-<platform>. Review images of the
+# (flattened to RGB first) and uploads them as screenshots-<platform>. The iOS job
+# also takes 13-inch iPad shots, uploaded as screenshots-ipad. Review images of the
 # sign-in and Settings screens (names 9N-*, not store shots) go to a separate review-<platform>.
 # With ios_all_screens only the iOS job runs: every screen in light and dark (not store shots,
 # not checked) goes to screens-ios.
@@ -165,6 +165,9 @@ jobs:
           path: ${{ runner.temp }}/review/ios/
           retention-days: 14
           if-no-files-found: error
+      - name: iPad simulators on this runner
+        if: ${{ !inputs.ios_all_screens }}
+        run: xcrun simctl list devices available | grep -F "iPad" || true
       - name: iPad screenshots on the simulator
         if: ${{ !inputs.ios_all_screens }}
         working-directory: client/ios
