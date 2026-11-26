@@ -132,15 +132,15 @@ struct MessageDetailView: View {
             .strikethrough(!notDeletedOn.isEmpty)
             .textSelection(.enabled)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(12)
         Group {
             if MessageActions.scrolls(row.content) {
                 ScrollView { box }
-                    .frame(height: UIFont.preferredFont(forTextStyle: .body).lineHeight * CGFloat(MessageActions.previewLines) + 24)
+                    .frame(height: UIFont.preferredFont(forTextStyle: .body).lineHeight * CGFloat(MessageActions.previewLines))
             } else {
                 box
             }
         }
+        .padding(12)
         .background(RoundedRectangle(cornerRadius: 12).fill(Color(uiColor: .secondarySystemBackground)))
         .accessibilityIdentifier("messageTextBox")
     }
