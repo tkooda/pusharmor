@@ -304,6 +304,20 @@ class UiTextTest {
         assertEquals("Firefox device with ID 130-772-845", UiText.newDeviceWithId("firefox", "130-772-845"))
     }
 
+    @Test fun sameShownNamesGetTheirIds() {
+        val a = com.pusharmor.protocol.Peer(id = "a".repeat(40), platform = "android", name = "Pixel 8")
+        val b = com.pusharmor.protocol.Peer(id = "b".repeat(40), platform = "android", name = "pixel 8")
+        val c = com.pusharmor.protocol.Peer(id = "c".repeat(40), platform = "chrome", name = "Laptop")
+        val all = listOf(a, b, c)
+        assertEquals("Pixel 8 (${UiText.shortDeviceId(a.id)})", UiText.distinctLabel(a, all))
+        assertEquals("pixel 8 (${UiText.shortDeviceId(b.id)})", UiText.distinctLabel(b, all))
+        assertEquals("Laptop", UiText.distinctLabel(c, all))
+        // Rename: only an exact match of the cleaned name is taken.
+        assertEquals("Name already used by \"Pixel 8\" (${UiText.shortDeviceId(a.id)})\nRemove that device, or rename it on that device",
+            UiText.nameTaken("  Pixel   8 ", all))
+        assertEquals(null, UiText.nameTaken("PIXEL 8", listOf(a)))
+    }
+
     @Test fun limitRowText() {
         assertEquals("Trusts 0 devices. Trusted by 0.", UiText.limitRow(0, 0, reachable = true, loggedOut = false))
         assertEquals("Trusts 1 device. Trusted by 1.", UiText.limitRow(1, 1, reachable = true, loggedOut = false))

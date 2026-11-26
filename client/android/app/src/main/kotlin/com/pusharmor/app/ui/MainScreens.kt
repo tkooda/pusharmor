@@ -416,7 +416,7 @@ internal fun FirstDeviceSteps(modifier: Modifier = Modifier) {
  * Cancel and Save beside it. Done saves, Back cancels; Save with an invalid name says why in a brief message and keeps the field open.
  */
 @Composable
-internal fun NameEditRow(current: String, modifier: Modifier = Modifier, sub: String? = null, onError: (String) -> Unit = {}, onSave: (String) -> Unit) {
+internal fun NameEditRow(current: String, modifier: Modifier = Modifier, sub: String? = null, taken: (String) -> String? = { null }, onError: (String) -> Unit = {}, onSave: (String) -> Unit) {
     val st = rememberSaveable(saver = NameEdit.Saver) { NameEdit() }
     val cs = MaterialTheme.colorScheme
     if (!st.editing) {
@@ -424,8 +424,8 @@ internal fun NameEditRow(current: String, modifier: Modifier = Modifier, sub: St
         return
     }
     val focus = remember { FocusRequester() }
-    // An invalid name says why in a brief message; the field stays open for a valid Save or Cancel.
-    fun save() { st.error?.let(onError) ?: st.save()?.let(onSave) }
+    // An invalid name, or the name of another device on the account, says why in a brief message; the field stays open for a valid Save or Cancel.
+    fun save() { (st.error ?: taken(st.typed.text))?.let(onError) ?: st.save()?.let(onSave) }
     androidx.activity.compose.BackHandler { st.cancel() }
     LaunchedEffect(Unit) { focus.requestFocus() }
     Row(modifier.padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.Top) {
@@ -1160,8 +1160,8 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
                         for (p in chips) {
                             val ok = p.inAll
                             if (!UiText.chipVisible(ok && p.id in picked, keyboardUp)) continue
-                            DeviceChip(platformIcon(p.platform), label(p), p.id in sendTo, ok, if (ok) null else UiText.status(p).second) {
-                                if (!ok) { vm.tapGreyed(); scope.launch { snack.showSnackbar(UiText.brief(UiText.greyedChip(label(p), UiText.status(p).second))) } }
+                            DeviceChip(platformIcon(p.platform), UiText.distinctLabel(p, peers), p.id in sendTo, ok, if (ok) null else UiText.status(p).second) {
+                                if (!ok) { vm.tapGreyed(); scope.launch { snack.showSnackbar(UiText.brief(UiText.greyedChip(UiText.distinctLabel(p, peers), UiText.status(p).second))) } }
                                 else if (p.id in picked) picked.remove(p.id) else picked.add(p.id)
                             }
                         }
@@ -1203,7 +1203,7 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
                     scope.launch { vm.g.settings.saveSendTo(sendTo) }
                     vm.sendStep = 0
                     vm.sendRetry = 0
-                    vm.sendNames = sendTo.mapNotNull { id -> peers.firstOrNull { it.id == id } }.map(::label)
+                    vm.sendNames = sendTo.mapNotNull { id -> peers.firstOrNull { it.id == id } }.map { UiText.distinctLabel(it, peers) }
                     val sendType = if (asText) ContentType.TEXT else com.pusharmor.protocol.Detect.type(text)
                     vm.sendCaption = when {
                         chosen != null && vm.sendNames.size > 1 -> UiText.directSendingFileList(chosen!!.name)
@@ -1213,7 +1213,7 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
                     }
                     vm.sendFromScreen(sendTo, text, asText)
                 }
-            }, text = UiText.sendLabel(sendTo.size, sendTo.singleOrNull()?.let { id -> peers.firstOrNull { it.id == id } }?.let(::label)), icon = PaIcons.Send,
+            }, text = UiText.sendLabel(sendTo.size, sendTo.singleOrNull()?.let { id -> peers.firstOrNull { it.id == id } }?.let { UiText.distinctLabel(it, peers) }), icon = PaIcons.Send,
                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 16.dp).fillMaxWidth().heightIn(min = 56.dp),
                 enabled = sendTo.isNotEmpty() && (chosen != null || (text.isNotEmpty() && bytes <= SizeCap.MAX_CONTENT_BYTES)) && "send" !in running)
         }
@@ -1285,7 +1285,7 @@ fun HistoryScreen(vm: AppViewModel, onPair: () -> Unit = {}, onSend: () -> Unit 
     val historyPrefs by vm.prefs.collectAsState()
     androidx.activity.compose.BackHandler(enabled = picked.isNotEmpty()) { picked = emptyList() }
     DisposableEffect(Unit) { onDispose { picked = emptyList() } }
-    fun nameOf(id: String) = peers.firstOrNull { it.id == id }?.let { label(it) + if (it.removed) " (removed)" else "" } ?: "(removed)"
+    fun nameOf(id: String) = peers.firstOrNull { it.id == id }?.let { UiText.distinctLabel(it, peers) + if (it.removed) " (removed)" else "" } ?: "(removed)"
     val view = remember(rows, peers, chip, dirs) { historyView(rows, chip, dirs, ::nameOf) }
     // A delete still pending on other devices: the devices left; a row with none left (removed, logged out) goes.
     val targets = remember(peers) { peers.filter(com.pusharmor.protocol.engine.DeleteSync::isTarget).map { it.id }.toSet() }
@@ -1725,7 +1725,7 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
                 SectionHeader("Device name")
                 GroupedList(listOf<@Composable (Modifier) -> Unit> { m ->
                     NameEditRow(me?.name?.let(DeviceName::display) ?: "", m, me?.let { "Device ID: ${UiText.shortDeviceId(it.id)}" },
-                        onError = { vm.message.value = it }) { vm.rename(it) }
+                        taken = { UiText.nameTaken(it, others(vm.peers.value, me?.id)) }, onError = { vm.message.value = it }) { vm.rename(it) }
                 })
             }
             SectionHeader("Appearance")

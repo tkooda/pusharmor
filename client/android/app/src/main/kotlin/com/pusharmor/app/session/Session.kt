@@ -43,8 +43,8 @@ class Session(private val g: Graph) {
     companion object {
         /** Share sheet targets: the All set less the devices turned off in their menu. */
         fun shareTargets(peers: List<Peer>, off: Set<String>): List<Peer> = allSet(peers).filter { it.id !in off }
-        /** A device's name as the app shows it; the share sheet needs it distinct per device. */
-        fun shortcutLabel(p: Peer): String = UiText.peerLabel(p.name, p.platform)
+        /** A device's name as the app shows it, with its ID when another of [all] has the same name; the share sheet needs it distinct per device. */
+        fun shortcutLabel(p: Peer, all: Collection<Peer> = emptyList()): String = UiText.distinctLabel(p, all)
         const val REMOVED = "This device was removed from the account. Log in again."
         const val LOST_KEYS = "This device lost its keys. Log in again."
         const val DELETED = "The account was deleted on another device."
@@ -284,7 +284,8 @@ class Session(private val g: Graph) {
 
     private fun defaultName(): String {
         val n = DeviceName.setupDefault(SysSettings.Global.getString(g.app.contentResolver, SysSettings.Global.DEVICE_NAME).orEmpty())
-        return n.ifEmpty { "Android" }
+        // A name another known device already has gets " (2)", " (3)", ... (only the names stored here are known).
+        return DeviceName.unique(n.ifEmpty { "Android" }, g.store.peers().mapNotNull { it.name })
     }
 
     // ---- sign out / delete ----------------------------------------------------------------
@@ -514,6 +515,7 @@ class Session(private val g: Graph) {
         // Spaces trimmed and collapsed; the cleaned name is the one saved and sent.
         val checked = DeviceName.check(typed)
         val newName = checked.name ?: return checked.error
+        UiText.nameTaken(newName, g.store.peers())?.let { return it }
         val me = g.identity() ?: return ErrorText.text(UiText.UNABLE_RENAME, ErrorText.LOGGED_OUT)
         val self = dao.self() ?: return ErrorText.text(UiText.UNABLE_RENAME, ErrorText.LOGGED_OUT)
         if (self.name == newName) return null // the same name: nothing to send, so no device shows a rename
@@ -646,7 +648,7 @@ class Session(private val g: Graph) {
         val stale = ShortcutManagerCompat.getDynamicShortcuts(ctx).map { it.id }.filter { it !in ids }
         if (stale.isNotEmpty()) ShortcutManagerCompat.removeDynamicShortcuts(ctx, stale)
         for (p in all) {
-            val label = shortcutLabel(p)
+            val label = shortcutLabel(p, peers)
             val sc = ShortcutInfoCompat.Builder(ctx, p.id).setShortLabel(label).setLongLived(true)
                 .setIcon(IconCompat.createWithResource(ctx, R.drawable.ic_notify))
                 .setCategories(setOf(SHARE_CATEGORY))

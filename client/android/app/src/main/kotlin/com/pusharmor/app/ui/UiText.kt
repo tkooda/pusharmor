@@ -468,6 +468,24 @@ object UiText {
 
     /** A device as the app names it: its name, else "New Android device" (its name is not known until it pairs). */
     fun peerLabel(name: String?, platform: String): String = name?.let(DeviceName::display) ?: "New ${com.pusharmor.app.notify.AppEffects.platformLabel(platform)} device"
+    /**
+     * [p]'s name where only a name shows (send chips, Send to, History, notifications, share targets): "Pixel 8 (907-331-064)"
+     * when another of [all] shows the same name ignoring case, else just the name.
+     */
+    fun distinctLabel(p: Peer, all: Collection<Peer>): String {
+        val l = peerLabel(p.name, p.platform)
+        val key = DeviceName.fold(l)
+        val clash = all.any { it.id != p.id && DeviceName.fold(peerLabel(it.name, it.platform)) == key }
+        return if (clash) "$l (${shortDeviceId(p.id)})" else l
+    }
+    /** Rename to a name another device already has (two lines). */
+    fun nameUsedBy(name: String, id: String): String =
+        "Name already used by \"${DeviceName.display(name)}\" (${shortDeviceId(id)})\nRemove that device, or rename it on that device"
+    /** The rename error for [typed] when another device of [others] has exactly the cleaned name, else null. */
+    fun nameTaken(typed: String, others: Collection<Peer>): String? {
+        val name = DeviceName.check(typed).name ?: return null
+        return others.firstOrNull { it.name == name }?.let { nameUsedBy(it.name!!, it.id) }
+    }
     /** Pairing card title while the codes show. */
     fun pairWithNew(platform: String): String = "Pair with new ${com.pusharmor.app.notify.AppEffects.platformLabel(platform)} device"
     /** Pairing card title after Codes match here, until the other device confirms. */

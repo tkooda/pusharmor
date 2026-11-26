@@ -15,7 +15,7 @@ class AppEffects(private val g: Graph, private val fcm: Boolean) : Effects {
     private val n get() = g.notifier
 
     /** The device's shown name ("New Android device" when it has none); null only when the device is not stored. */
-    private fun nameOf(peerId: String): String? = g.dao.peer(peerId)?.let { UiText.peerLabel(it.name, it.platform) }
+    private fun nameOf(peerId: String): String? = g.dao.peer(peerId)?.let { Notifier.deviceName(it, g.dao.peers()) }
 
     override fun schedulePairSend(peerId: String, replace: Boolean) = Work.pairSend(g.app, peerId, replace)
     override fun reconcileSoon() = Work.reconcile(g.app)
@@ -26,7 +26,7 @@ class AppEffects(private val g: Graph, private val fcm: Boolean) : Effects {
 
     override fun pairNotice(peerId: String, pk: String, kind: PairNoticeKind, fingerprint: String?) {
         val peer = g.dao.peer(peerId)
-        val x = peer?.let { UiText.peerLabel(it.name, it.platform) }
+        val x = peer?.let { Notifier.deviceName(it, g.dao.peers()) }
         when (kind) {
             // A device with no known name: "A new device wants to pair" over "Firefox device with ID 130-772-845".
             PairNoticeKind.COMMIT -> if (peer != null && peer.name == null) {
