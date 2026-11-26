@@ -42,9 +42,9 @@ final class ScreenshotTests: XCTestCase {
     }
 
     private func peersTab(_ app: XCUIApplication) {
-        let tab = app.tabBars.buttons["Devices"]
-        XCTAssertTrue(tab.waitForExistence(timeout: 30))
-        tab.tap()
+        let devices = tab(app, "Devices")
+        XCTAssertTrue(devices.waitForExistence(timeout: 30))
+        devices.tap()
     }
 
     /// Store shots: the spec sample data (-PAScreenshotsStore), light only, journey order.
@@ -73,7 +73,7 @@ final class ScreenshotTests: XCTestCase {
         shot("03-devices")
         let sendTo = app.buttons["Send to \"Pixel 8\""]
         for _ in 0..<2 where !sendTo.exists {
-            app.tabBars.buttons["Send"].tap()
+            tab(app, "Send").tap()
             _ = sendTo.waitForExistence(timeout: 10)
         }
         XCTAssertTrue(sendTo.exists)
@@ -93,7 +93,7 @@ final class ScreenshotTests: XCTestCase {
         app.terminate()
 
         app = launch(store)
-        let settings = app.tabBars.buttons["Settings"]
+        let settings = tab(app, "Settings")
         XCTAssertTrue(settings.waitForExistence(timeout: 30))
         settings.tap()
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10))
@@ -102,8 +102,12 @@ final class ScreenshotTests: XCTestCase {
         app.terminate()
     }
 
-    /// The four tabs, in order.
+    /// The four tabs, in order (on iPad, where the tabs sit at the top, each tab is present).
     private func assertTabs(_ app: XCUIApplication) {
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            for name in ["Send", "History", "Devices", "Settings"] { XCTAssertTrue(tab(app, name).waitForExistence(timeout: 10), name) }
+            return
+        }
         let bar = app.tabBars.firstMatch
         XCTAssertTrue(bar.waitForExistence(timeout: 10))
         XCTAssertEqual(bar.buttons.allElementsBoundByIndex.map(\.label), ["Send", "History", "Devices", "Settings"])
@@ -118,9 +122,9 @@ final class ScreenshotTests: XCTestCase {
         app.terminate()
 
         app = launch()
-        let tab = app.tabBars.buttons["Settings"]
-        XCTAssertTrue(tab.waitForExistence(timeout: 30))
-        tab.tap()
+        let settingsTab = tab(app, "Settings")
+        XCTAssertTrue(settingsTab.waitForExistence(timeout: 30))
+        settingsTab.tap()
         let signOut = app.buttons["Log out"]
         // the list is lazy: the button exists only once scrolled near
         for _ in 0..<10 where !(signOut.exists && signOut.isHittable) { app.swipeUp() }
@@ -174,13 +178,15 @@ final class ScreenshotTests: XCTestCase {
             let banner = app.descendants(matching: .any)["banner"]
             XCTAssertTrue(banner.waitForExistence(timeout: 30))
             XCTAssertTrue(banner.label.contains("Message sent to \"Laptop\""), banner.label)
-            XCTAssertLessThanOrEqual(banner.frame.maxY, app.tabBars.firstMatch.frame.minY + 1)
+            if UIDevice.current.userInterfaceIdiom != .pad {
+                XCTAssertLessThanOrEqual(banner.frame.maxY, app.tabBars.firstMatch.frame.minY + 1)
+            }
             sleep(1)
             shot("97-send-ok-\(theme)")
             app.terminate()
 
             app = launch(["-appearance", theme])
-            let history = app.tabBars.buttons["History"]
+            let history = tab(app, "History")
             XCTAssertTrue(history.waitForExistence(timeout: 30))
             history.tap()
             let row = labelled(app, "hiking-trails")
@@ -284,6 +290,12 @@ final class ScreenshotTests: XCTestCase {
             shot("11-update-required-\(theme)")
             app.terminate()
         }
+    }
+
+    /// A tab button: in the tab bar, or a plain button where iPad shows the tabs at the top.
+    private func tab(_ app: XCUIApplication, _ name: String) -> XCUIElement {
+        let b = app.tabBars.buttons[name]
+        return b.waitForExistence(timeout: 5) ? b : app.buttons[name].firstMatch
     }
 
     /// Any element whose label contains the text (a peer row reads as one combined element).
