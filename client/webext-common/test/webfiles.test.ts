@@ -257,6 +257,19 @@ test("receive: a picker that is Off leaves the row waiting for Download; a faile
   assert.equal(sendFileError({ code: "failed", text: null, status: 0, error: "unreadable" }, "a.txt"), 'Unable to read "a.txt"');
 });
 
+test("send: a file refused before it goes (too large, unreadable, any upload refusal) leaves no History item, only the error", async () => {
+  const s = await fileSetup();
+  const before = (await s.a.db.history()).length;
+  const big = await s.fa.send(await s.storeA.putPicked(new Blob(["x"])), "big.bin", 200_000_000, "all", undefined, true);
+  assert.equal(big.error, '"big.bin" is too large to send');
+  s.hostA.answer = async () => ({ ok: false, err: { code: "failed", text: null, status: 0, error: "unreadable" } });
+  const bad = await s.fa.send(await s.storeA.putPicked(new Blob(["x"])), "gone.txt", 1, "all", undefined, true);
+  assert.equal(bad.error, 'Unable to read "gone.txt"');
+  s.hostA.answer = async () => ({ ok: false, err: { code: "too_large", text: null, status: 413, error: "too large" } });
+  await s.fa.send(await s.storeA.putPicked(new Blob(["x"])), "a.txt", 1, "all", undefined, true);
+  assert.equal((await s.a.db.history()).length, before);
+});
+
 test("send: a sent file keeps a local copy with the received-file buttons; a failed send keeps none; row delete and auto-delete remove it", async () => {
   const s = await fileSetup();
   const expires = Math.floor(s.clock.t / 1000) + 24 * H;
