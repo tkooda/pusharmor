@@ -263,6 +263,7 @@ struct FileSettingsSection: View {
     var body: some View {
         Section {
             Text(FileUi.helper).font(.caption).foregroundColor(.secondaryText)
+            Text(FileUi.autoDownloadHelper).font(.caption).foregroundColor(.secondaryText)
             picker(FileUi.onWifi, FileSettingKey.wifi)
             picker(FileUi.onMobile, FileSettingKey.mobile)
             Picker(FileUi.storageTitle, selection: Binding(get: { model.fileStorage }, set: { model.setFileStorage($0) })) {

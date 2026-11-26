@@ -4,6 +4,8 @@ import Foundation
 /// The words match the Android app and the browser extensions.
 public enum FileUi {
     public static let helper = "Larger files expire sooner, between 1 and 24 hours after they are sent"
+    /// The line directly above the two auto-download pickers.
+    public static let autoDownloadHelper = "Download received files automatically up to these sizes"
     public static let filesHeader = "Files"
     public static let onWifi = "On Wi-Fi"
     public static let onMobile = "On mobile data"

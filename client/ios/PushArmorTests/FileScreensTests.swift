@@ -32,7 +32,8 @@ final class FileScreensTests: XCTestCase {
         XCTAssertTrue(try source("App/Views/SettingsView.swift").contains("FileSettingsSection()"))
         let src = try source("App/Views/FileViews.swift")
         let section = src.components(separatedBy: "struct FileSettingsSection")[1]
-        let order = ["Text(FileUi.helper)", "picker(FileUi.onWifi, FileSettingKey.wifi)", "picker(FileUi.onMobile, FileSettingKey.mobile)",
+        let order = ["Text(FileUi.helper)", "Text(FileUi.autoDownloadHelper).font(.caption).foregroundColor(.secondaryText)\n            picker(FileUi.onWifi, FileSettingKey.wifi)",
+                     "picker(FileUi.onWifi, FileSettingKey.wifi)", "picker(FileUi.onMobile, FileSettingKey.mobile)",
                      "Picker(FileUi.storageTitle", "Text(FileUi.storageHelper)"]
         let at = order.map { section.range(of: $0)?.lowerBound }
         XCTAssertFalse(at.contains(nil))
