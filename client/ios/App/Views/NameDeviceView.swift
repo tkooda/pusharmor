@@ -15,12 +15,9 @@ struct NameDeviceView: View {
                     .textFieldStyle(.roundedBorder)
                     .autocorrectionDisabled()
                     .onSubmit(save)
-                Text("Use 1 to 32 plain ASCII characters, with no double quote.")
-                    .font(.caption)
-                    .foregroundColor(.secondaryText)
                 Button("Save", action: save)
                     .buttonStyle(.borderedProminent)
-                    .disabled(!NameEntry.isValidName(name) || model.busy.contains("setName"))
+                    .disabled(model.busy.contains("setName"))
             }
             .padding(24)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -28,9 +25,12 @@ struct NameDeviceView: View {
         .scrollBounceBehavior(.basedOnSize)
     }
 
-    /// Save, and the Return key: only a valid name, one run at a time.
+    /// Save, and the Return key: only a valid name, one run at a time. A name that breaks the
+    /// rule shows why and stays in the field.
     private func save() {
-        guard NameEntry.isValidName(name), !model.busy.contains("setName") else { return }
-        Task { await model.setName(name) }
+        guard !model.busy.contains("setName") else { return }
+        let c = DeviceName.checkInput(name)
+        guard let n = c.name else { model.toast = c.error; return }
+        Task { await model.setName(n) }
     }
 }

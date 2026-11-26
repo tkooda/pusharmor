@@ -231,7 +231,7 @@ extension Core {
             // a rename with no name was never shown; a duplicate of an applied rename no
             // longer knows the old name, so it says "A device" rather than "X" renamed to "X"
             guard let name = name else { return nil }
-            return noticeBanner(S.renamed(nm == name ? S.aPeer : nm, name), peer: id, category: .event, tap: .peers(id?.text))
+            return noticeBanner(S.renamed(p?.name == name ? S.aPeer : nm, DeviceName.display(name)), peer: id, category: .event, tap: .peers(id?.text))
         case .remove(let t): return noticeBanner(t == me.text ? S.thisDeviceRemoved : S.peerListChanged, peer: id, category: .event, tap: .peers(nil))
         case .delete: return noticeBanner(S.accountDeleted, peer: id, category: .event, tap: .peers(nil))
         case .deny: return noticeBanner(S.denied(nm), peer: id, category: .notice, tap: .peers(id?.text))
@@ -303,7 +303,7 @@ extension Core {
             let old = p.noticeName
             if Int64(f.n) > p.nameN { p.name = name; p.nameN = Int64(f.n) }
             try store.savePeer(p)
-            a.banner = noticeBanner(S.renamed(old, name), peer: from, category: .event, tap: .peers(from.text))
+            a.banner = noticeBanner(S.renamed(old, DeviceName.display(name)), peer: from, category: .event, tap: .peers(from.text))
             return a
         case .remove(let t):
             try store.savePeer(p)

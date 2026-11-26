@@ -383,7 +383,7 @@ public enum PeerLabel {
 
     public static func label(_ p: Peer?) -> String {
         guard let p = p else { return S.aPeer }
-        return p.name ?? unnamed(platform: p.platform, created: p.created)
+        return p.name.map(DeviceName.display) ?? unnamed(platform: p.platform, created: p.created)
     }
 
     /// Devices in alphabetical order of the shown name: case-insensitive, locale-aware. Ties keep their order.

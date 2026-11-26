@@ -294,7 +294,7 @@ extension Core {
 
     /// Rename self: PATCH /peers/$my-id with name entries + rename messages to approved peers.
     public func rename(_ name: String) async throws -> APIOutcome {
-        guard NameEntry.isValidName(name) else { throw CoreError.refused("name") }
+        guard DeviceName.checkInput(name).name == name else { throw CoreError.refused("name") }
         let me = try myId()
         let old = try store.db.write { () -> Me in
             let m = try store.me()

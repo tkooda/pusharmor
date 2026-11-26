@@ -70,6 +70,7 @@ final class RefreshGreyTests: XCTestCase {
         let peers = try source("App/Views/PeersView.swift")
         XCTAssertEqual(try count(#"Button\("Reply"\)[^\n]*\n[^\n]*\n\s*\.disabled\(model\.busy\.contains\("reply:" \+ p\.id\.text\)\)"#, in: peers), 1)
         let settings = try source("App/Views/SettingsView.swift")
-        XCTAssertEqual(try count(#"guard renaming, NameEntry\.isValidName\(name\)"#, in: settings), 1)
+        XCTAssertEqual(try count(#"guard renaming else \{ return \}"#, in: settings), 1)
+        XCTAssertEqual(try count(#"guard let n = c\.name else \{ model\.toast = c\.error; return \}"#, in: settings), 1)
     }
 }

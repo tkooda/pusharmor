@@ -819,7 +819,9 @@ final class AppModel: ObservableObject {
     }
 
     func setName(_ name: String) async {
-        guard let core = core, NameEntry.isValidName(name) else { toast = ErrorCopy.nameRule; return }
+        guard let core = core else { return }
+        let c = DeviceName.checkInput(name)
+        guard let name = c.name else { toast = c.error; return }
         await once("setName") {
             if (try? core.store.me().name) == nil {
                 try? core.store.setMe("name", .text(name))

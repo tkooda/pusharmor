@@ -43,13 +43,12 @@ struct SettingsView: View {
                                 HStack(spacing: 16) {
                                     Button("Cancel") { renaming = false }
                                     Button("Save", action: saveName)
-                                        .disabled(!NameEntry.isValidName(name))
                                 }
                                 .lineLimit(1)
                                 .fixedSize()
                             } else {
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(model.me?.name ?? "This device")
+                                    Text((model.me?.name).map(DeviceName.display) ?? "This device")
                                     if let id = model.me?.id {
                                         Text("Device ID: " + Ids.deviceId(id.raw))
                                             .font(.subheadline)
@@ -203,10 +202,13 @@ struct SettingsView: View {
     }
 
     private func saveName() {
-        // renaming is false once a save ran: Enter and Save together submit once
-        guard renaming, NameEntry.isValidName(name) else { return }
+        // renaming is false once a save ran: Enter and Save together submit once. A name that
+        // breaks the rule shows why and the field stays open.
+        guard renaming else { return }
+        let c = DeviceName.checkInput(name)
+        guard let n = c.name else { model.toast = c.error; return }
         renaming = false
-        if name != model.me?.name { Task { await model.rename(name) } }
+        if n != model.me?.name { Task { await model.rename(n) } }
     }
 
     private func boolBinding(_ key: String, _ def: Bool) -> Binding<Bool> {

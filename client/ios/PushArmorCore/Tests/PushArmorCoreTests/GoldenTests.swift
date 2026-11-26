@@ -255,6 +255,34 @@ final class GoldenTests: XCTestCase {
         }
     }
 
+    // MARK: device names
+
+    func testDeviceName() {
+        let s = section("device_name")
+        let input = s["input_cases"] as! [J]
+        let defaults = s["default_cases"] as! [J]
+        let display = s["display_cases"] as! [J]
+        XCTAssertFalse(input.isEmpty)
+        XCTAssertFalse(defaults.isEmpty)
+        XCTAssertFalse(display.isEmpty)
+        for c in input {
+            let want: String? = isNull(c["error"]) ? nil : str(c["error"])
+            let wantName: String? = isNull(c["name"]) ? nil : str(c["name"])
+            let got = DeviceName.checkInput(str(c["input"]))
+            XCTAssertEqual(got.error, want, str(c["input"]).debugDescription)
+            XCTAssertEqual(got.name.map { Array($0.unicodeScalars) }, wantName.map { Array($0.unicodeScalars) },
+                           str(c["input"]).debugDescription)
+        }
+        for c in defaults {
+            let got = DeviceName.setupDefault(str(c["input"]))
+            XCTAssertEqual(Array(got.unicodeScalars), Array(str(c["name"]).unicodeScalars), str(c["input"]).debugDescription)
+        }
+        for c in display {
+            let got = DeviceName.display(str(c["input"]))
+            XCTAssertEqual(Array(got.unicodeScalars), Array(str(c["shown"]).unicodeScalars), str(c["input"]).debugDescription)
+        }
+    }
+
     // MARK: messages
 
     func pinState(_ p: Any?) -> PinState? {

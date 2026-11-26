@@ -197,13 +197,10 @@ public enum ErrorCopy {
         return .notConfirmed(provider: provider)
     }
 
-    /// The name rule; shown only for a name that breaks it.
-    public static let nameRule = "Use 1 to 32 plain ASCII characters, with no double quote."
-
-    /// The toast after a rename of this device, nil when it went through: the name rule only
-    /// for a bad name, else "Unable to rename this device." and the reason.
+    /// The toast after a rename of this device, nil when it went through: "Invalid characters"
+    /// or "Name too short" for a bad name, else "Unable to rename this device." and the reason.
     public static func renameFailText(_ name: String, _ result: Result<APIOutcome, Error>) -> String? {
-        guard NameEntry.isValidName(name) else { return nameRule }
+        if let e = DeviceName.inputError(name) { return e }
         switch result {
         case .success(let out):
             if out.reply?.ok == true { return nil }

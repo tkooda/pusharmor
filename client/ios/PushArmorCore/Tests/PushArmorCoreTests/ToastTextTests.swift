@@ -42,7 +42,7 @@ final class ToastTextTests: XCTestCase {
         var texts = actions.flatMap { a in reasons.map { ErrorCopy.text(a, $0) } }
         texts += ["sent", "gone", "logged out", "not listening", "unapproved", "denied", "unknown", "failed:x", "other"]
             .compactMap { ErrorCopy.sendResultText($0, "X") }
-        texts += [ErrorCopy.nameRule, ErrorCopy.Action.login.line + "\nLog in again.", S.loginFailed,
+        texts += [DeviceName.invalidCharacters, DeviceName.tooShort, ErrorCopy.Action.login.line + "\nLog in again.", S.loginFailed,
                   S.stillCannotReceive, S.checkWorking, S.messageSentTo("X"), S.messageSentTo(count: 2),
                   S.sentTo(1, 2), ToastText.copied, ToastText.copyFailed]
         for t in texts {

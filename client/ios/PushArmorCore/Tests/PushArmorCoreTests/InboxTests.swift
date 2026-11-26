@@ -93,6 +93,14 @@ final class InboxTests: XCTestCase {
         XCTAssertEqual(PeerLabel.unnamed(platform: "cli", created: nil), "Command line device")
     }
 
+    /// A received name shows with every disallowed character as "?", in lists and notices.
+    func testShownNameFiltered() {
+        var p = Peer(id: PeerId(raw: Data(repeating: 7, count: 30))!)
+        p.name = "-a!b\u{2019}c"
+        XCTAssertEqual(PeerLabel.label(p), "?a?b?c")
+        XCTAssertEqual(p.noticeName, "?a?b?c")
+    }
+
     func testAddedDate() {
         let utc = TimeZone(identifier: "UTC")!
         XCTAssertEqual(PeerLabel.addedDate(1759449600, timeZone: utc), "2025-10-03")
