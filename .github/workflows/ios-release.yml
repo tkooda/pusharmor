@@ -377,7 +377,7 @@ jobs:
             gh release upload "$TAG" --clobber "$DIR"/*
           else
             gh release create "$TAG" --draft --prerelease=false --latest=false --verify-tag --title "$TAG" \
-              --notes "PushArmor $VERSION for iPhone." \
+              --notes "PushArmor $VERSION for iOS." \
               "$DIR"/*
           fi
           gh release edit "$TAG" --draft=false --prerelease=false --latest=false
