@@ -19,12 +19,14 @@ enum RecipientMemory {
         UserDefaults.standard.set(ids.sorted(), forKey: defaultsKey)
     }
 
-    /// The Send button: remembers the selection on send only, so an abandoned selection
-    /// is not restored (L7), then sends. True when sent, so the draft clears only then.
+    /// The Send button: sends, then remembers the selection only when the send went through, so
+    /// an abandoned or one-off selection is not restored (L7). True when sent, so the draft
+    /// clears only then.
     @MainActor
     static func send(_ ids: Set<String>, _ run: () async -> Bool) async -> Bool {
-        save(ids)
-        return await run()
+        let sent = await run()
+        if sent { save(ids) }
+        return sent
     }
 }
 
@@ -322,6 +324,16 @@ struct ComposeView: View {
         }
     }
 
+    /// A device tapped in the Devices list: only it is chosen, for this send; the remembered
+    /// selection stays as it was.
+    private func takePick() {
+        guard let id = model.sendTo else { return }
+        model.sendTo = nil
+        restored = true
+        toAll = false
+        selected = [id]
+    }
+
     private var hasRecipient: Bool {
         if toAll && showAll { return true }
         return candidates.contains { selected.contains($0.id.text) && enabled($0) }
@@ -371,7 +383,11 @@ struct ComposeView: View {
         .fileImporter(isPresented: $picking, allowedContentTypes: [.item]) { result in
             if case .success(let u) = result { choose(u, scoped: true, temp: false) }
         }
-        .onAppear { restoreSelection() }
+        .onAppear {
+            takePick()
+            restoreSelection()
+        }
+        .onChange(of: model.sendTo) { _, _ in takePick() }
         .onChange(of: candidates.map { $0.id.text }) { _, _ in restoreSelection() }
         .onChange(of: text) { _, t in
             model.setDraft(t)

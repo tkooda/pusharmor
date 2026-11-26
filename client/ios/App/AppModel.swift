@@ -91,6 +91,8 @@ final class AppModel: ObservableObject {
     /// The running Refresh's steps done of Core.refreshSteps, for its bar.
     @Published var refreshDone = 0
     @Published var highlightPeer: String?
+    /// A paired device tapped in the Devices list: the Send screen opens with only it chosen.
+    @Published var sendTo: String?
     @Published var showHistory = false
     /// Peer ids with a pairAgain call running; their Pair buttons are disabled.
     @Published var pairAgainBusy: Set<String> = []
@@ -997,6 +999,13 @@ final class AppModel: ObservableObject {
     }
 
     /// A tap on a greyed (removed, missing or unreachable) row is a fetch trigger.
+    /// A tap on a paired device in the Devices list: the Send screen opens with only that device
+    /// chosen, for this send only; the saved choice changes only when a send goes through.
+    func openSend(to p: Peer) {
+        guard PeerLabel.paired(p) else { return }
+        sendTo = p.id.text
+    }
+
     func tapGreyed() async {
         await core?.fetchPeers()
         reload()

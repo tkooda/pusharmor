@@ -46,6 +46,9 @@ struct MainView: View {
         .onChange(of: model.highlightPeer) { _, v in
             if v != nil { select(1) }
         }
+        .onChange(of: model.sendTo) { _, v in
+            if v != nil { select(0) }
+        }
         .onChange(of: model.showHistory) { _, v in
             if v { select(3); model.showHistory = false }
         }

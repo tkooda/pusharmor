@@ -547,9 +547,12 @@ struct PeerRowView: View {
         } else {
             HStack(alignment: .top, spacing: 8) {
                 VStack(alignment: .leading, spacing: 8) {
+                    // a tap opens the Send screen with only this device chosen
                     header(icons: true)
                         .contentShape(Rectangle())
-                        .onTapGesture { if greyed { Task { await model.tapGreyed() } } }
+                        .onTapGesture { if greyed { Task { await model.tapGreyed() } } else { model.openSend(to: p) } }
+                        .accessibilityElement(children: .combine)
+                        .accessibilityAddTraits(greyed ? [] : AccessibilityTraits.isButton)
                     PeerPendingLines(p: p)
                 }
                 // Full width so the status icons in the header sit just left of the menu button.
