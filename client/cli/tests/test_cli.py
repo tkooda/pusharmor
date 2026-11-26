@@ -2387,6 +2387,21 @@ def help_text(cmd):
     return out.getvalue()
 
 
+def test_pairing_fails_when_the_name_cannot_be_read(net, tmp_path, monkeypatch, capsys):
+    a, b = tmp_path / "a", tmp_path / "b"
+    ida, idb = login(monkeypatch, a), login(monkeypatch, b)
+    monkeypatch.setattr(pa, "check_name_object", lambda *x: None)
+    monkeypatch.setattr(pa, "PAIR_WAIT_S", 3)
+    capsys.readouterr()
+    with pytest.raises(AssertionError):
+        pair_two(monkeypatch, net, a, b, (ida, idb))
+    err = capsys.readouterr().err
+    assert "error: Unable to pair with CLI device. Its name could not be read. Try pairing again.\n" in err
+    assert "A device" not in err
+    assert not any(p["approves_me"] and p["pinned"] for p in state(a)["peers"].values())
+    assert not any(p["approves_me"] and p["pinned"] for p in state(b)["peers"].values())
+
+
 def test_device_names_that_clash_show_the_device_id(net, tmp_path, monkeypatch, capsys):
     a, b = tmp_path / "a", tmp_path / "b"
     ida, idb = pair_two(monkeypatch, net, a, b)

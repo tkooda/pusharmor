@@ -494,7 +494,7 @@ def open_message(message, own_id, own_enc_priv, own_account, pins):
     elif type_ in ("approve", "rename"):
         value = check_name_object(value, from_id, own_id, b64e(pid), pin["sign_pub"])
         if not value or value["n"] != n:
-            return bad("name entry")
+            return dict(bad("name entry"), **{"from": from_id, "type": type_})
     elif type_ == "remove":
         if type(value) is not str or len(value) != 40 or not b64ok(value):
             return bad("remove id")
@@ -2049,9 +2049,7 @@ UNKNOWN_NAME = "{UNKNOWN}"  # the name of a device that has not sent its name to
 
 
 def peer_label(p):
-    if not p:
-        return "A device"
-    if p["name"]:
+    if p and p["name"]:
         return name_display(p["name"])
     return UNKNOWN_NAME
 
@@ -2308,7 +2306,7 @@ def on_probe(cx, pt):
 
 
 def receive_inner(cx, pt, src):
-    k, notes, wipe, rec, fetch = cx.keys, [], None, None, False
+    k, notes, wipe, rec, fetch, unnamed = cx.keys, [], None, None, False, None
     with cx.store.state() as d:
         pins = {pid: {"sign_pub": b64d(p["sign_pub"]), "enc_pub": b64d(p["enc_pub"]),
                       "pairing_id": b64d(p["pairing_id"]), "ruling": p["ruling"],
@@ -2329,6 +2327,13 @@ def receive_inner(cx, pt, src):
                            "date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "file": ""}
             elif not r["ignorable"] and src != "returned" and r["ruling"] != "approved":
                 notes.append(("warning", UNREADABLE))
+        elif (out == "unreadable" and r["why"] == "name entry" and r["type"] == "approve"
+              and r["from"] in d["peers"] and not d["peers"][r["from"]]["approves_me"]):
+            # its name could not be read: the pairing fails instead of completing without a name
+            p = d["peers"][r["from"]]
+            d["pairs"].pop(r["from"], None)
+            unpin(p)
+            unnamed = "Unable to pair with %s device." % platform_label(p["platform"])
         elif out == "unreadable":
             if src != "returned":
                 notes.append(("warning", UNREADABLE))
@@ -2344,6 +2349,11 @@ def receive_inner(cx, pt, src):
             wipe, rec = act(cx, d, r, p, notes)
     for n in notes:
         log(*n)
+    if unnamed:
+        why = "Its name could not be read. Try pairing again."
+        if cx.mode == "pair" and cx.target == r["from"]:
+            raise Fail(why, action=unnamed)
+        log("warning", unnamed + " " + why)
     if fetch:
         cx.refresh_soon()
     if wipe == REMOVED:
