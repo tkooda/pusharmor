@@ -742,7 +742,6 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
                         // Per device, on by default.
                         if (p.pinned) CheckItem("Show shortcut in sharing menu", shareShown) { menu = false; vm.setShareShown(p.id, !shareShown) }
                         HorizontalDivider()
-                        if (p.offersPairAgain || p.rejectsMe) DropdownMenuItem(text = { Text("Cancel pairing request") }, onClick = { menu = false; vm.cancelPairing(p.id) })
                         if (p.missing) DropdownMenuItem(text = { Text("Delete") }, onClick = { menu = false; onDelete() })
                         DropdownMenuItem(text = { Text("Remove device from account") }, onClick = { menu = false; onRemove() })
                     }

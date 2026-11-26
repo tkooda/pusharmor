@@ -43,9 +43,15 @@ class DeviceMenuTest {
 
     /** On a short window with large text the device menu stays inside the screen margins and scrolls to its last item. */
     @Config(qualifiers = "w412dp-h480dp-420dpi", fontScale = 2f)
-    @Test fun deviceMenuFitsShortWindow() {
+    @Test fun deviceMenuFitsShortWindow() = withMenu(declined = false)
+
+    /** A row that rejected this device offers Reject and Pair on the row; its menu has no Cancel pairing request. */
+    @Config(qualifiers = "w412dp-h480dp-420dpi", fontScale = 2f)
+    @Test fun rejectedRowMenuHasNoCancel() = withMenu(declined = true)
+
+    private fun withMenu(declined: Boolean) {
         val c = Robolectric.buildActivity(UiHostActivity::class.java)
-        try { check(c) } finally {
+        try { check(c, declined) } finally {
             // Close the menu and the activity, so no popup keeps posting into the next test.
             windows().filter { (it.layoutParams as android.view.WindowManager.LayoutParams).type >= 1000 }.forEach { v ->
                 v.dispatchKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_BACK))
@@ -56,7 +62,7 @@ class DeviceMenuTest {
         }
     }
 
-    private fun check(c: org.robolectric.android.controller.ActivityController<UiHostActivity>) {
+    private fun check(c: org.robolectric.android.controller.ActivityController<UiHostActivity>, declined: Boolean) {
         unstickFrames()
         val app = ApplicationProvider.getApplicationContext<PaApp>()
         val t = Thread {
@@ -64,7 +70,7 @@ class DeviceMenuTest {
             app.graph.dao.putPeer(PeerEntity(
                 id = "a".repeat(40), platform = "android", created = 1, listSignPub = null, listEncPub = null,
                 signPub = "B".repeat(87), encPub = "C".repeat(87), pairingId = ByteArray(16), approved = true, deniedByMe = false,
-                approveVerified = true, listApprovesMe = true, listDeniesMe = false, listAfterVerify = true, declined = false,
+                approveVerified = true, listApprovesMe = true, listDeniesMe = false, listAfterVerify = true, declined = declined,
                 reachable = true, loggedOut = false, logoutN = 0, hidden = false, name = "Galaxy S23", nameN = 1, removed = false, missing = false,
                 lastN = 0, channelId = null, storedApprove = null, storedApproveName = null, lastApproveResult = null, lastSendAt = 0, note = null,
             ))
@@ -104,6 +110,7 @@ class DeviceMenuTest {
         scroll.config[SemanticsActions.ScrollBy].action!!.invoke(0f, 100000f); popupIdle()
         val remove = nodes(popup).firstOrNull { text(it) == "Remove device from account" }
         assertNotNull(remove)
+        assertTrue("menu has Cancel pairing request", nodes(popup).none { text(it) == "Cancel pairing request" })
         val b = remove!!.boundsInRoot
         assertTrue("remove $b in popup ${popup.height}", b.top >= 0 && b.bottom <= popup.height + 1)
     }
