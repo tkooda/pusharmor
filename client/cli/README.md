@@ -28,6 +28,7 @@ distribution:
 ## Commands
 
 - `pusharmor login` - log in this device (open the URL it shows, then paste the code).
+  On a device that is already logged in, it does nothing and exits with 0.
 - `pusharmor devices` - list your devices and their pairing status. `--json` (one object
   per line) or `--tsv` (id, added, platform, status, code, name; no header) is for scripts.
   The status is one of `this_device`, `paired`, `logged_out`, `not_listening`,
@@ -40,7 +41,8 @@ distribution:
   `--text` to send a URL as plain text. With `-` or piped input it reads stdin.
 - `pusharmor send --file PATH` (`-f`) - send a small file to all paired devices (`-d ID` for one). It is
   end-to-end encrypted and expires on the relay server at the time shown after the send.
-- `pusharmor listen` - print messages as they arrive; `--json`, `--tsv`, or
+- `pusharmor listen` - print messages as they arrive; `--json`, `--tsv`, `--quiet` (print
+  nothing to stdout, for example with `--files DIR`), or
   `--exec PROG` (runs PROG ID PLATFORM TYPE NAME BODY per message; NAME and BODY are
   passed as separate arguments; quote them in shell scripts). `--json` escapes
   every non-ASCII character as `\uXXXX`. `--tsv` writes `\\`, `\t`, `\n`, and `\r` for
@@ -53,7 +55,8 @@ distribution:
   gets the file's name in DIR as BODY. A file that cannot be saved prints one `warning:` line,
   and `--json` adds an `error` field.
 - `pusharmor rename NAME` - change the name your other devices show.
-- `pusharmor logout` - log out; keys and paired devices stay on this device.
+- `pusharmor logout` - log out; keys and paired devices stay on this device. On a device
+  that is not logged in, it does nothing and exits with 0.
 - `pusharmor delete ID` - remove a device from your account (this device too). It asks
   first; without a terminal it needs `--yes`.
 

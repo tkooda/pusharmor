@@ -1139,7 +1139,7 @@ DEFAULT_NTFY = "https://ntfy.sh"
 STATE_VERSION = 1
 EXIT_OK, EXIT_ERR, EXIT_USAGE, EXIT_LOGIN, EXIT_SEND, EXIT_BUG, EXIT_TEMP = 0, 1, 2, 3, 4, 70, 75
 EXIT_CODES = (
-    (EXIT_OK, "success"),
+    (EXIT_OK, "success (also login when already logged in, and logout when not logged in)"),
     (EXIT_ERR, "error: a failed request, a damaged or unreadable file, or a failed write on this device"),
     (EXIT_USAGE, "wrong command line, or the command needs a terminal"),
     (EXIT_LOGIN, "not logged in, logged out, or this device was removed"),
@@ -3605,7 +3605,8 @@ def cmd_listen(cx, args):
             log("info", "To download files, run: pusharmor listen --files DIR")
         if args.exec:
             return run_exec(args.exec, rec)
-        print(format_record(rec, fmt), flush=True)
+        if not args.quiet:
+            print(format_record(rec, fmt), flush=True)
 
     cx.emit = emit
     if args.exec and not (os.path.isfile(args.exec) and os.access(args.exec, os.X_OK) if "/" in args.exec
@@ -3859,6 +3860,8 @@ COMMANDS = {
                 (("--exec",), {"metavar": "PROG", "help": "run PROG ID PLATFORM TYPE NAME BODY per message; for a "
                                "saved file, BODY is its name in DIR. NAME and BODY are passed as separate "
                                "arguments; quote them in shell scripts."}),
+                (("-q", "--quiet"), {"action": "store_true",
+                                     "help": "print nothing to stdout (for example with --files)"}),
                 (("--files",), {"metavar": "DIR", "help": "download received files to DIR (never to the output)"})]),
     "rename": (cmd_rename, "Change the name shown on your other devices for this device.",
                [(("name",), {"metavar": "NAME", "help": "1 to 32 ASCII characters, not starting with -, "
@@ -3876,7 +3879,9 @@ ACTIONS = {"login": "Unable to log in.", "logout": "Unable to log out.", "pair":
 
 
 # Usage lines that argparse cannot write by itself.
-USAGES = {"devices": "%(prog)s [--json | --tsv]", "pair": "%(prog)s ID", "listen": "%(prog)s [--json | --tsv | --exec PROG] [--files DIR]"}
+USAGES = {"devices": "%(prog)s [--json | --tsv]", "pair": "%(prog)s ID",
+          "send": "%(prog)s [--file PATH] [--id ID] [--text] [MESSAGE ...]",
+          "listen": "%(prog)s [--json | --tsv | --exec PROG | --quiet] [--files DIR]"}
 
 
 class Formatter(argparse.RawDescriptionHelpFormatter):
@@ -3913,8 +3918,8 @@ def build_parser():
         for flags, kw in arguments:
             sp.add_argument(*flags, **kw)
         if name == "listen":
-            sp.set_defaults(_check=lambda a: sum([a.json, a.tsv, bool(a.exec)]) <= 1,
-                            _only="Use only one of --json, --tsv, and --exec.")
+            sp.set_defaults(_check=lambda a: sum([a.json, a.tsv, bool(a.exec), a.quiet]) <= 1,
+                            _only="Use only one of --json, --tsv, --exec, and --quiet.")
         if name == "devices":
             sp.set_defaults(_check=lambda a: not (a.json and a.tsv), _only="Use only one of --json and --tsv.")
     sub.add_parser("help", help="Show this help.", description="Show this help.")

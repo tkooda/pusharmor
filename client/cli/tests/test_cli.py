@@ -111,7 +111,8 @@ def test_command_table_is_frozen():
 
 
 @pytest.mark.parametrize("argv", [["frob"], ["rename"], ["delete"], ["send", "--bogus"], ["pair", "a", "b"],
-                                  ["listen", "--json", "--tsv"], ["listen", "--tsv", "--exec", "x"], ["login", "x"]])
+                                  ["listen", "--json", "--tsv"], ["listen", "--tsv", "--exec", "x"], ["login", "x"],
+                                  ["listen", "-q", "--json"], ["listen", "--quiet", "--exec", "x"]])
 def test_bad_usage_exits_2(argv, capsys):
     with pytest.raises(SystemExit) as e:
         pa.main(argv)
@@ -156,7 +157,7 @@ def test_command_help_texts(capsys, monkeypatch):
             pa.main([name, "--help"])
         return capsys.readouterr().out
     out = help_of("send")
-    assert out.startswith("usage: pusharmor send [-f PATH] [-d ID] [--text] [MESSAGE")
+    assert out.startswith("usage: pusharmor send [--file PATH] [--id ID] [--text] [MESSAGE")
     assert "Send a URL, text, or a file to a paired device.\n" in out and "--to" not in out
     assert re.search(r"-d( ID)?, --id ID +device ID \(NNN-NNN-NNN\) from pusharmor devices\n", out)
     assert "send this file (up to 100 MB)\n" in out
@@ -164,7 +165,7 @@ def test_command_help_texts(capsys, monkeypatch):
     out = help_of("pair")
     assert out.startswith("usage: pusharmor pair ID\n")
     assert re.search(r"\n  ID +device ID \(NNN-NNN-NNN\) from pusharmor devices\n", out)
-    assert help_of("listen").startswith("usage: pusharmor listen [--json | --tsv | --exec PROG] [--files DIR]\n")
+    assert help_of("listen").startswith("usage: pusharmor listen [--json | --tsv | --exec PROG | --quiet] [--files DIR]\n")
     assert "Change the name shown on your other devices for this device.\n" in help_of("rename")
     out = help_of("delete")
     assert "Remove a device from your account.\n" in out and "this device too" not in out
@@ -2294,7 +2295,7 @@ def test_command_texts_are_the_approved_sentences(net, tmp_path, monkeypatch, ca
         "error: Unable to turn on notifications. The push service at ntfy.sh could not be reached. Check your internet connection and try again.\n")
     with pytest.raises(SystemExit):
         run(tmp_path, "listen", "--json", "--tsv")
-    assert "error: Use only one of --json, --tsv, and --exec.\n" in capsys.readouterr().err
+    assert "error: Use only one of --json, --tsv, --exec, and --quiet.\n" in capsys.readouterr().err
     answers(monkeypatch, "")
     with pytest.raises(pa.Fail) as e:
         pa.choose_evict([])
@@ -2366,6 +2367,24 @@ def test_rename_saves_the_name_with_spaces_cleaned_up(net, tmp_path, monkeypatch
     assert run(tmp_path, "rename", "  Desk   top ") == 0
     assert state(tmp_path)["name"] == "Desk top"
     assert capsys.readouterr().err == 'This device is now named "Desk top".\n'
+
+
+def test_listen_quiet_prints_nothing_to_stdout(net, tmp_path, monkeypatch, capsys):
+    a, b = tmp_path / "a", tmp_path / "b"
+    pair_two(monkeypatch, net, a, b)
+    assert run(a, "send", "hi") == 0
+    net.stop.set()
+    capsys.readouterr()
+    assert run(b, "listen", "--quiet") == 130
+    cap = capsys.readouterr()
+    assert cap.out == "" and "info: Listening. Press Ctrl+C to stop." in cap.err
+    assert re.search(r"\n  -q, --quiet +print nothing to stdout \(for example with --files\)\n", help_text("listen"))
+
+
+def help_text(cmd):
+    with pytest.raises(SystemExit), contextlib.redirect_stdout(io.StringIO()) as out:
+        pa.main([cmd, "--help"])
+    return out.getvalue()
 
 
 def test_device_names_that_clash_show_the_device_id(net, tmp_path, monkeypatch, capsys):
