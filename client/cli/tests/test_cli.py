@@ -204,6 +204,7 @@ def test_device_id_must_match_exactly():
     d["peers"][three] = {"name": None}
     with pytest.raises(pa.Fail) as e:
         pa.match_device(cx, d, pa.device_id(one), [one, two, three])
+    assert e.value.args[0].splitlines()[0].startswith("3 devices have the Device ID ")
     assert e.value.args[0].splitlines()[0].endswith('"one", "two", and {UNKNOWN}')
 
 
@@ -261,6 +262,20 @@ def test_file_name_in_an_error_is_cut_in_the_middle():
     cut = pa.short_name("0123456789" * 5 + ".pdf")
     assert len(cut) == 24 and "..." in cut and cut.endswith(".pdf")
     assert cut == "01234567890123...789.pdf"
+
+
+def test_damaged_and_too_large_texts_cut_a_long_file_name(tmp_path):
+    long = "0123456789" * 5 + ".pdf"
+    assert pa.FILE_DAMAGED % pa.short_name(long) == 'Unable to open "01234567890123...789.pdf". It is not valid or was damaged.'
+    big = tmp_path / long
+    big.write_bytes(b"x" * 6)
+    old, pa.MAX_FILE = pa.MAX_FILE, 5
+    try:
+        with pytest.raises(pa.Fail) as e:
+            pa.prepare_file(str(big))
+    finally:
+        pa.MAX_FILE = old
+    assert str(e.value) == '"01234567890123...789.pdf" is too large to send.'
 
 
 def test_device_id_needs_30_id_bytes():

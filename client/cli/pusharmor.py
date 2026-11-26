@@ -2865,7 +2865,7 @@ def prepare_file(path):
         raise Fail("%s is not a regular file." % quoted_path(path), EXIT_USAGE)
     name = sanitize_name(os.path.basename(path), time.time(), is_image(path))
     if st.st_size > MAX_FILE:
-        raise Fail('"%s" is too large to send.' % name, EXIT_USAGE)
+        raise Fail('"%s" is too large to send.' % short_name(name), EXIT_USAGE)
     f = open(path, "rb")
     st2 = os.fstat(f.fileno())
     if not stat.S_ISREG(st2.st_mode) or (st2.st_dev, st2.st_ino, st2.st_size) != (st.st_dev, st.st_ino, st.st_size):
@@ -3048,7 +3048,7 @@ def download_file(cx, v, name, folder, temps):
     if v["size"] > MAX_FILE:
         raise FileFail('Unable to download "%s". It is too large.' % short_name(name))
     if not file_url_ok(v["url"]):
-        raise FileFail(FILE_DAMAGED % name)
+        raise FileFail(FILE_DAMAGED % short_name(name))
     if time.time() >= v["expires"]:
         raise FileFail('Unable to download "%s". The file expired.' % short_name(name))
     tries, checks = [0], 0
@@ -3068,7 +3068,7 @@ def download_file(cx, v, name, folder, temps):
             except ValueError:
                 checks += 1
                 if checks > 1:
-                    raise FileFail(FILE_DAMAGED % name)
+                    raise FileFail(FILE_DAMAGED % short_name(name))
                 continue
             path = _place(plain_path, folder, name)
             temps.discard(os.path.basename(plain_path))
@@ -3425,9 +3425,8 @@ def match_device(cx, d, text, ids, pick=False):
         q = [label if label == UNKNOWN_NAME else '"%s"' % label
              for label in (name_display(d["name"]) if i == cx.me else peer_label(d["peers"].get(i)) for i in hits)]
         names = q[0] + " and " + q[1] if len(q) == 2 else ", ".join(q[:-1]) + ", and " + q[-1]
-        raise Fail("Two devices have the Device ID %s: %s\nRemove one of them with `pusharmor delete %s` or in the PushArmor app"
-                   % (text, names, text),
-                   EXIT_USAGE)
+        raise Fail("%s devices have the Device ID %s: %s\nRemove one of them with `pusharmor delete %s` or in the PushArmor app"
+                   % ("Two" if len(hits) == 2 else len(hits), text, names, text), EXIT_USAGE)
     return hits[0]
 
 
