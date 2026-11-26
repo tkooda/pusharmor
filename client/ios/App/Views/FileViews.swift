@@ -54,6 +54,8 @@ struct FileRowDetail: View {
     let outgoing: Bool
     /// The row is open: the expiry shows.
     var open = false
+    /// A send to two or more devices: the Recipients list shows while the row is open.
+    var recipients: [HistoryRecipients.Line] = []
     @EnvironmentObject var model: AppModel
     @State private var preview: URL?
     @State private var saving = false
@@ -67,6 +69,7 @@ struct FileRowDetail: View {
             if open, sentExpiry, let e = file.expires {
                 Text(FileUi.expiresText(e, nowSec: now)).font(.caption).foregroundColor(.secondaryText)
             }
+            if open, !recipients.isEmpty { RecipientsList(lines: recipients) }
             if !outgoing || file.state != "sent" {
                 incoming
             }

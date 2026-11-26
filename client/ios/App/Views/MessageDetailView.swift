@@ -83,6 +83,8 @@ struct MessageDetailView: View {
     let row: HistoryRow
     /// A delete that did not reach every device: the names of those still to take it.
     let notDeletedOn: [String]
+    /// A send to two or more devices: the Recipients list above the buttons.
+    var recipients: [HistoryRecipients.Line] = []
     @EnvironmentObject var model: AppModel
     @State private var reading = false
     @State private var saving = false
@@ -103,6 +105,7 @@ struct MessageDetailView: View {
             if !notDeletedOn.isEmpty {
                 Text(S.notDeletedOn(notDeletedOn)).font(.caption).foregroundColor(.errorText)
             }
+            if !recipients.isEmpty { RecipientsList(lines: recipients) }
             if typeSize >= .accessibility1 {
                 // large text: two columns, so the labels do not break mid-word
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {

@@ -46,7 +46,7 @@ final class SyncDeletionsTests: XCTestCase {
     /// under it, as on its closed row; the row does not repeat the line while open.
     func testPendingDetail() throws {
         let row = try source("App/Views/HistoryView.swift")
-        XCTAssertEqual(try count(#"MessageDetailView\(row: row, notDeletedOn: notDeletedOn\)"#, in: row), 1)
+        XCTAssertEqual(try count(#"MessageDetailView\(row: row, notDeletedOn: notDeletedOn, recipients: recipientLines\)"#, in: row), 1)
         XCTAssertEqual(try count(#"if !isOpen, !notDeletedOn\.isEmpty \{"#, in: row), 1)
         let src = try source("App/Views/MessageDetailView.swift")
         XCTAssertEqual(try count(#"\.strikethrough\(!notDeletedOn\.isEmpty\)"#, in: src), 2)

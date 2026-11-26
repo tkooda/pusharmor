@@ -131,6 +131,31 @@ struct HistoryView: View {
     }
 }
 
+/// "Recipients" with a disclosure chevron: a tap shows or hides one line per device, its name
+/// then "Sent" or "Failed". It starts closed each time its History item opens.
+struct RecipientsList: View {
+    let lines: [HistoryRecipients.Line]
+    @State private var open = false
+
+    var body: some View {
+        DisclosureGroup(HistoryRecipients.title, isExpanded: $open) {
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(Array(lines.enumerated()), id: \.offset) { _, l in
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(l.name)
+                        Spacer(minLength: 8)
+                        Text(l.status).foregroundColor(.secondaryText)
+                    }
+                    .accessibilityElement(children: .combine)
+                }
+            }
+            .padding(.top, 4)
+        }
+        .font(.subheadline)
+        .accessibilityIdentifier("recipients")
+    }
+}
+
 struct HistoryRowView: View {
     let row: HistoryRow
     /// Open: the text and the action buttons show under the row; a tap opens or closes it.
@@ -220,11 +245,16 @@ struct HistoryRowView: View {
         return model.historyLabel(p)
     }
 
+    /// A send to two or more devices: the lines of its Recipients list.
+    private var recipientLines: [HistoryRecipients.Line] {
+        HistoryRecipients.lines(results ?? [:]) { id in model.peers.first { $0.id.text == id }.map { model.historyLabel($0) } ?? S.aPeer }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             summary
-            if isOpen { MessageDetailView(row: row, notDeletedOn: notDeletedOn) }
-            if let f = file, !selecting, fileDetailShows(f) { FileRowDetail(file: f, outgoing: outgoing, open: fileOpen).padding(.leading, textInset + 10) }
+            if isOpen { MessageDetailView(row: row, notDeletedOn: notDeletedOn, recipients: recipientLines) }
+            if let f = file, !selecting, fileDetailShows(f) { FileRowDetail(file: f, outgoing: outgoing, open: fileOpen, recipients: recipientLines).padding(.leading, textInset + 10) }
         }
     }
 

@@ -44,7 +44,7 @@ final class FileScreensTests: XCTestCase {
     /// Expanded or Collapsed; decrypts run only while History shows.
     func testHistoryFileRows() throws {
         let row = try source("App/Views/HistoryView.swift")
-        XCTAssertTrue(row.contains("if let f = file, !selecting, fileDetailShows(f) { FileRowDetail(file: f, outgoing: outgoing, open: fileOpen).padding(.leading, textInset + 10) }"))
+        XCTAssertTrue(row.contains("if let f = file, !selecting, fileDetailShows(f) { FileRowDetail(file: f, outgoing: outgoing, open: fileOpen, recipients: recipientLines).padding(.leading, textInset + 10) }"))
         XCTAssertTrue(row.contains("private var fileOpen: Bool { expanded && !selecting && isFile }"))
         XCTAssertTrue(row.contains("if outgoing && f.state == \"sent\" { return false }\n        if case .ready = model.fileStatus(f) { return false }"))
         XCTAssertTrue(row.contains("if isUnknownType { return }\n        model.detailRow = HistoryExpand.tap("))
@@ -78,7 +78,7 @@ final class FileScreensTests: XCTestCase {
     func testClosedFileRowShowsNameOnly() throws {
         let row = try source("App/Views/HistoryView.swift")
         XCTAssertTrue(row.contains("if let f = file, fileOpen {\n                    Text(FileUi.detail(f.name, size: f.size))"))
-        XCTAssertTrue(row.contains("FileRowDetail(file: f, outgoing: outgoing, open: fileOpen)"))
+        XCTAssertTrue(row.contains("FileRowDetail(file: f, outgoing: outgoing, open: fileOpen, recipients: recipientLines)"))
         XCTAssertTrue(row.contains("if fileOpen { return true }\n        if outgoing && f.state == \"sent\" { return false }"))
         let views = try source("App/Views/FileViews.swift")
         XCTAssertTrue(views.contains("if open, sentExpiry, let e = file.expires {"))
