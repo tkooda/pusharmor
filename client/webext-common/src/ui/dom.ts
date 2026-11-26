@@ -198,9 +198,9 @@ export function group(...rows: (Node | null | undefined | false)[]): HTMLElement
   return h("div", { class: "grp" }, ...rows);
 }
 
-export type StatusKind = "ok" | "wait" | "off";
+export type StatusKind = "ok" | "wait" | "off" | "none";
 
-/** Status mark (filled dot, ring, ring with a bar) plus its word. */
+/** Status mark (filled dot, ring, ring with a bar, ring with a slash) plus its word. */
 export function statusLine(kind: StatusKind, word: string): HTMLElement {
   const ns = "http://www.w3.org/2000/svg";
   const mark = document.createElementNS(ns, "svg");
@@ -211,9 +211,9 @@ export function statusLine(kind: StatusKind, word: string): HTMLElement {
   if (kind === "ok") c.setAttribute("fill", "currentColor");
   else for (const [k, v] of Object.entries({ fill: "none", stroke: "currentColor", "stroke-width": "1.6" })) c.setAttribute(k, v);
   mark.append(c);
-  if (kind === "off") {
+  if (kind === "off" || kind === "none") {
     const bar = document.createElementNS(ns, "path");
-    for (const [k, v] of Object.entries({ d: "M2.4 5h5.2", stroke: "currentColor", "stroke-width": "1.6" })) bar.setAttribute(k, v);
+    for (const [k, v] of Object.entries({ d: kind === "none" ? "M2.2 7.8l5.6-5.6" : "M2.4 5h5.2", stroke: "currentColor", "stroke-width": "1.6" })) bar.setAttribute(k, v);
     mark.append(bar);
   }
   const el = h("span", { class: "st " + kind });
@@ -232,7 +232,7 @@ export function peerStatus(p: PeerView): { kind: StatusKind; word: string } | nu
   if (p.greyed) return OFF_WORDS[p.greyed] ? { kind: "off", word: OFF_WORDS[p.greyed]! } : null;
   if (p.approvesMe) return { kind: "ok", word: "Paired" };
   // a new device waiting for Pair here is not an error
-  return { kind: "wait", word: p.actions.includes("pair") ? "Ready to pair" : "Unconfirmed" };
+  return p.actions.includes("pair") ? { kind: "none", word: "Not paired" } : { kind: "wait", word: "Unconfirmed" };
 }
 
 /** The address an Open button opens: a phone number may already carry its tel: prefix. */

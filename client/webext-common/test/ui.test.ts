@@ -15,7 +15,7 @@ test("peer status line by priority, replaced by pairing and note lines", () => {
   assert.deepEqual(peerStatus(peer({ greyed: "send only" })), { kind: "off", word: "Not listening" });
   assert.deepEqual(peerStatus(peer({})), { kind: "ok", word: "Paired" });
   assert.deepEqual(peerStatus(peer({ approvesMe: false, sendable: false })), { kind: "wait", word: "Unconfirmed" });
-  assert.deepEqual(peerStatus(peer({ approvesMe: false, sendable: false, actions: ["pair", "deny"] })), { kind: "wait", word: "Ready to pair" });
+  assert.deepEqual(peerStatus(peer({ approvesMe: false, sendable: false, actions: ["pair", "deny"] })), { kind: "none", word: "Not paired" });
   assert.equal(peerStatus(peer({ greyed: "Rejected by Phone" })), null); // note line takes its place
   assert.equal(peerStatus(peer({ lines: ["Pairing with Phone"] })), null);
   assert.equal(peerStatus(peer({ fingerprint: "K7QD" })), null);

@@ -79,7 +79,7 @@ test("Devices: a rejected device shows only under a collapsed Rejected devices s
   assert.ok(sec, "no Rejected devices section");
   assert.equal(sec.attrs.open, undefined, "the section starts collapsed");
   assert.equal(sec.kids[0]!.tag, "summary");
-  assert.equal(sec.kids[0]!.textContent, "Rejected devices");
+  assert.equal(sec.kids[0]!.textContent, "Rejected devices (1)");
   // after Pair a new device: the bottom of the list
   assert.ok(root.kids.indexOf(sec) > root.kids.findIndex((n) => n.attrs.class === "pairnew"));
   const inSec = all(sec);
@@ -89,12 +89,34 @@ test("Devices: a rejected device shows only under a collapsed Rejected devices s
   assert.ok(!all(root).filter((n) => !inSec.includes(n)).some((n) => n.textContent === "Old tablet"));
 });
 
+test("Devices: sections Waiting to pair, Pairing, Paired devices, then Pair a new device and Rejected devices; empty ones hidden", async () => {
+  const peers = [
+    view("p1", "Phone", { section: "paired" }),
+    view("w1", "New Firefox device", { section: "waiting", actions: ["pair", "deny", "remove"], approvesMe: false, sendable: false, paired: false }),
+    view("c1", "Tablet", { section: "pairing", fingerprint: "YSWH", actions: ["approve", "deny", "cancel"], approvesMe: false, sendable: false, paired: false }),
+    view("r1", "Old tablet", { rejected: true, actions: ["pair", "remove"], approvesMe: false, sendable: false, paired: false }),
+  ];
+  const env = { call: async () => ({ ok: true, data: { peers } }) } as unknown as UiEnv;
+  const root = new N("div");
+  await renderPeers(env, root as unknown as HTMLElement, false);
+  const heads = root.kids.filter((n) => n.attrs.class === "sh" || n.attrs.class === "pairnew" || n.tag === "details").map((n) => (n.tag === "details" ? n.kids[0]!.textContent : n.attrs.class === "pairnew" ? "+" : n.textContent));
+  assert.deepEqual(heads, ["Waiting to pair", "Pairing", "Paired devices", "+", "Rejected devices (1)"]);
+  // Reject and Pair span the row
+  const w1 = all(root).find((n) => n.attrs.id === "peer-w1")!;
+  const acts = w1.kids.find((n) => n.attrs.class === "pair-acts")!;
+  assert.deepEqual(acts.kids.map((n) => n.textContent), ["Reject", "Pair"]);
+  // only paired: one section
+  const root2 = new N("div");
+  await renderPeers({ call: async () => ({ ok: true, data: { peers: [peers[0]] } }) } as unknown as UiEnv, root2 as unknown as HTMLElement, false);
+  assert.deepEqual(root2.kids.filter((n) => n.attrs.class === "sh").map((n) => n.textContent), ["Paired devices"]);
+});
+
 test("Devices: no rejected device, no Rejected devices section", async () => {
   const peers = [view("p1", "Phone", {})];
   const env = { call: async () => ({ ok: true, data: { peers } }) } as unknown as UiEnv;
   const root = new N("div");
   await renderPeers(env, root as unknown as HTMLElement, false);
-  assert.ok(!all(root).some((n) => n.tag === "details" || n.textContent === "Rejected devices"));
+  assert.ok(!all(root).some((n) => n.tag === "details" || n.textContent?.startsWith("Rejected devices")));
 });
 
 test("both devices rejected each other: Pair under Rejected devices ends the rejection and pairs them", async () => {

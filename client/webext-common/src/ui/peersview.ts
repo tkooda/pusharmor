@@ -73,13 +73,28 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
   // rejected devices list only under Rejected devices, until they send a new pairing request or get Pair
   const listed = data.peers.filter((p) => !p.rejected);
   const rejected = sortByLabel(data.peers.filter((p) => p.rejected));
-  const pairing = sortByLabel(listed.filter((p) => p.fingerprint));
-  const rows = sortByLabel(listed.filter((p) => !p.fingerprint));
+  // a view without a section (an older list): by its state
+  const sec = (p: PeerView): string => {
+    if (p.section) return p.section;
+    if (p.paired) return "paired";
+    return p.fingerprint ? "pairing" : "waiting";
+  };
+  const waiting = sortByLabel(listed.filter((p) => sec(p) === "waiting"));
+  const pairing = sortByLabel(listed.filter((p) => sec(p) === "pairing"));
+  const paired = sortByLabel(listed.filter((p) => sec(p) === "paired"));
   if (fpTimer) clearInterval(fpTimer);
   fpTimer = null;
+  const allow = data.allowContent !== false;
+  // a section: its heading, the pairing cards (codes shown), then one group of rows; nothing when empty
+  const section = (title: string, peers: PeerView[], first = false): HTMLElement[] => {
+    const cards = peers.filter((p) => p.fingerprint);
+    const rest = peers.filter((p) => !p.fingerprint);
+    if (!peers.length) return [];
+    return [sh(title), ...cards.map((p) => pairCard(env, p, redraw)), ...(rest.length ? [group(...rest.map((p) => (first ? peerRow(env, p, redraw) : peerRow(env, p, redraw, allow, data.self?.id))))] : [])];
+  };
   if (!data.peers.some((p) => p.paired)) {
     // no paired device yet: the first-pair steps and the devices waiting to pair (live)
-    const waiting = sortByLabel(listed.filter((p) => !p.hidden));
+    const shown = (p: PeerView) => !p.hidden;
     const fpClick = clickWord(navigator.userAgent).toLowerCase();
     root.append(
       h("h1", { class: "fp-title", tabindex: "-1" }, "Pair your first device"),
@@ -90,18 +105,14 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
           h("li", {}, h("span", { class: "fp-num", "aria-hidden": "true" }, String(i + 1)), h("span", {}, t)),
         ),
       ),
-      sh("Waiting to pair"),
-      ...waiting.filter((p) => p.fingerprint).map((p) => pairCard(env, p, redraw)),
-      ...(waiting.some((p) => !p.fingerprint)
-        ? [group(...waiting.filter((p) => !p.fingerprint).map((p) => peerRow(env, p, redraw)))]
-        : waiting.length
-          ? []
-          : [group(h("div", { class: "fp-wait", role: "status" }, h("span", { class: "fp-spin", "aria-hidden": "true" }), "Waiting for another device to log in."))]),
+      ...(waiting.some(shown) || pairing.some(shown)
+        ? section("Waiting to pair", waiting.filter(shown), true)
+        : [sh("Waiting to pair"), group(h("div", { class: "fp-wait", role: "status" }, h("span", { class: "fp-spin", "aria-hidden": "true" }), "Waiting for another device to log in."))]),
+      ...section("Pairing", pairing.filter(shown), true),
     );
   } else {
-    for (const p of pairing) root.append(pairCard(env, p, redraw));
-    if (rows.length) root.append(sh("Other devices"), group(...rows.map((p) => peerRow(env, p, redraw, data.allowContent !== false, data.self?.id))));
-    else if (!pairing.length) {
+    root.append(...section("Waiting to pair", waiting), ...section("Pairing", pairing), ...section("Paired devices", paired));
+    if (!listed.length) {
       root.append(
         h(
           "div",
@@ -186,7 +197,7 @@ function pairNew(open = false): HTMLElement {
 
 /** "Rejected devices": a collapsed section at the bottom of the list; Pair on a row ends the rejection and starts pairing. */
 function rejectedSection(env: UiEnv, peers: PeerView[], redraw: Redraw): HTMLElement {
-  const d = h("details", { class: "rejected", open: rejectedOpen }, h("summary", { class: "sh" }, "Rejected devices"), group(...peers.map((p) => peerRow(env, p, redraw))));
+  const d = h("details", { class: "rejected", open: rejectedOpen }, h("summary", { class: "sh" }, "Rejected devices (" + peers.length + ")"), group(...peers.map((p) => peerRow(env, p, redraw))));
   d.addEventListener("toggle", () => {
     rejectedOpen = (d as HTMLDetailsElement).open;
   });
@@ -302,10 +313,13 @@ function peerRow(env: UiEnv, p: PeerView, redraw: Redraw, globalAllow = true, se
   // Negative actions (Reject, Cancel pairing request) on the left, the main action on the right.
   const neg = (a: string): number => (a === "deny" || a === "cancel" ? 0 : 1);
   const main = [...p.actions].filter((a) => !inMenu(p, a)).sort((x, y) => neg(x) - neg(y) || rank(x) - rank(y));
-  if (main.length) col.append(h("div", { class: "actions" }, ...main.map((a) => actionButton(env, a, p, redraw, ACTION_CLASS[a] ?? "quiet"))));
+  // Reject and Pair (or Pair alone) fill the row width, equal halves
+  const wide = main.length > 0 && main.every((a) => a === "pair" || a === "deny");
+  if (main.length && !wide) col.append(h("div", { class: "actions" }, ...main.map((a) => actionButton(env, a, p, redraw, ACTION_CLASS[a] ?? "quiet"))));
   row.append(h("div", { class: "av" }, platformIcon(p.platform)), col);
   const more = menuFor(env, p, redraw, globalAllow);
   if (more) row.append(more);
+  if (wide) row.append(h("div", { class: "pair-acts" }, ...main.map((a) => actionButton(env, a, p, redraw))));
   return row;
 }
 

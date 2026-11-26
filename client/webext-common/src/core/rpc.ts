@@ -45,6 +45,8 @@ export interface PeerView {
   rejected?: boolean;
   /** server added time, seconds (0 = unknown) */
   created?: number;
+  /** Devices section: Waiting to pair, Pairing, or Paired devices (rejected rows go under Rejected devices) */
+  section?: "waiting" | "pairing" | "paired";
 }
 
 export interface StateView {
@@ -346,7 +348,10 @@ export class Rpc {
       const label = rowLabel(p);
       const v: PeerView = { id: p.id, label, platform: p.platform, lines: [], actions: [], countdown: null, fingerprint: null, pk: null, greyed: null, hidden: p.hidden, allowContent: p.allow_content !== false, sendable: false, approvesMe: p.approves_me, paired: false, created: p.created };
       const pv = entries.has(p.id) ? await e.pairRowView(p.id) : null;
+      // no pairing started here, or the other device wants to pair again: Waiting to pair
+      v.section = "waiting";
       if (pv) {
+        if (!(entries.get(p.id)!.half && p.pinned)) v.section = "pairing";
         v.lines = pv.lines;
         v.actions = pv.actions;
         v.countdown = pv.countdown;
@@ -355,6 +360,7 @@ export class Rpc {
         v.pk = ent.pk;
         if (ent.last_send && t - ent.last_send < 60_000) v.actions = v.actions.filter((x) => x !== "send_again");
       } else if (p.missing) {
+        v.section = "paired";
         v.greyed = "(missing)";
         v.actions = ["localDelete"];
       } else if (!p.pinned && p.ruling === "denied") {
@@ -372,12 +378,13 @@ export class Rpc {
         v.greyed = T.notPairedOn(label);
         v.actions = ["pair_again", "cancel"];
       } else if (p.ruling === "approved" && p.approves_me) {
+        v.section = "paired";
         v.paired = true;
         v.sendable = !p.logged_out && !p.hidden && p.listening !== false;
         if (p.logged_out) v.greyed = "logged out";
         else if (p.listening === false) v.greyed = "send only";
         else if (!p.reachable) v.greyed = "unreachable";
-      }
+      } else v.section = "pairing"; // approved here, waiting for the other device
       v.actions.push("remove");
       out.push(v);
     }
