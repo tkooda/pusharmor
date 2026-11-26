@@ -69,10 +69,13 @@ test("settings: one auto-download picker Off to 100 MB (default 50 MB), the help
   assert.equal(F.HELPER, "Each received file is available to download for 1 to 24 hours after it is sent, depending on its size");
   assert.equal(F.STORAGE_TITLE, "Storage for sent and received files");
   assert.equal(F.STORAGE_HELPER, "When full, the oldest files are removed from this device");
-  assert.deepEqual(F.storageOptions(null).map(F.storageLabel), ["100 MB", "500 MB", "1 GB", "5 GB"]);
+  assert.deepEqual(F.storageOptions(null).map(F.storageLabel), ["100 MB", "500 MB", "1 GB", "5 GB", "10 GB"]);
+  assert.deepEqual(F.storageOptions(20_000_000_000), [100_000_000, 500_000_000, 1_000_000_000, 5_000_000_000, 10_000_000_000]);
+  assert.equal(F.storageLimit(500_000_000, null), 500_000_000, "a saved choice is never changed");
+  assert.equal(F.storageLimit(10_000_000_000, null), 10_000_000_000);
   assert.deepEqual(F.storageOptions(2_000_000_000), [100_000_000, 500_000_000, 1_000_000_000]);
   assert.deepEqual(F.storageOptions(1), [100_000_000]);
-  assert.equal(F.storageLimit(undefined, null), 500_000_000);
+  assert.equal(F.storageLimit(undefined, null), 1_000_000_000, "no saved choice: 1 GB");
   assert.equal(F.storageLimit(5_000_000_000, 2_000_000_000), 1_000_000_000, "the largest choice that fits");
   // oldest first, the newest always stays
   const files = [{ key: "a", at: 1, bytes: 60 }, { key: "b", at: 2, bytes: 60 }, { key: "c", at: 3, bytes: 200 }];

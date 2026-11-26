@@ -41,8 +41,8 @@ export function pickerValue(saved: unknown): number {
 
 // ---- storage limit ----
 
-export const STORAGE_SIZES: readonly number[] = [100_000_000, 500_000_000, 1_000_000_000, 5_000_000_000];
-export const DEFAULT_STORAGE = 500_000_000;
+export const STORAGE_SIZES: readonly number[] = [100_000_000, 500_000_000, 1_000_000_000, 5_000_000_000, 10_000_000_000];
+export const DEFAULT_STORAGE = 1_000_000_000;
 
 export function storageLabel(bytes: number): string {
   return bytes >= 1_000_000_000 ? bytes / 1_000_000_000 + " GB" : bytes / 1_000_000 + " MB";
@@ -54,7 +54,7 @@ export function storageOptions(quota: number | null): number[] {
   return o.length ? o : [STORAGE_SIZES[0]!];
 }
 
-/** The limit in force: the saved choice (default 500 MB), else the largest choice that fits. */
+/** The limit in force: the saved choice (default 1 GB), else the largest choice that fits. */
 export function storageLimit(saved: unknown, quota: number | null): number {
   const o = storageOptions(quota);
   const s = typeof saved === "number" ? saved : DEFAULT_STORAGE;

@@ -180,7 +180,7 @@ function reply(req: Req): unknown {
     case "sendSel":
       return sendSel;
     case "fileStorage":
-      return { options: [100_000_000, 500_000_000, 1_000_000_000, 5_000_000_000], limit: 500_000_000 };
+      return { options: [100_000_000, 500_000_000, 1_000_000_000, 5_000_000_000, 10_000_000_000], limit: 1_000_000_000 };
     case "filesDecrypt":
       return [];
     case "detect":
