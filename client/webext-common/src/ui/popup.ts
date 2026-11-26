@@ -10,7 +10,7 @@ import { AUTH_CHANGED, AUTH_SWITCHED, type Restore } from "../model/signin.ts";
 import type { HistoryRow } from "../store/db.ts";
 import { type UiEnv, accountLine, add, busyBar, clear, disableFor, failView, group, h, idLabel, midEllipsis, nextTabIndex, openHref, rpc, sh, shortTime } from "./dom.ts";
 import { closeDialogs, confirmDialog, dismissToast, toast } from "./dialog.ts";
-import { applyFilter, historyChips } from "./historyfilter.ts";
+import { type Chip, applyFilter, historyChips } from "./historyfilter.ts";
 import { type MsgAction, msgActions, saveFilename } from "../model/msgactions.ts";
 import { icon, type IconName, messagesArt, platformIcon } from "./icons.ts";
 import { ownCard, renderPeers, resetPeersView } from "./peersview.ts";
@@ -721,10 +721,13 @@ export function sendProgress(env: UiEnv, caption: string, first: string, names: 
   };
 }
 
-export async function historyView(env: UiEnv, root: HTMLElement, focus?: string, nav?: Nav): Promise<void> {
+/** filter0: the filter in force when the view draws again (after a delete); a plain open starts on All. */
+export async function historyView(env: UiEnv, root: HTMLElement, focus?: string, nav?: Nav, filter0?: Chip): Promise<void> {
   await rpc(env, "historyOpened");
   let rows = await rpc<HistRow[]>(env, "history");
-  let key = "all";
+  let key = filter0?.key ?? "all";
+  // the filter in force, kept as a choice after its last row goes
+  let active: Chip | undefined = filter0;
   // desktop: every row always shows its checkbox, so the mode is always on (even when empty).
   // Firefox for Android: long-press (or Shift+Enter) starts multi-select; null means the mode is off.
   const always = !/Android/i.test(navigator.userAgent);
@@ -764,7 +767,7 @@ export async function historyView(env: UiEnv, root: HTMLElement, focus?: string,
       draw();
     },
   };
-  if (!rows.length) {
+  if (!rows.length && key === "all") {
     root.append(
       h(
         "div",
@@ -801,7 +804,8 @@ export async function historyView(env: UiEnv, root: HTMLElement, focus?: string,
   const draw = () => {
     const f = applyFilter(rows, key);
     key = f.key;
-    const opts = historyChips(rows);
+    const opts = historyChips(rows, active);
+    active = opts.find((c) => c.key === key);
     filter.replaceChildren(...opts.map((c) => h("option", { value: c.key, selected: c.key === key }, filterLabel(c.key, c.label))));
     filter.value = key;
     filter.hidden = opts.length < 2;
@@ -809,6 +813,8 @@ export async function historyView(env: UiEnv, root: HTMLElement, focus?: string,
     visible = f.rows.flatMap((r) => (r.id === undefined ? [] : [r.id]));
     const now = Date.now();
     for (const r of f.rows) list.append(historyRow(env, r, now, ctl));
+    // a filter that matches nothing stays on and says so; only All shows every message
+    if (!f.rows.length) list.append(h("div", { class: "nomatch", role: "status" }, "No matching messages"));
     const n = visible.filter((id) => picked?.has(id)).length;
     selAll.hidden = !picked;
     selAllBox.hidden = !picked;
@@ -844,7 +850,7 @@ export async function historyView(env: UiEnv, root: HTMLElement, focus?: string,
             delBar.stop();
           }
           clear(root);
-          await historyView(env, root, undefined, nav);
+          await historyView(env, root, undefined, nav, active);
           // the relay server file deletes finish after the list updates
           if (files) {
             const notice = await rpc<string | null>(env, "historyDeleteFiles").catch(() => null);

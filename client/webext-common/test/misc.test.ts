@@ -18,7 +18,7 @@ test("History filter: chips All / peer names / Unknown, peer chips hidden with o
   assert.deepEqual(historyChips(rows).map((c) => c.label), ["All", "Laptop", "Phone", "Unknown"]);
   assert.deepEqual(applyFilter(rows, "A").rows, [rows[0]]); // received rows from that peer only
   assert.deepEqual(applyFilter(rows, "unknown").rows, [rows[3]]);
-  assert.equal(applyFilter(one, "A").key, "all"); // resets to All
+  assert.deepEqual(applyFilter(one, "A"), { key: "A", rows: [one[0]] }); // a filter never falls back to All
 });
 
 test("login code paste rules and OAuth fragment", () => {

@@ -231,6 +231,7 @@ body.page .foot { position: static; }
 .hfilter select { flex: 1 1 0; min-width: 0; }
 .hfilter[hidden] { display: none; }
 .hist-list { margin-top: 12px; }
+.nomatch { padding: 32px 16px; text-align: center; color: var(--ink2); }
 .hrow { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 12px; padding: 10px 16px; align-items: start; }
 .hrow.event { align-items: center; }
 .hrow.sel, .hrow:focus-within { background: var(--s1); }
