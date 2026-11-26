@@ -80,3 +80,17 @@ Do not restore the config directory (the one holding `keys/` and `devices.toml`)
 - Linux, macOS, or Windows.
 - Python 3.9 or newer.
 - The `cryptography` package (version 3.3.2 or newer). pipx installs it for you.
+
+## Changes since 0.0.54
+
+- `pusharmor send --file PATH` sends a small file. `pusharmor listen --files DIR` saves
+  received files in DIR, and `listen --quiet` prints nothing to stdout.
+- Device IDs are now 9 digits (`NNN-NNN-NNN`). `pair`, `delete`, and `send -d` take
+  this form, and `listen` gives the sender in this form in every output form.
+- `listen --exec` now runs `PROG ID PLATFORM TYPE NAME BODY` (before:
+  `PROG ID NAME PLATFORM TYPE BODY`).
+- Only `devices` and `listen` write to stdout, and only their data. Prompts, messages,
+  hints, and errors now go to stderr.
+- `pusharmor devices` lists ID, ADDED, PLATFORM, STATUS, and NAME, has `--json` and
+  `--tsv` for scripts, and lists a rejected device last. `pusharmor pair` needs an ID;
+  run `pusharmor devices` to see device IDs.
