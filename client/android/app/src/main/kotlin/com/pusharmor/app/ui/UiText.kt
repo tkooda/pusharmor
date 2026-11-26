@@ -47,13 +47,13 @@ object UiText {
     const val UNABLE_SEND = "Unable to send."
     const val UNABLE_REFRESH = "Unable to refresh the device list."
     const val UNABLE_RENAME = "Unable to rename this device."
-    fun unablePair(x: String) = "Unable to pair with \"$x\"."
+    fun unablePair(x: String) = "Unable to pair with ${q(x)}."
     /** Pair again cancelled the old pairing but a new one did not start. */
     fun pairAgainFailed(x: String) = unablePair(x) + "\nThe old pairing was cancelled. Tap Pair to try again."
-    fun unableCancelPairing(x: String) = "Unable to cancel pairing with \"$x\"."
-    fun unableConfirm(x: String) = "Unable to confirm \"$x\"."
-    fun unableReject(x: String) = "Unable to reject \"$x\"."
-    fun unableRemove(x: String) = "Unable to remove \"$x\"."
+    fun unableCancelPairing(x: String) = "Unable to cancel pairing with ${q(x)}."
+    fun unableConfirm(x: String) = "Unable to confirm ${q(x)}."
+    fun unableReject(x: String) = "Unable to reject ${q(x)}."
+    fun unableRemove(x: String) = "Unable to remove ${q(x)}."
     const val UNABLE_EVICT = "Unable to remove the chosen devices."
     const val UNABLE_LOGOUT = "Unable to log out."
     const val UNABLE_SEND_CODE = "Unable to send the code."
@@ -226,7 +226,7 @@ object UiText {
     /** Send button label for [n] checked peers; one peer with a known [name] reads Send to "Laptop". */
     fun sendLabel(n: Int, name: String? = null): String = when (n) {
         0 -> "Send"
-        1 -> if (name == null) "Send to 1 device" else "Send to \"${cutName(name)}\""
+        1 -> if (name == null) "Send to 1 device" else "Send to ${qCut(name)}"
         else -> "Send to $n devices"
     }
 
@@ -235,7 +235,7 @@ object UiText {
      * Reached every pick: Message sent to "Laptop" or Message sent to 3 devices, as on iOS.
      */
     fun sendToast(picked: Int, sent: Int, total: Int, name: String? = null): String = when {
-        sent == 1 && picked == 1 -> if (name == null) "Message sent to 1 device" else "Message sent to \"${cutName(name)}\""
+        sent == 1 && picked == 1 -> if (name == null) "Message sent to 1 device" else "Message sent to ${qCut(name)}"
         sent == picked && sent > 0 -> "Message sent to $sent devices"
         else -> "Sent to $sent of $total ${if (total == 1) "device" else "devices"}"
     }
@@ -243,17 +243,17 @@ object UiText {
     /** Toast after a Direct Share send to one device. */
     /** Direct Share progress line: the type as named on the Send screen caption. */
     fun directSending(type: ContentType, name: String): String =
-        "Sending ${when (type) { ContentType.URL -> "URL"; ContentType.TEL -> "phone number"; ContentType.TEXT -> "text" }} to \"${cutName(name)}\"..."
+        "Sending ${when (type) { ContentType.URL -> "URL"; ContentType.TEL -> "phone number"; ContentType.TEXT -> "text" }} to ${qCut(name)}..."
 
     /** Body of the History multi-select delete confirmation; [sync] is the Sync deletions setting. */
     fun deleteSelectedBody(sync: Boolean): String =
         if (sync) "This deletes the selected messages off this and other paired devices." else "This deletes the selected messages off this device."
 
     fun directSending(type: ContentType, names: List<String>): String =
-        "Sending ${when (type) { ContentType.URL -> "URL"; ContentType.TEL -> "phone number"; ContentType.TEXT -> "text" }} to ${quotedList(names.map(::cutName))}..."
+        "Sending ${when (type) { ContentType.URL -> "URL"; ContentType.TEL -> "phone number"; ContentType.TEXT -> "text" }} to ${quotedList(names.map(::cutName), names)}..."
 
     /** Progress caption for 2 or more devices: the devices follow, one per line. */
-    fun directSendingFile(file: String, names: List<String>): String = "Sending \"$file\" to ${quotedList(names.map(::cutName))}..."
+    fun directSendingFile(file: String, names: List<String>): String = "Sending \"$file\" to ${quotedList(names.map(::cutName), names)}..."
 
     fun directSendingFileList(file: String): String = "Sending \"$file\" to:"
     /** Line 2 of the error of a Direct Share file send that the app closed during. */
@@ -265,14 +265,14 @@ object UiText {
     /** One device in the progress list: a bullet and the name, no quotes. */
     fun bulleted(name: String): String = "\u2022 ${cutName(name)}"
 
-    fun directShareSent(name: String): String = "Message sent to \"${cutName(name)}\""
+    fun directShareSent(name: String): String = "Message sent to ${qCut(name)}"
 
     /** The two lines for the one picked device that did not get a send; null when it did. An unknown or missing word reads as not ready yet. */
     fun sendResultText(word: String, x: String): String? {
-        val to = "Unable to send to \"$x\".\n"
+        val to = "Unable to send to ${q(x)}.\n"
         return when {
             word == "sent" -> null
-            word == "gone" -> "Unable to deliver message to \"$x\".\nOpen PushArmor on it to resolve."
+            word == "gone" -> "Unable to deliver message to ${q(x)}.\nOpen PushArmor on it to resolve."
             word == "logged out" -> to + "That device is logged out. Log in on that device to receive messages."
             word == "not listening" -> to + "It has not listened recently. Run pusharmor listen on it."
             word == "unapproved" -> to + "It is not paired with this device. Pair with it to send it messages."
@@ -286,18 +286,18 @@ object UiText {
     /** Sync deletions the relay server took but some devices did not get: one is named (and why), several are listed; null when all got it. */
     fun syncDeleteMissed(missed: List<Pair<String, String>>): String? = when (missed.size) {
         0 -> null
-        1 -> missed[0].let { (x, w) -> "Unable to delete on \"$x\"" + (sendResultText(w, x)?.substringAfter('\n', "")?.takeIf { it.isNotEmpty() }?.let { "\n$it" } ?: "") }
+        1 -> missed[0].let { (x, w) -> "Unable to delete on ${q(x)}" + (sendResultText(w, x)?.substringAfter('\n', "")?.takeIf { it.isNotEmpty() }?.let { "\n$it" } ?: "") }
         else -> "Unable to delete on " + quotedList(missed.map { it.first })
     }
 
     /** "\"A\" and \"B\""; "\"A\", \"B\", and \"C\"". */
-    fun quotedList(names: List<String>): String {
-        val q = names.map { "\"$it\"" }
+    fun quotedList(names: List<String>, full: List<String> = names): String {
+        val q = names.mapIndexed { i, n -> if (isNewDeviceLabel(full[i])) n else "\"$n\"" }
         return if (q.size <= 2) q.joinToString(" and ") else q.dropLast(1).joinToString(", ") + ", and " + q.last()
     }
 
     /** Subtext of a History row whose delete is still pending on [names]. */
-    fun notDeletedOn(names: List<String>): String = if (names.size == 1) "Not deleted on \"${names[0]}\"" else "Not deleted on ${names.size} devices"
+    fun notDeletedOn(names: List<String>): String = if (names.size == 1) "Not deleted on ${q(names[0])}" else "Not deleted on ${names.size} devices"
 
     /** Delete progress captions: del calls finished of all, a retry, then the local delete. */
     fun deletingOnOthers(done: Int, total: Int): String = "Deleting on your other devices ($done of $total)"
@@ -314,18 +314,18 @@ object UiText {
     const val UPDATING_DEVICES = "Updating devices"
     const val DELETING_ACCOUNT = "Deleting your account"
     fun removing(names: List<String>): String = "Removing " + quotedList(names)
-    fun encryptingFor(name: String): String = "Encrypting for \"${cutName(name)}\""
-    fun sendingTo(name: String): String = "Sending to \"${cutName(name)}\""
+    fun encryptingFor(name: String): String = "Encrypting for ${qCut(name)}"
+    fun sendingTo(name: String): String = "Sending to ${qCut(name)}"
 
-    fun encryptingFor(names: List<String>): String = "Encrypting for ${quotedList(names.map(::cutName))}"
-    fun sendingTo(names: List<String>): String = "Sending to ${quotedList(names.map(::cutName))}"
+    fun encryptingFor(names: List<String>): String = "Encrypting for ${quotedList(names.map(::cutName), names)}"
+    fun sendingTo(names: List<String>): String = "Sending to ${quotedList(names.map(::cutName), names)}"
 
     private fun cutName(name: String) = if (name.length > SEND_NAME_MAX) name.take(SEND_NAME_MAX - 3).trimEnd() + "..." else name
 
     /** History title of a sent row (F22): reached its one device reads Sent to "Laptop", cut like the Send button; else "Sent". */
     fun sentTitle(results: Map<String, String>, nameOf: (String) -> String): String {
         val only = results.entries.singleOrNull()
-        return if (only?.value == "sent") "Sent to \"${cutName(nameOf(only.key))}\"" else "Sent"
+        return if (only?.value == "sent") "Sent to ${qCut(nameOf(only.key))}" else "Sent"
     }
 
     /** Header above the device chips: "Send to (6 of 9)". */
@@ -392,7 +392,7 @@ object UiText {
     fun shortDeviceId(id: String): String = com.pusharmor.crypto.Ids.deviceId(java.util.Base64.getUrlDecoder().decode(id))
     /** Extra line on an unpaired command line device; the command is monospace with no-break spaces so it never splits. */
     fun pairCommandLine(name: String, selfId: String): AnnotatedString = buildAnnotatedString {
-        append("To pair, run this on \"$name\": ")
+        append("To pair, run this on ${q(name)}: ")
         withStyle(SpanStyle(fontFamily = FontFamily.Monospace)) { append("pusharmor\u00A0pair\u00A0" + shortDeviceId(selfId)) }
     }
     const val FIRST_DEVICE_WAITING = "Waiting for another device to log in."
@@ -461,9 +461,9 @@ object UiText {
     fun pairRefused(r: PairStart, name: String): String? = when (r) {
         PairStart.STARTED -> null
         PairStart.NO_DEVICE -> "This device is no longer on your account."
-        PairStart.PAIRED -> "Already paired with \"$name\"."
-        PairStart.IN_PROGRESS -> "Pairing with \"$name\" is already in progress."
-        PairStart.NOT_READY -> "\"$name\" can't pair right now. Open PushArmor on that device, then try again."
+        PairStart.PAIRED -> "Already paired with ${q(name)}."
+        PairStart.IN_PROGRESS -> "Pairing with ${q(name)} is already in progress."
+        PairStart.NOT_READY -> "${q(name)} can't pair right now. Open PushArmor on that device, then try again."
     }
 
     /** A device as the app names it: its name, else "New Android device" (its name is not known until it pairs). */
@@ -511,31 +511,38 @@ object UiText {
     fun deletedNotice(count: Int, name: String?): String = (if (count == 1) "1 message" else "$count messages") + " deleted by " + quoted(name, "a device")
     fun rejectedNotice(name: String?): String = "Rejected by ${quoted(name, "a device")}."
     fun logoutNotice(name: String?, loggedOut: Boolean): String = quoted(name, "A device") + if (loggedOut) " logged out." else " logged in."
-    fun greyedChip(name: String, status: String): String = "\"$name\": $status"
+    fun greyedChip(name: String, status: String): String = "${q(name)}: $status"
     fun blockedChannel(name: String?): String = "Messages from ${quoted(name, "a device")} are blocked."
-    fun stillHolds(x: String): String = "\"$x\" still holds an earlier pairing. On \"$x\", tap Cancel pairing request, then tap Send again."
+    fun stillHolds(x: String): String = "${q(x)} still holds an earlier pairing. On ${q(x)}, tap Cancel pairing request, then tap Send again."
     fun pairingInProgress(name: String?): String = "Pairing with ${quoted(name, "a device")} is in progress. Open PushArmor."
     /** A device asks to pair: named when its name is known, else the generic text. */
-    fun wantsToPairNotice(name: String?): String = if (name == null) "A new device wants to pair. Open PushArmor." else "\"$name\" wants to pair."
+    fun wantsToPairNotice(name: String?): String = if (name == null) "A new device wants to pair. Open PushArmor." else "${q(name)} wants to pair."
     /** The compare step: the generic text, then the fingerprint. */
     fun compareNotice(fingerprint: String): String = "New device: compare $fingerprint"
     fun newMessageFrom(name: String?): String = "New message from ${quoted(name, "a device")}"
     /** A message notification title: the sending device's name in quotes. */
     fun messageTitle(name: String?): String = quoted(name, "Unknown sender")
-    fun removeDeviceBody(x: String): String = "Remove \"$x\" from this account? \"$x\" must log in again and pair with every device again."
-    fun deleteDeviceTitle(x: String): String = "Delete \"$x\"?"
-    fun deleteDeviceBody(x: String): String = "This removes \"$x\" from this device."
-    fun rejectedBy(x: String): String = "Rejected by \"$x\""
-    fun notPairedOn(x: String): String = "Not paired on \"$x\""
-    fun waitingCodesMatch(x: String): String = "Waiting for \"$x\": open PushArmor there and tap Codes match."
-    fun repliedWaiting(x: String): String = "Replied. Waiting for \"$x\"."
-    fun waitingReply(x: String): String = "Waiting for \"$x\" to reply."
+    fun removeDeviceBody(x: String): String = "Remove ${q(x)} from this account? ${q(x)} must log in again and pair with every device again."
+    fun deleteDeviceTitle(x: String): String = "Delete ${q(x)}?"
+    fun deleteDeviceBody(x: String): String = "This removes ${q(x)} from this device."
+    fun rejectedBy(x: String): String = "Rejected by ${q(x)}"
+    fun notPairedOn(x: String): String = "Not paired on ${q(x)}"
+    fun waitingCodesMatch(x: String): String = "Waiting for ${q(x)}: open PushArmor there and tap Codes match."
+    fun repliedWaiting(x: String): String = "Replied. Waiting for ${q(x)}."
+    fun waitingReply(x: String): String = "Waiting for ${q(x)} to reply."
     // Screen reader labels that carry a device name in a sentence quote it too.
-    fun moreOptionsFor(x: String): String = "More options for \"$x\""
-    fun chipLabel(name: String, status: String): String = "\"$name\": $status"
+    fun moreOptionsFor(x: String): String = "More options for ${q(x)}"
+    fun chipLabel(name: String, status: String): String = "${q(name)}: $status"
     /** The pairing row error when the other device has not answered (two lines). */
-    fun noReplyFrom(x: String): String = "No reply from \"$x\"\nCheck that notifications are on for PushArmor on both devices, then try again"
-    private fun quoted(name: String?, none: String): String = if (name == null) none else "\"${DeviceName.display(name)}\""
+    fun noReplyFrom(x: String): String = "No reply from ${q(x)}\nCheck that notifications are on for PushArmor on both devices, then try again"
+    private fun quoted(name: String?, none: String): String = if (name == null) none else q(DeviceName.display(name))
+    /** A computed label of a device with no known name ("New Android device", with its ID when it clashes). */
+    fun isNewDeviceLabel(x: String): Boolean = NEW_DEVICE.matches(x)
+    private val NEW_DEVICE = Regex("New (Android|iOS|Chrome|Firefox|CLI) device( \\(\\d{3}-\\d{3}-\\d{3}\\))?")
+    /** A device name in a sentence, in straight double quotes; a computed "New X device" label stays unquoted, as on the extensions. */
+    fun q(x: String): String = if (isNewDeviceLabel(x)) x else "\"$x\""
+    /** [q] of [name] cut like the Send button; a computed label is never quoted, even when cut. */
+    private fun qCut(name: String): String = if (isNewDeviceLabel(name)) cutName(name) else "\"${cutName(name)}\""
 
     /** Screen reader state of the sign-in code field, which has no visible label: "Code, 2 of 6 entered". */
     fun codeState(n: Int): String = "Code, $n of 6 entered"

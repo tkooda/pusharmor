@@ -256,6 +256,26 @@ class UiTextTest {
         assertEquals(UiText.greyedChip("Pixel 8", "Not paired yet"), UiText.chipLabel("Pixel 8", "Not paired yet")) // the same text the tap shows
     }
 
+    @Test fun newDeviceLabelIsNeverQuoted() {
+        val x = UiText.peerLabel(null, "firefox")
+        assertEquals("Unable to pair with New Firefox device.", UiText.unablePair(x))
+        assertEquals("Unable to cancel pairing with New Firefox device.", UiText.unableCancelPairing(x))
+        assertEquals("Unable to confirm New Firefox device.", UiText.unableConfirm(x))
+        assertEquals("Unable to reject New Firefox device.", UiText.unableReject(x))
+        assertEquals("Unable to remove New Firefox device.", UiText.unableRemove(x))
+        assertEquals("Rejected by New Firefox device", UiText.rejectedBy(x))
+        assertEquals("Waiting for New Firefox device to reply.", UiText.waitingReply(x))
+        assertEquals("More options for New Firefox device", UiText.moreOptionsFor(x))
+        assertEquals("New Firefox device: Not paired yet", UiText.chipLabel(x, "Not paired yet"))
+        assertEquals("Send to New Firefox device", UiText.sendLabel(1, x))
+        assertEquals("Sending to New Firefox device and \"Laptop\"", UiText.sendingTo(listOf(x, "Laptop")))
+        assertEquals("Unable to pair with New Android device (907-331-064).", UiText.unablePair("New Android device (907-331-064)"))
+        assertEquals("New Firefox device wants to pair.", UiText.wantsToPairNotice(x))
+        // Real names keep their quotes.
+        assertEquals("Unable to pair with \"Pixel 8\".", UiText.unablePair("Pixel 8"))
+        assertEquals("Unable to pair with \"New Firefox devices\".", UiText.unablePair("New Firefox devices"))
+    }
+
     @Test fun fingerprintIsReadPerCharacter() {
         assertEquals("Pairing code K, 7, Q, D", UiText.fingerprintLabel("K7QD"))
     }
