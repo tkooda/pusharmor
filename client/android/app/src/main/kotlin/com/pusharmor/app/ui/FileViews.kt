@@ -32,9 +32,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -87,10 +87,10 @@ internal fun fileMime(name: String): String =
 
 internal fun noAppOpens(name: String) = "No app can open \"$name\"."
 
-/** "Choose file..." inside the message box, at its bottom right. */
+/** "Or choose a file..." inside the message box, at its bottom right: a stock text button, secondary to Send. */
 @Composable
 internal fun ChooseFileButton(modifier: Modifier = Modifier, onClick: () -> Unit) {
-    OutlinedButton(onClick = onClick, modifier = modifier.heightIn(min = 40.dp)) {
+    TextButton(onClick = onClick, modifier = modifier) {
         Icon(PaIcons.AttachFile, null, Modifier.size(18.dp))
         Spacer(Modifier.width(8.dp))
         Text(FileUi.CHOOSE_FILE)

@@ -324,6 +324,14 @@ class AppLogicTest {
         assertFalse(settings.contains("Keep messages for"))
     }
 
+    @Test fun chooseFileIsASecondaryTextButton() {
+        assertEquals("Or choose a file...", com.pusharmor.app.files.FileUi.CHOOSE_FILE)
+        // a stock text button, not the outlined call-to-action style; Send stays the one main button
+        val button = source("ui/FileViews.kt").substringAfter("internal fun ChooseFileButton(").substringBefore("\n}")
+        assertTrue(button, button.contains("TextButton(onClick = onClick"))
+        assertFalse(button, button.contains("OutlinedButton"))
+    }
+
     @Test fun transientMessagesUseTheOneSnackbar() {
         // one SnackbarHost for the signed-in screens, fed by vm.message, which it takes at once (so none
         // comes back on another screen later). Toasts only where the screen closes at once.

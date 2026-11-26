@@ -16,7 +16,7 @@ object FileUi {
     const val REMOVED = "Removed from this device"
     const val NO_MEMORY = "Not enough memory to decrypt"
     const val PREVIEW_NA = "Preview not available"
-    const val CHOOSE_FILE = "Choose file..."
+    const val CHOOSE_FILE = "Or choose a file..."
     const val REMOVE_FILE = "Remove file"
     const val WILL_SEND_FILE = "Will be sent as file"
     const val EXPIRED = "Expired"
