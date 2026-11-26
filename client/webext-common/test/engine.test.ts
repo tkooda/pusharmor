@@ -148,8 +148,9 @@ test("replay: duplicate re-presents, seen n without row is Invalid, control seen
   await b.e.receive(m1!, "bridge");
   assert.equal((await b.db.history()).length, before);
   // control type seen n: silent no-op
-  await assert.rejects(a.e.rename('Dad"s'), { message: "Use 1 to 32 plain ASCII characters, with no double quote." });
-  await a.e.rename("Laptop");
+  await assert.rejects(a.e.rename('Dad"s'), { message: "Invalid characters" });
+  await assert.rejects(a.e.rename("   "), { message: "Name too short" });
+  await a.e.rename("  Laptop ");
   const [rn] = w.take(b.id);
   await b.e.receive(rn!, "push");
   assert.equal((await b.db.peer(a.id))!.name, "Laptop");

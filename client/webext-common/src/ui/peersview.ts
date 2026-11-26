@@ -1,6 +1,7 @@
 // Peers list (popup and the full tab), component-webext section 7 Peers.
 import type { PeerView } from "../core/rpc.ts";
 import { sortByLabel } from "../model/sendsel.ts";
+import { checkName } from "../model/names.ts";
 import { STEP } from "../model/busy.ts";
 import { b64urlTryDecode } from "../crypto/b64url.ts";
 import { ID_LEN, addedDate, deviceId } from "../crypto/labels.ts";
@@ -229,12 +230,19 @@ export function ownCard(env: UiEnv, name: string, platform: string, id: string):
     let saving = false; // Enter plus a click must not rename twice
     const save = h("button", {
         onclick: async () => {
+          // a name against the rule: say why, the field stays open for a fix
+          const typed = checkName(input.value);
+          if (typed.error !== null) {
+            toast(typed.error, "err");
+            input.focus();
+            return;
+          }
           if (saving) return;
           saving = true;
           try {
-            await rpc(env, "rename", { name: input.value });
+            await rpc(env, "rename", { name: typed.name });
             toast("Renamed", "ok");
-            show(input.value, true);
+            show(typed.name, true);
           } catch (e) {
             toast((e as Error).message, "err");
           } finally {

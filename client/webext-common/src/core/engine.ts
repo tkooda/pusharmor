@@ -37,7 +37,6 @@ import {
   encodeInner,
   encodePair,
   isPairWire,
-  isPrintableName,
   makeNameEntry,
   newMsgId,
   openNameEntry,
@@ -73,6 +72,7 @@ import {
   getEntry,
   pairKeyOf,
 } from "./state.ts";
+import { checkName, displayName } from "../model/names.ts";
 import { R, T, actionLine, peerLabel, quoted, rowLabel, sendResultText, syncDeleteResultText } from "./texts.ts";
 import { AUTH_CHANGED, AUTH_SWITCHED } from "../model/signin.ts";
 import { BUSY, type Busy, DEL_CAP, STEP } from "../model/busy.ts";
@@ -686,7 +686,7 @@ export class Engine {
     // the device is named in the notice when it has a name; else the generic text
     const fromRow = await this.db.peer(from);
     const known = fromRow?.name;
-    const commitText = known ? T.wantsToPair(known) : T.pairCommit;
+    const commitText = known ? T.wantsToPair(displayName(known)) : T.pairCommit;
     // a device with no name yet: "A new device wants to pair" over its platform and ID
     const commitNotice = (pk: string) => (!known && fromRow ? this.pairNotice(pk, T.pairNewBody(fromRow.platform, deviceId(b64urlDecode(from))), T.pairNewTitle) : this.pairNotice(pk, commitText));
     switch (d.action) {
@@ -2043,10 +2043,12 @@ export class Engine {
   }
 
   /** Rename: one name entry and one rename message per allow-list peer, same n. */
-  async rename(name: string): Promise<void> {
+  async rename(typed: string): Promise<void> {
     const self = await this.self();
     if (!self) return;
-    if (!isPrintableName(name)) throw new ReasonError(R.badName);
+    // spaces trimmed and collapsed; the error text is the whole message ("Invalid characters", "Name too short")
+    const { error, name } = checkName(typed);
+    if (error !== null) throw new UserError(error);
     // the same name: nothing to tell the other devices
     if (name === (await this.myName())) return;
     let names: Record<string, string> = {};

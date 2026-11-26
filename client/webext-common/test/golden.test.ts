@@ -10,6 +10,7 @@ import { b64urlDecode, b64urlEncode, b64urlTryDecode } from "../src/crypto/b64ur
 import { ascii, buf, concat, hex, unhex } from "../src/crypto/bytes.ts";
 import { sha256 } from "../src/crypto/hash.ts";
 import { hpkeOpen } from "../src/crypto/hpke.ts";
+import { checkName, defaultName, displayName, uniqueDefault } from "../src/model/names.ts";
 import { importPrivate, verify } from "../src/crypto/keys.ts";
 import {
   type AnyPush,
@@ -479,6 +480,15 @@ describe("golden: must_decode", () => {
       assert.deepEqual({ ok: name !== null, name, n: e.n }, c.expect);
     });
   }
+});
+
+test("golden: device_name", () => {
+  const d = G.device_name;
+  assert.ok(d.input_cases.length && d.default_cases.length && d.display_cases.length && d.clash_cases.length);
+  for (const c of d.input_cases) assert.deepEqual(checkName(c.input), { error: c.error, name: c.name }, JSON.stringify(c.input));
+  for (const c of d.default_cases) assert.equal(defaultName(c.input), c.name, JSON.stringify(c.input));
+  for (const c of d.display_cases) assert.equal(displayName(c.input), c.shown, JSON.stringify(c.input));
+  for (const c of d.clash_cases) assert.equal(uniqueDefault(c.base, c.taken), c.name, JSON.stringify(c));
 });
 
 test("golden: rfc9180 (P-256, HKDF-SHA256, AES-256-GCM)", async () => {

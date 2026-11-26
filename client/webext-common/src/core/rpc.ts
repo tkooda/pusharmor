@@ -8,6 +8,7 @@ import { type Engine, type Settings, UserError } from "./engine.ts";
 import { ActionError, RestartError, reasonOf, failText } from "./failtext.ts";
 import { Login, type Purpose } from "./login.ts";
 import { type Files, fileKey } from "./files.ts";
+import { displayName } from "../model/names.ts";
 import { PAIR_AGAIN_PREFIX, PAIR_MSG_PREFIX, allEntries } from "./state.ts";
 import { type ActionId, T, peerLabel, pushVendor, rowLabel } from "./texts.ts";
 
@@ -319,7 +320,7 @@ export class Rpc {
       reg: await e.regState(),
       banner: (await e.db.meta<string | null>("banner")) ?? null,
       email: (await e.db.meta<string>("email")) ?? null,
-      name: await e.myName(),
+      name: displayName(await e.myName()),
       settings: await e.settings(),
       platform: e.p.platformName,
       isAndroid: e.p.isAndroid,
@@ -392,7 +393,7 @@ export class Rpc {
       v.actions.push("remove");
       out.push(v);
     }
-    return { self: self ? { id: self.id, name: await e.myName() } : null, peers: out, allowContent: (await e.settings()).allowContent };
+    return { self: self ? { id: self.id, name: displayName(await e.myName()) } : null, peers: out, allowContent: (await e.settings()).allowContent };
   }
 
   async history(): Promise<(HistoryRow & { sender: string; notDeleted?: string[] })[]> {
@@ -406,7 +407,8 @@ export class Rpc {
       const p = r.peer ? peers.get(r.peer) : undefined;
       let sender: string = T.unknownSender;
       if (r.peer) {
-        const nm = p?.name ?? r.peer_name ?? null;
+        const raw = p?.name ?? r.peer_name ?? null;
+        const nm = raw === null ? null : displayName(raw);
         sender = (nm ?? peerLabel(p)) + (!p || p.removed ? " (removed)" : "");
       } else if (r.dir === "out" && r.targets?.length === 1) {
         // A message to one device: History names it (Sent to "Laptop").

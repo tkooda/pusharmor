@@ -357,9 +357,12 @@ test("a request the background does not know, and no reply from it, say what fai
   await assert.rejects(rpc(env, "state"), { message: "Unable to reach PushArmor.\nClose this window, open it again, and try again." });
 });
 
-test("a device name that is not allowed says Unable to rename, then the rule", async () => {
+test("a device name that is not allowed says Invalid characters or Name too short, with no period", async () => {
   const { rpc } = await paired();
-  assert.equal(await fails(rpc, "rename", { name: 'Lap"top' }), "Unable to rename this device.\nUse 1 to 32 plain ASCII characters, with no double quote.");
+  assert.equal(await fails(rpc, "rename", { name: 'Lap"top' }), "Invalid characters");
+  assert.equal(await fails(rpc, "rename", { name: "Lap!top" }), "Invalid characters");
+  assert.equal(await fails(rpc, "rename", { name: "-Laptop" }), "Invalid characters");
+  assert.equal(await fails(rpc, "rename", { name: "  " }), "Name too short");
 });
 
 test("a menu send that some devices did not get, with no text back, says so in two lines", async () => {

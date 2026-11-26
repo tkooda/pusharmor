@@ -742,3 +742,18 @@ test("the Pairing code label keeps normal letter spacing", async () => {
   assert.ok(m);
   assert.doesNotMatch(m[1], /letter-spacing/);
 });
+
+test("names: every row label and the own name pass the display filter; rename checks the rule before it asks", async () => {
+  const { rowLabel, peerLabel } = await import("../src/core/texts.ts");
+  const row = { name: '  Dad"s  <PC>  ', platform: "android" } as unknown as Parameters<typeof rowLabel>[0];
+  assert.equal(rowLabel(row), "Dad?s ?PC?");
+  assert.equal(peerLabel(row), "Dad?s ?PC?");
+  assert.equal(rowLabel({ ...row, name: "" }), "?");
+  assert.equal(rowLabel({ ...row, name: null }), "New Android device");
+  const { readFileSync } = await import("node:fs");
+  const rd = (f: string) => readFileSync(new URL("../src/" + f, import.meta.url), "utf8");
+  const rpcSrc = rd("core/rpc.ts");
+  assert.match(rpcSrc, /name: displayName\(await e\.myName\(\)\),/);
+  assert.match(rpcSrc, /\{ id: self\.id, name: displayName\(await e\.myName\(\)\) \}/);
+  assert.match(rd("ui/peersview.ts"), /const typed = checkName\(input\.value\);\s+if \(typed\.error !== null\) \{\s+toast\(typed\.error, "err"\);/);
+});

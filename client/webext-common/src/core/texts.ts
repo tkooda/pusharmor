@@ -1,6 +1,7 @@
 // User-facing strings (component-webext sections 5, 7; catalog).
 
 import type { PeerRow } from "../store/db.ts";
+import { displayName } from "../model/names.ts";
 
 const A_DEVICE = "A device";
 /** True for the label of a device with no name yet (New Firefox device). */
@@ -174,7 +175,7 @@ export function newDeviceLabel(platform: string): string {
 
 /** The device name its row in the list shows. */
 export function rowLabel(p: PeerRow): string {
-  return p.name ?? newDeviceLabel(p.platform);
+  return p.name !== null ? displayName(p.name) : newDeviceLabel(p.platform);
 }
 
 // Error texts, same words as Android and iOS: line 1 says what could not be done,
@@ -265,7 +266,6 @@ export const R = {
   enterCode: "Enter the 6-character code from the email.",
   enterEmail: "Enter your email address.",
   emailNotValid: "The email address is not valid. Check it and try again.",
-  badName: "Use 1 to 32 plain ASCII characters, with no double quote.",
   someNotSent: "Some devices did not get the message. Open PushArmor to see which.",
   noneCanReceive: "No device can receive messages right now.",
   noLongerOnAccount: "It is no longer on this account.",
