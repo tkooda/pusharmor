@@ -1394,7 +1394,11 @@ fun HistoryScreen(vm: AppViewModel, onPair: () -> Unit = {}, onSend: () -> Unit 
                 if (animationsOn(context)) { glowId = id; glow.snapTo(0f); glow.animateTo(1f, tween(150)); glow.animateTo(0f, tween(450)); glowId = null }
             }
         }
-        LazyColumn(Modifier.weight(1f), state = state, contentPadding = PaddingValues(bottom = 16.dp)) {
+        // A filter with no matching rows: gray centered text in place of the list.
+        if (shown.isEmpty()) Box(Modifier.weight(1f).fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+            Text(NO_MATCHING, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+        }
+        else LazyColumn(Modifier.weight(1f), state = state, contentPadding = PaddingValues(bottom = 16.dp)) {
             for ((day, group) in days) {
                 item(key = "day-$day") {
                     val l = UiText.dayLabel(group.first().at, now)
@@ -1413,6 +1417,9 @@ fun HistoryScreen(vm: AppViewModel, onPair: () -> Unit = {}, onSend: () -> Unit 
         }
     }
 }
+
+/** History with a filter on and no row that matches it. */
+internal const val NO_MATCHING = "No matching messages"
 
 /** What History shows: the chip in effect, the chips, the shown rows and their day groups. */
 internal class HistoryView(
@@ -1519,7 +1526,8 @@ private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, e
     val file = com.pusharmor.app.files.ReceivedFiles.fileOf(h)
     val fileRow = if (file != null) vm.files.rows.collectAsState().value[h.id] else null
     val unread = !h.read && !event
-    val who = h.peerId?.let { nameOf(it) } ?: if (h.direction == "SENT") UiText.sentTitle(h.toRow().results, nameOf) else "Unknown sender"
+    val results = if (h.direction == "SENT") h.toRow().results else emptyMap()
+    val who = h.peerId?.let { nameOf(it) } ?: if (h.direction == "SENT") UiText.sentTitle(results, nameOf) else "Unknown sender"
     val time = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(h.at))
     val body = when (h.type) {
         "unreadable" -> com.pusharmor.app.notify.Notifier.COULD_NOT_READ + if (h.count > 1) " (${h.count})" else ""
@@ -1586,6 +1594,8 @@ private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, e
                 }
             }
         }
+        // A send to 2 or more devices: the Recipients line just above the actions; it starts closed each time the row opens.
+        if (expanded && !selecting && results.size > 1) Recipients(results, nameOf)
         if (expanded && !selecting && fileRow?.status == com.pusharmor.app.files.FileUi.Status.Ready) FileActions(vm, fileRow)
         val hc = h.content
         if (expanded && !selecting && hc != null && !unknown && file == null) {
@@ -1617,6 +1627,33 @@ private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, e
         }
     }
 }
+
+/**
+ * The "Recipients" line of an opened sent row: its own button (with a chevron) that shows or hides the devices, one
+ * per line, each with "Sent" or "Failed". A tap on it toggles only the list; the list goes when the row closes.
+ */
+@Composable
+private fun Recipients(results: Map<String, String>, nameOf: (String) -> String) {
+    var open by remember { mutableStateOf(false) }
+    val cs = MaterialTheme.colorScheme
+    val style = MaterialTheme.typography.bodyMedium
+    Column(Modifier.fillMaxWidth().padding(start = 72.dp, end = 16.dp, bottom = 8.dp)) {
+        Row(Modifier.heightIn(min = 48.dp).clickable(role = Role.Button) { open = !open }.semantics { stateDescription = if (open) "Expanded" else "Collapsed" },
+            verticalAlignment = Alignment.CenterVertically) {
+            Text(RECIPIENTS, style = style, color = cs.onSurfaceVariant)
+            Icon(if (open) PaIcons.ExpandLess else PaIcons.ExpandMore, null, Modifier.padding(start = 4.dp).size(20.dp), tint = cs.onSurfaceVariant)
+        }
+        if (open) for ((id, word) in results) Row(Modifier.fillMaxWidth().padding(bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            KeepIdText(nameOf(id), style.copy(color = cs.onSurface), Modifier.weight(1f))
+            Text(recipientStatus(word), Modifier.padding(start = 8.dp), style = style, color = cs.onSurfaceVariant)
+        }
+    }
+}
+
+internal const val RECIPIENTS = "Recipients"
+
+/** A device's status in the Recipients list: "Sent" when it got the message, else "Failed". */
+internal fun recipientStatus(word: String): String = if (word == "sent") "Sent" else "Failed"
 
 /** One line; a name with its ID that does not fit is cut in the name, so the ID shows whole; the screen reader gets the full text. */
 @Composable
