@@ -21,6 +21,8 @@ export interface Platform {
   /** Manifest version (x.y.z). */
   appVersion: string;
   isAndroid: boolean;
+  /** runtime.getPlatformInfo().os: "win", "mac", "linux", "cros", "android", ... */
+  platformOs?(): Promise<string>;
   /** quiet: never open a tab (Firefox setup) for this call. fresh: drop the current subscription first (Chrome). */
   pushSubscribe(vapidPub: Uint8Array, quiet?: boolean, fresh?: boolean): Promise<PushFields>;
   pushCurrent(): Promise<PushFields | null>;

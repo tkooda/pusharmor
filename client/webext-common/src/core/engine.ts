@@ -73,7 +73,7 @@ import {
   pairKeyOf,
 } from "./state.ts";
 import { checkName, displayName, uniqueDefault } from "../model/names.ts";
-import { R, T, actionLine, clashLabels, nameUsedText, platformLabel, peerLabel, quoted, rowLabel, sendResultText, syncDeleteResultText } from "./texts.ts";
+import { R, T, actionLine, browserDefaultName, clashLabels, nameUsedText, platformLabel, peerLabel, quoted, rowLabel, sendResultText, syncDeleteResultText } from "./texts.ts";
 import { AUTH_CHANGED, AUTH_SWITCHED } from "../model/signin.ts";
 import { BUSY, type Busy, DEL_CAP, STEP } from "../model/busy.ts";
 
@@ -307,9 +307,9 @@ export class Engine {
   async myName(): Promise<string> {
     const n = await this.db.meta<string>("my_name");
     if (n !== undefined && n !== null) return n;
-    // the default: the browser's name, with " (2)" and up when a known device already has it
+    // the default: the browser's name (a new setup: "Chrome on Mac"), with " (2)" and up when a known device already has it
     const others = (await this.db.peers()).filter((p) => !p.removed && p.name !== null).map((p) => displayName(p.name!));
-    return uniqueDefault(platformLabel(this.p.platformName), others);
+    return uniqueDefault((await this.db.meta<string>("default_name")) ?? platformLabel(this.p.platformName), others);
   }
 
   /** Each other device not removed (the Devices screen lists it), and whether it is under Paired devices there. */
@@ -2475,6 +2475,12 @@ export class Engine {
     if (!idb || idb.length !== ID_LEN || !equal(idb.subarray(ACCOUNT_LEN, ACCOUNT_LEN + KEYHASH_LEN), await keyhash(keys.sign_pub, keys.enc_pub)))
       throw new ReasonError(R.badReply);
     await this.db.put("keys", { ...keys, id }, "self");
+    // a new setup (keys that never registered, no name yet): the default name says the browser and the system;
+    // a device set up before keeps its name
+    if (keys.id === "" && !(await this.db.meta<string>("my_name")) && !(await this.db.meta<string>("default_name"))) {
+      const os = await this.p.platformOs?.().catch(() => null);
+      await this.db.setMeta("default_name", browserDefaultName(this.p.platformName, os));
+    }
     await this.db.setMeta(ACCOUNT, id.slice(0, ACCOUNT_CHARS));
     await this.p.storageLocal.set({ [REG_MARKER]: { id, registered: true } });
     await this.db.setMeta("reg", "registered");

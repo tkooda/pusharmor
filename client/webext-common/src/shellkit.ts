@@ -41,6 +41,7 @@ export function basePlatform(b: Browser, name: "chrome" | "firefox", isAndroid: 
     platformName: name,
     appVersion: b.runtime.getManifest().version,
     isAndroid,
+    platformOs: async () => (await b.runtime.getPlatformInfo()).os,
     pushSubscribe: (v, quiet, fresh) => push.pushSubscribe(v, quiet, fresh),
     pushCurrent: () => push.pushCurrent(),
     pushUnsubscribe: () => push.pushUnsubscribe(),

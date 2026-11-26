@@ -198,6 +198,13 @@ export function platformLabel(platform: string): string {
   return PLATFORM_LABEL[platform] ?? platform;
 }
 
+const OS_LABEL: Record<string, string> = { win: "Windows", mac: "Mac", linux: "Linux", cros: "ChromeOS", android: "Android" };
+/** A new browser's default name from runtime.getPlatformInfo().os: "Chrome on Mac"; just "Chrome" for any other system. */
+export function browserDefaultName(platform: string, os: string | null | undefined): string {
+  const o = os ? OS_LABEL[os] : undefined;
+  return platformLabel(platform) + (o ? " on " + o : "");
+}
+
 /** The label of a device whose name is not known yet: New Firefox device. */
 export function newDeviceLabel(platform: string): string {
   return "New " + platformLabel(platform) + " device";
