@@ -1009,7 +1009,8 @@ test("Firefox deny notice reads rejected this device; wipe leaves no pair keys",
   await b.e.approve(a.id); // b approved a: a's deny is relayed
   await a.e.deny(b.id);
   await deliver(w, b);
-  assert.ok([...b.p.notes.values()].some((n) => n.body === "A device rejected this device."));
+  // a device with no name: its New ... device label, never "A device"
+  assert.ok([...b.p.notes.values()].some((n) => /^New (Chrome|Firefox) device rejected this device\.$/.test(n.body)));
   await a.e.pairStart(b.id).catch(() => undefined);
   await a.e.wipe();
   assert.ok(Object.keys(a.p.storageLocal.data).every((k) => !k.startsWith("pair")));
@@ -1999,4 +2000,39 @@ test("renaming this device to its current name does nothing: no relay call, no n
   assert.equal(w.calls.length, calls);
   assert.equal(await deliver(w, b), 0);
   assert.equal(b.p.notes.size, notes);
+});
+
+test("an approve whose name cannot be read fails the pairing: no pairing, the row and notice say why", async () => {
+  const { w, a, b } = await setup();
+  await refresh(a, b);
+  await a.e.pairStart(b.id);
+  await deliver(w, b);
+  await deliver(w, a);
+  await deliver(w, b); // both shown and pinned
+  await a.e.approve(b.id);
+  // b's approve carries a name entry with a signature that does not verify
+  const { makeNameEntry, buildJson, sealNameEntry } = await import("../src/model/message.ts");
+  const eb = b.e as unknown as { buildApprove(x: string, self: unknown, name: string): Promise<string> };
+  eb.buildApprove = async (x: string) => {
+    const self = (await b.e.self())!;
+    const peer = (await b.db.peer(x))!;
+    const n = await b.db.reserveN(x);
+    const entry = await makeNameEntry(self.sign.privateKey, self.id, x, peer.pairing_id!, n + 1, "Desk");
+    const c = await encodeInner({ signKey: self.sign.privateKey, fromId: b64urlDecode(self.id), pairingId: peer.pairing_id!, keys: { sign_pub: self.sign_pub, enc_pub: self.enc_pub }, json: buildJson(n, { type: "approve", entry: { ...entry, n } }), recipientId: x, recipientEncPub: peer.enc_pub });
+    return JSON.stringify({ c, name: await sealNameEntry(entry, x, peer.enc_pub) });
+  };
+  await b.e.approve(a.id);
+  a.p.notes.clear();
+  await deliver(w, a);
+  const text = "Unable to pair with Chrome device\nIts name could not be read. Try pairing again";
+  const pa = (await a.db.peer(b.id))!;
+  assert.equal(pa.approves_me, false);
+  assert.equal(pa.pinned, false);
+  assert.equal(pa.name, null);
+  assert.equal(await getEntry(a.p.storageLocal, b.id), null);
+  assert.ok(!w.rows.get(a.id)!.allow.has(b.id)); // the approval of b is withdrawn
+  assert.ok([...a.p.notes.values()].some((n) => n.body === text));
+  const row = (await new Rpc(a.e).peers()).peers.find((v) => v.id === b.id)!;
+  assert.deepEqual(row.lines, text.split("\n"));
+  assert.ok(!row.paired);
 });

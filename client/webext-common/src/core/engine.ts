@@ -311,7 +311,7 @@ export class Engine {
 
   async peerName(id: string): Promise<string> {
     const p = await this.db.peer(id);
-    return peerLabel(p?.name ?? null);
+    return peerLabel(p);
   }
 
   // ---------------------------------------------------------------- receive
@@ -393,6 +393,7 @@ export class Engine {
       return;
     }
     if (r.outcome === "unreadable") {
+      if (r.badName && r.from && (await this.nameUnreadable(r.from, src))) return;
       if (r.unknownSender && src !== "returned" && src !== "fetched") await this.fetchTrigger();
       return this.dropEvent("unreadable", r.from, src);
     }
@@ -523,7 +524,7 @@ export class Engine {
         const row = applied ?? peer;
         if (row.ruling === "approved") {
           await this.p.storageLocal.remove([pairKeyOf(peer.id)]);
-          if (src === "push") this.p.notify("a:" + peer.id, T.appName, T.approved(peerLabel(row.name)));
+          if (src === "push") this.p.notify("a:" + peer.id, T.appName, T.approved(peerLabel(row)));
           await this.rebuildMenus();
         }
         return;
@@ -559,7 +560,7 @@ export class Engine {
       case "login": {
         await this.db.updatePeer(peer.id, (p) => (p && n > p.logout_n ? { ...p, logged_out: c.type === "logout", logout_n: n } : null));
         if (this.penalized && src === "push") {
-          const nm = peerLabel(peer.name);
+          const nm = peerLabel(peer);
           this.p.notify("d:" + peer.id, T.appName, c.type === "logout" ? T.loggedOutRecv(nm) : T.loggedInRecv(nm));
         }
         await this.rebuildMenus();
@@ -568,7 +569,7 @@ export class Engine {
       case "deny": {
         await this.db.updatePeer(peer.id, (p) => (p ? { ...p, denies_me: true, approves_me: false } : null));
         await this.p.storageLocal.remove([pairKeyOf(peer.id)]);
-        if (this.penalized && src === "push") this.p.notify("d:" + peer.id, T.appName, T.denied(peerLabel(peer.name)));
+        if (this.penalized && src === "push") this.p.notify("d:" + peer.id, T.appName, T.denied(peerLabel(peer)));
         await this.rebuildMenus();
         return;
       }
@@ -594,7 +595,7 @@ export class Engine {
     const peer = row.peer ? await this.db.peer(row.peer) : undefined;
     const show = (await this.settings()).allowContent && peer?.allow_content !== false;
     // Title: the sender's device name in quotes; body: the message. Hidden content keeps the app name over "New message from".
-    const from = peerLabel(peer?.name ?? null);
+    const from = peerLabel(peer);
     if (show) this.p.notify("h:" + row.id, quoted(from), ellipsize(row.content, 120));
     else this.p.notify("h:" + row.id, T.appName, T.newMessageFrom(from));
   }
@@ -786,7 +787,7 @@ export class Engine {
 
   private async halfName(id: string): Promise<string> {
     const p = await this.db.peer(id);
-    return p ? rowLabel(p) : T.aPeer;
+    return peerLabel(p);
   }
 
   /** X: send (or re-send) the reply of an authorized entry, same r_X. */
@@ -924,6 +925,18 @@ export class Engine {
   }
 
   /** Ends a pairing entry (r wiped). dropPin: also drop any pin made by this pairing. */
+  /** An approve whose name entry did not open: the pairing fails here and the old approval is withdrawn. False when no pairing is open. */
+  private async nameUnreadable(x: string, src: Src): Promise<boolean> {
+    const peer = await this.db.peer(x);
+    if (!peer || !peer.pinned || peer.approve_verified) return false;
+    const text = T.pairNameUnreadable(peer.platform);
+    await this.lock.run(() => this.endEntry(x, text, true));
+    await this.rebuildMenus();
+    await this.reconcileAllow().catch(() => undefined);
+    if (src === "push") this.p.notify("d:" + x, T.appName, text);
+    return true;
+  }
+
   private async endEntry(id: string, message: string | null, dropPin: boolean): Promise<void> {
     await this.p.storageLocal.remove([pairKeyOf(id)]);
     if (message) await this.p.storageLocal.set({ [PAIR_MSG_PREFIX + id]: message });
@@ -2177,7 +2190,7 @@ export class Engine {
 
   async rebuildMenus(): Promise<void> {
     const s = await this.settings();
-    const peers = (await this.allSet()).map((p) => ({ id: p.id, name: peerLabel(p.name) }));
+    const peers = (await this.allSet()).map((p) => ({ id: p.id, name: peerLabel(p) }));
     const paired = (await this.db.peers()).some((p) => p.pinned && p.ruling === "approved" && p.approves_me && !p.removed);
     const mode = !(await this.self()) || (await this.regState()) !== "registered" ? "login" : paired ? "send" : "pair";
     this.p.menusRebuild(peers, s.showAll, mode);

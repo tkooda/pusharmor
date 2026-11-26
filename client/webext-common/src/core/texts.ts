@@ -47,6 +47,7 @@ export const T = {
   signedOut: "This device is logged out. Log in to resume.",
   sendOnly: "Not listening",
   pairFailed: (x: string) => "Unable to pair with " + quoted(x) + ".\n" + CLICK + " Pair to start again.",
+  pairNameUnreadable: (platform: string) => "Unable to pair with " + platformLabel(platform) + " device\nIts name could not be read. Try pairing again",
   pairTimedOut: (x: string) => "Unable to pair with " + quoted(x) + ".\nIt did not answer in time. " + CLICK + " Pair to start again.",
   pairing: "Pairing...",
   pairingWith: (x: string) => "Pairing with " + quoted(x) + ". Waiting for its reply.",
@@ -155,8 +156,9 @@ export function greyedText(name: string, greyed: string): string {
   return to + "It cannot be reached right now. Try again later.";
 }
 
-export function peerLabel(name: string | null): string {
-  return name ?? T.aPeer;
+/** A device's name, else New Firefox device; "A device" only when the device is not known here. */
+export function peerLabel(p: PeerRow | null | undefined): string {
+  return p ? rowLabel(p) : T.aPeer;
 }
 
 const PLATFORM_LABEL: Record<string, string> = { android: "Android", ios: "iOS", chrome: "Chrome", firefox: "Firefox", cli: "CLI" };

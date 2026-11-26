@@ -321,7 +321,7 @@ test("copy: device limit rows read as sentences; desktop says Click; status line
   for (const [k, v] of Object.entries(T)) {
     const s = typeof v === "function" ? (v as (x: string) => string)("X") : v;
     assert.doesNotMatch(s, /\bTap\b|\btap\b/, k);
-    if (/[.!?] /.test(s) && k !== "notificationsOff" && k !== "newerVersion") assert.match(s, /[.!?]$/, k); // a multi-sentence text ends with a period
+    if (/[.!?] /.test(s) && k !== "notificationsOff" && k !== "newerVersion" && k !== "pairNameUnreadable") assert.match(s, /[.!?]$/, k); // a multi-sentence text ends with a period
   }
   assert.equal(T.notificationsOff, "Notifications are off. New messages appear only in History");
   assert.equal(T.newerVersion, "A device uses a newer version. Update PushArmor");

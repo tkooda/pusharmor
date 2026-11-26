@@ -27,7 +27,7 @@ interface ReceiveInput {
 }
 
 export type ReceiveResult = (
-  | { outcome: "unreadable"; from: string | null; unknownSender?: boolean; ignored?: { n: number; consume: boolean } } // ignored: valid-signed message of an unknown type
+  | { outcome: "unreadable"; from: string | null; unknownSender?: boolean; ignored?: { n: number; consume: boolean }; badName?: true } // ignored: valid-signed message of an unknown type; badName: an approve whose name entry did not open
   | { outcome: Exclude<ReplayOutcome, "accept">; from: string; n: number; content: Content }
   | { outcome: "accept"; from: string; n: number; content: Content; name: string | null; pin: Pin }
 ) & { newer?: true }; // newer: a valid-signed message of a newer format version from an approved peer
@@ -81,7 +81,7 @@ export async function receiveDecide(i: ReceiveInput): Promise<ReceiveResult> {
   let name: string | null = null;
   if (c.type === "approve" || c.type === "rename") {
     name = await verifyNameEntry(pin.sign_pub, from, i.id, pin.pairing_id, c.entry);
-    if (name === null) return done({ outcome: "unreadable", from });
+    if (name === null) return done({ outcome: "unreadable", from, ...(c.type === "approve" ? { badName: true as const } : {}) });
   }
   const win = await i.window(from);
   if (!win || !equal(win.pairing_id, pin.pairing_id)) return done({ outcome: "unreadable", from });

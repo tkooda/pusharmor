@@ -149,7 +149,7 @@ export class Rpc {
     let name: string | undefined;
     if (typeof a.id === "string") {
       const p = await this.e.db.peer(a.id).catch(() => undefined);
-      name = p ? rowLabel(p) : peerLabel(null);
+      name = peerLabel(p);
     }
     return failText(action, err, { name, selfKept });
   }
@@ -407,16 +407,16 @@ export class Rpc {
       let sender: string = T.unknownSender;
       if (r.peer) {
         const nm = p?.name ?? r.peer_name ?? null;
-        sender = (nm ?? T.aPeer) + (!p || p.removed ? " (removed)" : "");
+        sender = (nm ?? peerLabel(p)) + (!p || p.removed ? " (removed)" : "");
       } else if (r.dir === "out" && r.targets?.length === 1) {
         // A message to one device: History names it (Sent to "Laptop").
-        sender = peers.get(r.targets[0]!)?.name ?? T.aPeer;
+        sender = peerLabel(peers.get(r.targets[0]!));
       }
       // a delete not done yet: the names of the devices it waits on
       const left = waiting.get(r.id!);
       // a file: its download percent while one runs, and whether its decrypted file is here
       const fx = r.type === "file" ? { pct: f?.running.get(r.id!), here: here.has(fileKey(r.id!)) } : {};
-      return left ? { ...r, ...fx, sender, notDeleted: left.map((id) => peers.get(id)?.name ?? T.aPeer) } : { ...r, ...fx, sender };
+      return left ? { ...r, ...fx, sender, notDeleted: left.map((id) => peerLabel(peers.get(id))) } : { ...r, ...fx, sender };
     });
   }
 }
