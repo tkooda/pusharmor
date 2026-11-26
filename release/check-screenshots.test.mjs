@@ -84,6 +84,14 @@ test("valid sets pass for each platform", () => {
   const old = png(1290, 2796);
   assert.deepEqual(withDir({ "01-a.png": ios, "02-b.png": ios, "03-c.png": old }, (d) => checkDir("ios", d)), []);
   assert.deepEqual(withDir({ "01-send.png": png(800, 1120) }, (d) => checkDir("firefox", d)), []);
+  const ipad = png(2064, 2752);
+  assert.deepEqual(withDir({ "01-a.png": ipad, "02-b.png": ipad, "03-c.png": png(2048, 2732) }, (d) => checkDir("ipad", d)), []);
+});
+
+test("iPad shots must be an iPad size; iPhone shots fail as iPad", () => {
+  const bad = withDir({ "01-a.png": png(1320, 2868), "02-b.png": png(2064, 2752), "03-c.png": png(2064, 2752) }, (d) => checkDir("ipad", d));
+  assert.deepEqual(bad, ["01-a.png: 1320x2868, want 2064x2752 or 2048x2732"]);
+  assert.match(withDir({}, (d) => checkDir("ipad", d)).join(), /0 screenshots, want 3 to 10/);
 });
 
 test("counts outside the store range fail", () => {

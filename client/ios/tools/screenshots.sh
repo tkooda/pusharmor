@@ -1,7 +1,8 @@
 #!/bin/bash
 # Store screenshots on an iOS simulator (workflow screenshots.yml).
 # Usage: bash tools/screenshots.sh <out-dir> [device name] [review-dir]   (run from client/ios after
-# xcodegen generate). Boots the device (default iPhone 17 Pro Max, 1320x2868), sets the
+# xcodegen generate). Boots the device (default iPhone 17 Pro Max, 1320x2868; the iPad shots
+# use iPad Pro 13-inch (M4), 2064x2752), sets the
 # status bar to 9:41, runs PushArmorUITests/ScreenshotTests with PA_SHOTS=1 and exports
 # its screenshot attachments as <out-dir>/NN-name.png. Attachments named 9N-* are review
 # images: written to [review-dir] when given, else dropped. With PA_SHOTS_ALL=1 it runs only

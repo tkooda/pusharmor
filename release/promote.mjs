@@ -24,7 +24,7 @@
 // Each command writes short result lines to the job summary.
 import { execFileSync } from "node:child_process";
 import { createHash, createHmac, randomUUID, sign } from "node:crypto";
-import { appendFileSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -44,6 +44,8 @@ export const LOCALE = "en-US";
 export const IOS_RELEASE_TYPE = "AFTER_APPROVAL";
 // 6.9-inch iPhone screenshots (1320x2868 or 1290x2796).
 export const IOS_SCREENSHOT_TYPE = "APP_IPHONE_67";
+// 13-inch iPad screenshots (2064x2752 or 2048x2732), from store/screenshots/appstore-ipad.
+export const IPAD_SCREENSHOT_TYPE = "APP_IPAD_PRO_3GEN_129";
 
 // Listing files: store/listing/<store>/<locale>/<field>.txt. max is in
 // characters, except keywords (bytes). url: must be https.
@@ -139,6 +141,8 @@ export function listingProblems(store, root = STORE_DIR) {
   } catch {
     bad.push(shots + ": missing");
   }
+  const ipad = join(root, "screenshots", "appstore-ipad", LOCALE);
+  if (store === "appstore" && existsSync(ipad)) bad.push(...checkDir("ipad", ipad).map((p) => "appstore-ipad screenshots: " + p));
   return bad;
 }
 
@@ -149,6 +153,14 @@ export function screenshotFiles(store, root = STORE_DIR) {
     .filter((f) => f.endsWith(".png"))
     .sort()
     .map((f) => ({ name: f, path: join(dir, f), data: readFileSync(join(dir, f)) }));
+}
+
+/** App Store screenshot sets in upload order: iPhone, then iPad when
+ *  store/screenshots/appstore-ipad holds a locale folder. */
+export function ascScreenshotSets(root = STORE_DIR) {
+  const sets = [{ type: IOS_SCREENSHOT_TYPE, shots: screenshotFiles("appstore", root) }];
+  if (existsSync(join(root, "screenshots", "appstore-ipad", LOCALE))) sets.push({ type: IPAD_SCREENSHOT_TYPE, shots: screenshotFiles("appstore-ipad", root) });
+  return sets;
 }
 
 /** -1, 0 or 1 for X.Y.Z strings. */
@@ -710,14 +722,18 @@ export async function appstore(version) {
   if (!il) throw new Error("App Store Connect: app info has no " + LOCALE + " localization");
   await asc("PATCH", "/v1/appInfoLocalizations/" + il.id, { data: { type: "appInfoLocalizations", id: il.id, attributes: { name: want.name, subtitle: want.subtitle, privacyPolicyUrl: want.privacy_url } } });
 
-  // Screenshots: one with the same file name and checksum is kept.
-  const shots = screenshotFiles("appstore");
+  // Screenshots: one with the same file name and checksum is kept. iPhone, then iPad.
   const sets = (await asc("GET", "/v1/appStoreVersionLocalizations/" + loc.id + "/appScreenshotSets")).json.data;
-  let set = sets.find((s) => s.attributes.screenshotDisplayType === IOS_SCREENSHOT_TYPE);
-  if (!set) {
-    set = (await asc("POST", "/v1/appScreenshotSets", { data: { type: "appScreenshotSets", attributes: { screenshotDisplayType: IOS_SCREENSHOT_TYPE }, relationships: { appStoreVersionLocalization: { data: { type: "appStoreVersionLocalizations", id: loc.id } } } } })).json.data;
+  const synced = [];
+  for (const { type, shots } of ascScreenshotSets()) {
+    let set = sets.find((s) => s.attributes.screenshotDisplayType === type);
+    if (!set) {
+      set = (await asc("POST", "/v1/appScreenshotSets", { data: { type: "appScreenshotSets", attributes: { screenshotDisplayType: type }, relationships: { appStoreVersionLocalization: { data: { type: "appStoreVersionLocalizations", id: loc.id } } } } })).json.data;
+    }
+    const r = await syncScreenshots({ asc, http: ascRetry(http), setId: set.id, shots, sleep });
+    synced.push(type === IPAD_SCREENSHOT_TYPE ? "iPad " + r : r);
   }
-  const images = await syncScreenshots({ asc, http: ascRetry(http), setId: set.id, shots, sleep });
+  const images = synced.join("; ");
 
   // App Review notes, contact details, and the demo account stay as
   // entered in App Store Connect; this script never writes them.

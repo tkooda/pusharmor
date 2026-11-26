@@ -3,11 +3,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash, generateKeyPairSync, verify } from "node:crypto";
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { deflateSync } from "node:zlib";
 import { loadPublic } from "./public.mjs";
-import { AMO_REVIEW_NOTES, AMO_WHATS_NEW, amoNotes, PLAY_ICON, IOS_SCREENSHOT_TYPE, amoInReviewProblem, amoNotesProblems, amoRetry, ascInReviewProblem, ascRetry, ascValidBuild, amoToken, appstore, chrome, ascToken, attestationArgs, hashesName, playInReviewProblem, clearOutput, cmpVersion, commitProblems, contactProblems, http, listingProblems, playGateProblem, pngKey, readListing, releaseAssets, screenshotFiles, firefox, promoteRunProblem, releaseProblem, selectedPlatforms, syncAmoPreviews, syncScreenshots, tagPlatform } from "./promote.mjs";
+import { AMO_REVIEW_NOTES, AMO_WHATS_NEW, amoNotes, PLAY_ICON, IOS_SCREENSHOT_TYPE, IPAD_SCREENSHOT_TYPE, amoInReviewProblem, amoNotesProblems, amoRetry, ascInReviewProblem, ascRetry, ascScreenshotSets, ascValidBuild, amoToken, appstore, chrome, ascToken, attestationArgs, hashesName, playInReviewProblem, clearOutput, cmpVersion, commitProblems, contactProblems, http, listingProblems, playGateProblem, pngKey, readListing, releaseAssets, screenshotFiles, firefox, promoteRunProblem, releaseProblem, selectedPlatforms, syncAmoPreviews, syncScreenshots, tagPlatform } from "./promote.mjs";
 
 const ROOT = join(import.meta.dirname, "..");
 
@@ -97,6 +98,26 @@ test("the store listings in the repo pass the store limits", () => {
     assert.match(d, /\nMade by Ion Echo, LLC\.$/, s);
     assert.doesNotMatch(d, /\bfiles? (are|is) sent|send(s)? files\b/i, s);
   }
+});
+
+test("App Store iPad shots: uploaded as the 13-inch iPad set when present, checked at an iPad size", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "pa-store-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  cpSync(join(ROOT, "store", "listing", "appstore"), join(root, "listing", "appstore"), { recursive: true });
+  cpSync(join(ROOT, "store", "screenshots", "appstore"), join(root, "screenshots", "appstore"), { recursive: true });
+  assert.deepEqual(ascScreenshotSets(root).map((s) => s.type), [IOS_SCREENSHOT_TYPE]);
+  assert.deepEqual(listingProblems("appstore", root), []);
+  const ipad = join(root, "screenshots", "appstore-ipad", "en-US");
+  mkdirSync(ipad, { recursive: true });
+  const iphone = screenshotFiles("appstore", root);
+  for (const f of iphone) writeFileSync(join(ipad, f.name), f.data);
+  const sets = ascScreenshotSets(root);
+  assert.equal(IPAD_SCREENSHOT_TYPE, "APP_IPAD_PRO_3GEN_129");
+  assert.deepEqual(sets.map((s) => s.type), [IOS_SCREENSHOT_TYPE, IPAD_SCREENSHOT_TYPE]);
+  assert.deepEqual(sets[1].shots.map((s) => s.name), iphone.map((s) => s.name));
+  const bad = listingProblems("appstore", root);
+  assert.equal(bad.length, iphone.length);
+  for (const b of bad) assert.match(b, /^appstore-ipad screenshots: .*want 2064x2752 or 2048x2732$/);
 });
 
 test("the contact check finds phone numbers and project or company addresses", () => {

@@ -223,11 +223,14 @@ CI: the IPA (cloud-managed signing) in the GitHub release. Nothing is
 uploaded to App Store Connect (no TestFlight build). Before the archive, ios-release
 runs the iOS UI tests and the iOS 17 job: they are not in the per-change gate.
 
-The app is iPhone only (`TARGETED_DEVICE_FAMILY: "1"` in
-`client/ios/project.yml`), so promote sends only the 6.9-inch iPhone
-screenshots. App Store Connect can list the 13-inch iPad screenshot slot as
-required while no build is attached to the version; the slot clears once the
-iPhone-only build is attached (promote attaches it before it submits).
+The app runs on iPhone and iPad (`TARGETED_DEVICE_FAMILY: "1,2"` in
+`client/ios/project.yml`), so App Store Connect requires 13-inch iPad
+screenshots too. The screenshots workflow captures them on the iPad Pro
+13-inch (M4) simulator (2064x2752) as the artifact `screenshots-ipad`; put
+them in `store/screenshots/appstore-ipad/en-US/`. Promote sends the 6.9-inch
+iPhone screenshots (`store/screenshots/appstore/en-US/`) and, when that folder
+exists, the iPad screenshots as the 13-inch iPad set
+(`APP_IPAD_PRO_3GEN_129`; 2064x2752 or 2048x2732).
 
 The app declares ITSAppUsesNonExemptEncryption = false: it uses only Apple OS
 encryption (CryptoKit), so no export compliance answer is needed.

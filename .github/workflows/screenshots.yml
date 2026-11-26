@@ -3,6 +3,7 @@ name: screenshots
 # Store screenshots with sample data, on manual dispatch only. Each job runs the
 # debug-only screenshot mode of its client (no Worker call, generic sample peers
 # and example.com links), checks the PNGs with release/check-screenshots.mjs
+# (the iOS job also takes iPad shots, uploaded as screenshots-ipad)
 # (flattened to RGB first) and uploads them as screenshots-<platform>. Review images of the
 # sign-in and Settings screens (names 9N-*, not store shots) go to a separate review-<platform>.
 # With ios_all_screens only the iOS job runs: every screen in light and dark (not store shots,
@@ -87,9 +88,9 @@ jobs:
           if-no-files-found: error
 
   ios:
-    name: iOS (iPhone 17 Pro Max simulator, 1320x2868)
+    name: iOS (iPhone 17 Pro Max 1320x2868, iPad Pro 13-inch (M4) 2064x2752 simulators)
     runs-on: macos-26
-    timeout-minutes: 40
+    timeout-minutes: 70
     permissions:
       contents: read
     steps:
@@ -162,6 +163,20 @@ jobs:
         with:
           name: review-ios
           path: ${{ runner.temp }}/review/ios/
+          retention-days: 14
+          if-no-files-found: error
+      - name: iPad screenshots on the simulator
+        if: ${{ !inputs.ios_all_screens }}
+        working-directory: client/ios
+        run: bash tools/screenshots.sh "$RUNNER_TEMP/shots/ipad" "iPad Pro 13-inch (M4)"
+      - name: Check the iPad screenshots
+        if: ${{ !inputs.ios_all_screens }}
+        run: node release/check-screenshots.mjs ipad "$RUNNER_TEMP/shots/ipad" --flatten
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !inputs.ios_all_screens }}
+        with:
+          name: screenshots-ipad
+          path: ${{ runner.temp }}/shots/ipad/
           retention-days: 14
           if-no-files-found: error
       - name: Every screen on the simulator, light and dark
