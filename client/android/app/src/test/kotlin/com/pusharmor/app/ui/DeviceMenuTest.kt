@@ -68,15 +68,15 @@ class DeviceMenuTest {
             icons.split("; ").map { it.substringBeforeLast(' ') })
     }
 
-    /** A missing device's menu: a line above Delete and another directly above Remove. */
+    /** A missing device's menu: one line above Delete, then Delete and Remove together with no line between them. */
     @Config(qualifiers = "w412dp-h900dp-420dpi")
-    @Test fun missingDeviceMenuHasALineDirectlyAboveRemove() = withMenu(declined = false, missing = true) { popup, _ ->
+    @Test fun missingDeviceMenuHasOneLineAboveDeleteAndRemove() = withMenu(declined = false, missing = true) { popup, _ ->
         val order = listOf("Send messages to watch", "Delete", "Remove device from account")
         val items = nodes(popup).filter { text(it) in order }.sortedBy { it.boundsInRoot.top }
         org.junit.Assert.assertEquals(order, items.map(::text))
         val rows = items.map { n -> generateSequence(n) { it.parent }.first { it.config.getOrNull(SemanticsActions.OnClick) != null }.boundsInRoot }
         val gaps = rows.zipWithNext { x, y -> y.top - x.bottom }
-        assertTrue("$gaps", gaps.all { it >= 0.5f })
+        assertTrue("$gaps", gaps[0] >= 0.5f && gaps[1] < 0.5f)
     }
 
     private fun withMenu(declined: Boolean, missing: Boolean = false, inspect: ((View, android.app.Activity) -> Unit)? = null) {
