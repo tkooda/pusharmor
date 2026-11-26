@@ -241,7 +241,7 @@ export function openHref(type: string, content: string): string {
   return type === "tel" && !c.startsWith("tel:") ? "tel:" + c : c;
 }
 
-const PLATFORM_LABEL: Record<string, string> = { android: "Android", ios: "iPhone", chrome: "Chrome", firefox: "Firefox", cli: "Command line" };
+const PLATFORM_LABEL: Record<string, string> = { android: "Android", ios: "iOS", chrome: "Chrome", firefox: "Firefox", cli: "Command line" };
 export function platformLabel(platform: string): string {
   return PLATFORM_LABEL[platform] ?? platform;
 }
