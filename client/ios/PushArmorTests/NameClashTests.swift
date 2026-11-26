@@ -46,4 +46,16 @@ final class NameClashTests: XCTestCase {
         XCTAssertTrue(src.contains("return model.historyLabel(p)"))
         XCTAssertFalse(src.contains("model.label("))
     }
+
+    /// The send chips, the Send button, and the History "Sent to" line shorten only the name,
+    /// never the device ID after it.
+    func testNamesShortenBeforeTheirId() throws {
+        let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let compose = try String(contentsOf: dir.appendingPathComponent("App/Views/ComposeView.swift"), encoding: .utf8)
+        XCTAssertTrue(compose.contains("let cut = PeerLabel.idSplit(name)\n                        HStack(spacing: 0) {\n                            Text(\"Send to \\\"\").fixedSize()\n                            Text(cut.name).lineLimit(1).truncationMode(.tail)\n                            Text(cut.id + \"\\\"\").fixedSize()"))
+        XCTAssertTrue(compose.contains("let cut = PeerLabel.idSplit(title)"))
+        XCTAssertTrue(compose.contains("if !cut.id.isEmpty { Text(cut.id).fixedSize() }"))
+        let history = try String(contentsOf: dir.appendingPathComponent("App/Views/HistoryView.swift"), encoding: .utf8)
+        XCTAssertTrue(history.contains("let cut = PeerLabel.idSplit(name)\n                        HStack(spacing: 0) {\n                            Text(\"Sent to \\\"\").fixedSize()\n                            Text(cut.name).lineLimit(typeSize.isAccessibilitySize ? 2 : 1).truncationMode(.tail)\n                            Text(cut.id + \"\\\"\").fixedSize()"))
+    }
 }

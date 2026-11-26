@@ -120,6 +120,18 @@ final class InboxTests: XCTestCase {
         XCTAssertEqual(t.paired.map { $0.name }, ["Gone"])
     }
 
+    /// A place that shortens a name keeps its device ID whole: only the name part is cut.
+    func testIdSplitKeepsTheIdWhole() {
+        XCTAssertEqual(PeerLabel.idSplit("Pixel 8 (907-331-064)").name, "Pixel 8")
+        XCTAssertEqual(PeerLabel.idSplit("Pixel 8 (907-331-064)").id, " (907-331-064)")
+        XCTAssertEqual(PeerLabel.idSplit("Pixel 8").id, "")
+        XCTAssertEqual(PeerLabel.idSplit(" (907-331-064)").name, " (907-331-064)")
+        XCTAssertEqual(PeerLabel.idSplit("Pixel (90-331-064)").id, "")
+        XCTAssertEqual(S.sendingTo(["Pixel 8 (907-331-064)"]), "Sending to \"Pixel 8 (907-331-064)\"")
+        XCTAssertEqual(S.sendingTo(["A very long device name (907-331-064)", "B"]),
+                       "Sending to \"A very long devic... (907-331-064)\" and \"B\"")
+    }
+
     /// Name-only places: a name another device also shows (ignoring ASCII case) carries its ID;
     /// rename refuses a name another device has exactly.
     func testSameNames() {

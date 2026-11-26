@@ -94,9 +94,11 @@ public enum S {
     public static func encryptingFor(_ names: [String]) -> String { "Encrypting for " + cutList(names) }
     public static func sendingTo(_ names: [String]) -> String { "Sending to " + cutList(names) }
     static func cutList(_ names: [String]) -> String { ErrorCopy.quotedList(names.map(cutName)) }
-    /// Names in the send progress popup: at most 20 characters, cut with "...".
-    static func cutName(_ name: String) -> String {
-        name.count > 20 ? String(name.prefix(17)).trimmingCharacters(in: .whitespaces) + "..." : name
+    /// Names in the send progress popup: at most 20 characters, cut with "..."; a device ID
+    /// after the name stays whole.
+    static func cutName(_ shown: String) -> String {
+        let (name, id) = PeerLabel.idSplit(shown)
+        return (name.count > 20 ? String(name.prefix(17)).trimmingCharacters(in: .whitespaces) + "..." : name) + id
     }
     public static let pairHowTo1 = "Install PushArmor on the other device."
     public static let pairHowTo2 = "Log in with the same account."
@@ -414,5 +416,13 @@ public enum PeerLabel {
         let key = DeviceName.fold(l)
         let clash = peers.contains { $0.id.text != p.id.text && DeviceName.fold(label($0)) == key }
         return clash ? l + " (" + Ids.deviceId(p.id.raw) + ")" : l
+    }
+
+    /// A shown name cut before a " (NNN-NNN-NNN)" device ID at its end ("" when none), so a
+    /// place that shortens the name keeps the ID whole.
+    public static func idSplit(_ shown: String) -> (name: String, id: String) {
+        guard let r = shown.range(of: #" \(\d{3}-\d{3}-\d{3}\)$"#, options: .regularExpression), r.lowerBound > shown.startIndex
+        else { return (shown, "") }
+        return (String(shown[..<r.lowerBound]), String(shown[r.lowerBound...]))
     }
 }

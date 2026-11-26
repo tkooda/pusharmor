@@ -272,11 +272,12 @@ struct HistoryRowView: View {
                         Text(S.notDeletedOn(notDeletedOn)).font(.caption).foregroundColor(.errorText)
                     }
                     if let name = soleRecipientName {
-                        // The name truncates inside the quotes; the line stays one line.
+                        // The name truncates inside the quotes, never its device ID; the line stays one line.
+                        let cut = PeerLabel.idSplit(name)
                         HStack(spacing: 0) {
                             Text("Sent to \"").fixedSize()
-                            Text(name).lineLimit(typeSize.isAccessibilitySize ? 2 : 1).truncationMode(.tail)
-                            Text("\"").fixedSize()
+                            Text(cut.name).lineLimit(typeSize.isAccessibilitySize ? 2 : 1).truncationMode(.tail)
+                            Text(cut.id + "\"").fixedSize()
                         }
                         .font(.caption).foregroundColor(.secondaryText)
                     } else if let s = resultsSummary {

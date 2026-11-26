@@ -592,12 +592,13 @@ struct ComposeView: View {
             } label: {
                 Label {
                     if let name = soleRecipientName, !typeSize.isAccessibilitySize {
-                        // The name truncates inside the quotes; the button stays one line.
+                        // The name truncates inside the quotes, never its device ID; the button stays one line.
                         // Large text: the whole label wraps instead.
+                        let cut = PeerLabel.idSplit(name)
                         HStack(spacing: 0) {
                             Text("Send to \"").fixedSize()
-                            Text(name).lineLimit(1).truncationMode(.tail)
-                            Text("\"").fixedSize()
+                            Text(cut.name).lineLimit(1).truncationMode(.tail)
+                            Text(cut.id + "\"").fixedSize()
                         }
                     } else {
                         Text(sendLabel)
@@ -679,16 +680,22 @@ struct ComposeView: View {
         return nil
     }
 
-    /// Bordered capsule toggle; the name ellipsizes at chipNameWidth (at most 260 pt).
+    /// Bordered capsule toggle; the name ellipsizes at chipNameWidth (at most 260 pt), never its device ID.
     private func chip(title: String, symbol: String, on: Bool) -> some View {
-        HStack(spacing: 6) {
+        let cut = PeerLabel.idSplit(title)
+        return HStack(spacing: 6) {
             Image(systemName: on ? "checkmark" : symbol)
                 .accessibilityHidden(true)
             // large text: two lines and no 260 pt cap, so similar names stay apart
-            Text(title)
-                .lineLimit(typeSize.isAccessibilitySize ? 2 : 1)
-                .truncationMode(.tail)
-                .frame(maxWidth: typeSize.isAccessibilitySize ? chipNameWidth : min(chipNameWidth, 260), alignment: .leading)
+            HStack(spacing: 0) {
+                Text(cut.name)
+                    .lineLimit(typeSize.isAccessibilitySize ? 2 : 1)
+                    .truncationMode(.tail)
+                if !cut.id.isEmpty { Text(cut.id).fixedSize() }
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(title)
+            .frame(maxWidth: typeSize.isAccessibilitySize ? chipNameWidth : min(chipNameWidth, 260), alignment: .leading)
         }
         .font(.subheadline.weight(on ? .semibold : .regular))
         .foregroundStyle(on ? Color.onApproveFill : Color.primary)
