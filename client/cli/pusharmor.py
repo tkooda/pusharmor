@@ -3091,10 +3091,11 @@ def _relay_lines(pipe, out, failed):
 
 
 def run_exec(prog, rec):
+    """PROG ID PLATFORM TYPE NAME BODY; a saved file's BODY is its name in the --files folder."""
+    body = os.path.basename(rec["file"]) if rec["type"] == "file" and rec["file"] else rec["body"]
     try:
-        r = subprocess.Popen([prog] + [re.sub("[\x00\ud800-\udfff]", "\ufffd", rec[k])
-                                       for k in ("from", "name", "platform", "type", "body")],
-                             env=dict(os.environ, PUSHARMOR_FILE=re.sub("[\x00\ud800-\udfff]", "\ufffd", rec["file"])),
+        r = subprocess.Popen([prog] + [re.sub("[\x00\ud800-\udfff]", "\ufffd", v)
+                                       for v in (rec["from"], rec["platform"], rec["type"], rec["name"], body)],
                              stdout=subprocess.PIPE if sys.stdout else subprocess.DEVNULL,
                              stderr=subprocess.PIPE if sys.stderr else subprocess.DEVNULL)
     except (OSError, ValueError) as e:
@@ -3806,8 +3807,9 @@ COMMANDS = {
     "listen": (cmd_listen, "Receive messages and print them as they arrive.",
                [(("--json",), {"action": "store_true", "help": "one JSON object per line"}),
                 (("--tsv",), {"action": "store_true", "help": "tab-separated lines"}),
-                (("--exec",), {"metavar": "PROG", "help": "run PROG ID NAME PLATFORM TYPE BODY per message; "
-                               "a saved file's path is in $PUSHARMOR_FILE"}),
+                (("--exec",), {"metavar": "PROG", "help": "run PROG ID PLATFORM TYPE NAME BODY per message; for a "
+                               "saved file, BODY is its name in DIR. NAME and BODY are passed as separate "
+                               "arguments; quote them in shell scripts."}),
                 (("--files",), {"metavar": "DIR", "help": "download received files to DIR (never to the output)"})]),
     "rename": (cmd_rename, "Change the name shown on your other devices for this device.",
                [(("name",), {"metavar": "NAME", "help": "1 to 32 ASCII characters, not starting with -, "

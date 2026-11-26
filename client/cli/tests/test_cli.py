@@ -2915,7 +2915,7 @@ def test_listen_tsv_shows_an_unknown_message(body, net, tmp_path, monkeypatch, c
 @pytest.mark.parametrize("body", ['{"n":%d,"show":true,"zzz":1}', '{"v":2,"n":%d,"show":true,"text":"hi"}'])
 def test_listen_exec_runs_for_an_unknown_message_with_show(body, net, tmp_path, monkeypatch, capsys):
     prog, out = tmp_path / "prog", tmp_path / "out"
-    prog.write_text('#!/bin/sh\nprintf "%%s|%%s" "$4" "$5" >> "%s"\n' % out)
+    prog.write_text('#!/bin/sh\nprintf "%%s|%%s" "$3" "$5" >> "%s"\n' % out)
     prog.chmod(0o755)
     _listen_unknown(net, tmp_path, monkeypatch, capsys, body, "--exec", str(prog))
     assert out.read_text() == "unknown|" + UNKNOWN_SHOWN
@@ -2988,15 +2988,19 @@ def test_listen_tsv_and_exec_get_the_saved_path(net, tmp_path, monkeypatch, caps
 
 
 @pytest.mark.skipif(os.name == "nt", reason="the notify program is a shell script")
-def test_listen_exec_gets_the_path_in_an_environment_variable(net, tmp_path, monkeypatch, capsys):
+def test_listen_exec_arguments_and_the_saved_name_in_dir(net, tmp_path, monkeypatch, capsys):
     a, b, ida, idb, src = _file_pair(net, tmp_path, monkeypatch)
+    assert run(a, "send", "-f", str(src)) == 0
     assert run(a, "send", "-f", str(src)) == 0
     prog, out, dest = tmp_path / "prog", tmp_path / "out", tmp_path / "dl"
     dest.mkdir()
-    prog.write_text('#!/bin/sh\nprintf "%%s|%%s|%%s" "$4" "$5" "$PUSHARMOR_FILE" >> "%s"\n' % out)
+    prog.write_text('#!/bin/sh\nprintf "%%s|%%s|%%s|%%s|%%s|%%s\\n" "$1" "$2" "$3" "$4" "$5" "$PUSHARMOR_FILE" >> "%s"\n'
+                    % out)
     prog.chmod(0o755)
     _listen_files(net, b, capsys, "--exec", str(prog), "--files", str(dest))
-    assert out.read_text() == "file|report.pdf|" + str(dest / "report.pdf")
+    name = pa.peer_label(state(b)["peers"][ida])
+    assert out.read_text().splitlines() == ["%s|cli|file|%s|%s|" % (pa.device_id(ida), name, n)
+                                            for n in ("report.pdf", "report (1).pdf")]
 
 
 def test_listen_files_never_overwrites_and_numbers_the_name(net, tmp_path, monkeypatch, capsys):

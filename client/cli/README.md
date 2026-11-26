@@ -41,7 +41,8 @@ distribution:
 - `pusharmor send --file PATH` (`-f`) - send a small file to all paired devices (`-d ID` for one). It is
   end-to-end encrypted and expires on the relay server at the time shown after the send.
 - `pusharmor listen` - print messages as they arrive; `--json`, `--tsv`, or
-  `--exec PROG` (runs PROG ID NAME PLATFORM TYPE BODY per message). `--json` escapes
+  `--exec PROG` (runs PROG ID PLATFORM TYPE NAME BODY per message; NAME and BODY are
+  passed as separate arguments; quote them in shell scripts). `--json` escapes
   every non-ASCII character as `\uXXXX`. `--tsv` writes `\\`, `\t`, `\n`, and `\r` for
   backslash, tab, newline, and carriage return, and `\uXXXX` for other control
   characters, line and paragraph separators, and bidi controls.
@@ -49,7 +50,7 @@ distribution:
   saved in DIR (mode 0600, never replacing a file: `name (1).ext` and so on) and is never
   written to the output. `--json` carries the saved path in a `file` field (empty when
   none), `--tsv` puts it in the body column (the file name when not saved), and `--exec`
-  gets it in `$PUSHARMOR_FILE`. A file that cannot be saved prints one `warning:` line,
+  gets the file's name in DIR as BODY. A file that cannot be saved prints one `warning:` line,
   and `--json` adds an `error` field.
 - `pusharmor rename NAME` - change the name your other devices show.
 - `pusharmor logout` - log out; keys and paired devices stay on this device.
