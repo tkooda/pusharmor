@@ -9,7 +9,7 @@ final class RejectedSectionTests: XCTestCase {
         let src = try String(contentsOf: url, encoding: .utf8)
         XCTAssertTrue(src.contains("@State private var rejectedOpen = false"))
         XCTAssertTrue(src.contains("Label(\"Pair a new device\", systemImage: \"plus.circle\")\n                        }\n                    }\n                    RejectedSection(isExpanded: $rejectedOpen)\n                }"))
-        XCTAssertTrue(src.contains("DisclosureGroup(\"Rejected devices\", isExpanded: $isExpanded)"))
+        XCTAssertTrue(src.contains("DisclosureGroup(\"Rejected devices (\\(rejected.count))\", isExpanded: $isExpanded)"))
         XCTAssertTrue(src.contains("Button(\"Pair\") { Task { await model.pair(p) } }"))
     }
 }

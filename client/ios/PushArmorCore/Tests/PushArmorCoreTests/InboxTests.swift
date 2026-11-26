@@ -92,6 +92,27 @@ final class InboxTests: XCTestCase {
         XCTAssertEqual(PeerLabel.unnamed(platform: "cli"), "New CLI device")
     }
 
+    /// Devices list sections: Waiting to pair, Pairing, Paired devices; a device in a pairing
+    /// shows only under Pairing.
+    func testDeviceSections() {
+        func peer(_ b: UInt8, _ name: String, pinned: Bool, state: PeerState = .unruled) -> Peer {
+            var p = Peer(id: PeerId(raw: Data([0x10] + [UInt8](repeating: b, count: 29)))!)
+            p.name = name
+            p.state = state
+            if pinned { p.signPub = Data([1]); p.encPub = Data([2]); p.pairingId = Data(count: 8) }
+            return p
+        }
+        let new = peer(1, "New", pinned: false)
+        let asks = peer(2, "Asks", pinned: false)
+        let mid = peer(3, "Mid", pinned: true, state: .approved)
+        let paired = peer(4, "Paired", pinned: true, state: .approved)
+        let gone = peer(5, "Gone", pinned: false, state: .removed)
+        let s = DeviceList.sections([paired, gone, mid, asks, new], open: [asks.id.text, mid.id.text])
+        XCTAssertEqual(s.waiting.map { $0.name }, ["New"])
+        XCTAssertEqual(s.pairing.map { $0.name }, ["Asks", "Mid"])
+        XCTAssertEqual(s.paired.map { $0.name }, ["Gone", "Paired"])
+    }
+
     /// A received name shows with every disallowed character as "?", in lists and notices.
     func testShownNameFiltered() {
         var p = Peer(id: PeerId(raw: Data(repeating: 7, count: 30))!)

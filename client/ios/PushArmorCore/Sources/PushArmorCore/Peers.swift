@@ -383,4 +383,21 @@ public enum DeviceList {
     public static func rejected(_ peers: [Peer]) -> [Peer] {
         peers.filter { $0.state == .denied && !$0.pinned }
     }
+
+    /// The Devices list sections, each in name order.
+    public struct Sections: Sendable {
+        /// Waiting to pair: a device not paired here and with no open pairing.
+        public var waiting: [Peer]
+        /// Pairing: a device with an open pairing (`open`: their ids).
+        public var pairing: [Peer]
+        /// Paired devices: every other shown device.
+        public var paired: [Peer]
+    }
+
+    public static func sections(_ visible: [Peer], open: Set<String>) -> Sections {
+        let pairing = visible.filter { open.contains($0.id.text) }
+        let waiting = visible.filter { !open.contains($0.id.text) && !$0.pinned && $0.state != .removed }
+        let paired = visible.filter { !open.contains($0.id.text) && ($0.pinned || $0.state == .removed) }
+        return Sections(waiting: PeerLabel.sorted(waiting), pairing: PeerLabel.sorted(pairing), paired: PeerLabel.sorted(paired))
+    }
 }

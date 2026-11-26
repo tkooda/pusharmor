@@ -16,11 +16,6 @@ struct PeersView: View {
         DeviceList.visible(model.peers, withHistory: Set(model.history.compactMap { $0.peerId }))
     }
 
-    /// Peers in a pairing state: an open pairing, or a new peer to pair or deny.
-    private func inPairing(_ p: Peer) -> Bool {
-        model.pairings[p.id.text] != nil || (!p.pinned && p.state != .removed)
-    }
-
     var body: some View {
         if model.needsFirstPair {
             FirstPairView()
@@ -30,33 +25,32 @@ struct PeersView: View {
     }
 
     @ViewBuilder private var devices: some View {
-        let pairing = PeerLabel.sorted(visible.filter { inPairing($0) })
-        // A peer in a pairing shows only its card, never a second row.
-        let listed = PeerLabel.sorted(visible.filter { !inPairing($0) })
+        // Waiting to pair, Pairing, Paired devices, then Rejected devices; each hidden when
+        // empty. A peer in a pairing shows only its card, never a second row.
+        let s = DeviceList.sections(visible, open: Set(model.pairings.keys))
         NavigationStack {
             ScrollViewReader { proxy in
                 List {
-                    if !pairing.isEmpty {
-                        Section("Pairing") {
-                            ForEach(pairing, id: \.id.text) { p in
-                                PairingCardView(p: p)
-                                    .id(p.id.text)
-                                    .listRowInsets(EdgeInsets(top: 18, leading: 16, bottom: 4, trailing: 16))
-                                    .listRowBackground(pulseBackground(p))
-                            }
+                    if !s.waiting.isEmpty {
+                        Section("Waiting to pair") {
+                            ForEach(s.waiting, id: \.id.text) { p in card(p) }
                         }
                     }
-                    if listed.isEmpty && pairing.isEmpty {
+                    if !s.pairing.isEmpty {
+                        Section("Pairing") {
+                            ForEach(s.pairing, id: \.id.text) { p in card(p) }
+                        }
+                    }
+                    if s.waiting.isEmpty && s.pairing.isEmpty && s.paired.isEmpty {
                         Section {
                             emptyState
                                 .listRowBackground(Color.clear)
                         }
-                    } else if !listed.isEmpty {
-                        // No sub-header: the large title already says Devices (F31).
-                        Section {
-                            ForEach(listed, id: \.id.text) { p in
+                    } else if !s.paired.isEmpty {
+                        Section("Paired devices") {
+                            ForEach(s.paired, id: \.id.text) { p in
                                 PeerRowView(p: p)
-                                .id(inPairing(p) ? "row-" + p.id.text : p.id.text)
+                                .id(p.id.text)
                                 .listRowBackground(pulseBackground(p))
                             }
                         }
@@ -106,6 +100,13 @@ struct PeersView: View {
                 .onChange(of: model.highlightPeer) { _, _ in highlight(proxy) }
             }
         }
+    }
+
+    private func card(_ p: Peer) -> some View {
+        PairingCardView(p: p)
+            .id(p.id.text)
+            .listRowInsets(EdgeInsets(top: 18, leading: 16, bottom: 4, trailing: 16))
+            .listRowBackground(pulseBackground(p))
     }
 
     private func pulseBackground(_ p: Peer) -> Color? {
@@ -266,7 +267,7 @@ struct PairingCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top, spacing: 8) {
-                HStack(spacing: 14) {
+                HStack(alignment: .top, spacing: 14) {
                     IconTile(platformSymbol(p.platform), size: 40)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(title).font(.headline)
@@ -277,6 +278,9 @@ struct PairingCardView: View {
                             Text("Added: " + PeerLabel.addedDate(c))
                                 .font(.subheadline)
                                 .foregroundColor(.secondaryText)
+                        }
+                        if entry == nil {
+                            StatusLine(kind: .notPaired, text: "Not paired")
                         }
                     }
                 }
@@ -467,17 +471,25 @@ struct RejectedSection: View {
         let rejected = PeerLabel.sorted(DeviceList.rejected(model.peers))
         if !rejected.isEmpty {
             Section {
-                DisclosureGroup("Rejected devices", isExpanded: $isExpanded) {
+                DisclosureGroup("Rejected devices (\(rejected.count))", isExpanded: $isExpanded) {
                     ForEach(rejected, id: \.id.text) { p in
-                        HStack(spacing: 14) {
-                            IconTile(platformSymbol(p.platform))
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(model.label(p)).font(.body)
-                                Text(PeerLabel.platformName(p.platform))
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondaryText)
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack(alignment: .top, spacing: 14) {
+                                IconTile(platformSymbol(p.platform))
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(model.label(p)).font(.body)
+                                    Text("ID: " + Ids.deviceId(p.id.raw))
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondaryText)
+                                    if let c = p.created {
+                                        Text("Added: " + PeerLabel.addedDate(c))
+                                            .font(.subheadline)
+                                            .foregroundColor(.secondaryText)
+                                    }
+                                    StatusLine(kind: .notPaired, text: "Not paired")
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
                             Button("Pair") { Task { await model.pair(p) } }
                                 .buttonStyle(TonalGreenButtonStyle())
                                 .disabled(model.busy.contains("pair:" + p.id.text))
@@ -579,7 +591,7 @@ struct PeerRowView: View {
     }
 
     private func header(icons: Bool) -> some View {
-        HStack(spacing: 14) {
+        HStack(alignment: .top, spacing: 14) {
             IconTile(platformSymbol(p.platform))
                 .opacity(greyed ? 0.6 : 1)
             VStack(alignment: .leading, spacing: 2) {

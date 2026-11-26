@@ -224,8 +224,8 @@ struct OutlinedDenyButtonStyle: ButtonStyle {
     }
 }
 
-/// Peer state shape: filled dot, ring, or ring with a bar.
-enum StatusKind { case approves, notApproved, off }
+/// Peer state shape: filled dot, ring, ring with a bar, or ring with a slash (not paired).
+enum StatusKind { case approves, notApproved, off, notPaired }
 
 struct StatusMark: View {
     let kind: StatusKind
@@ -244,6 +244,12 @@ struct StatusMark: View {
             ZStack {
                 Circle().stroke(Color.secondaryText, lineWidth: line).frame(width: ring, height: ring)
                 Capsule().fill(Color.secondaryText).frame(width: size * 0.6, height: line)
+            }
+            .frame(width: size, height: size)
+        case .notPaired:
+            ZStack {
+                Circle().stroke(Color.secondaryText, lineWidth: line).frame(width: ring, height: ring)
+                Capsule().fill(Color.secondaryText).frame(width: ring, height: line).rotationEffect(.degrees(-45))
             }
             .frame(width: size, height: size)
         }
