@@ -142,9 +142,10 @@ internal fun decodeSampled(file: File, max: Int): Bitmap? = try {
     BitmapFactory.decodeFile(file.path, BitmapFactory.Options().apply { inSampleSize = sample })
 } catch (e: Exception) { null } catch (e: OutOfMemoryError) { null }
 
-/** The name, size and type, and the state of a file row: Download with the expiry right of it, progress, errors, or the actions. */
+/** The name, size and type, and the state of a file row: Download with the expiry right of it, progress, errors, or the actions.
+ *  Collapsed, the row shows no size and type and no expiry. */
 @Composable
-internal fun FileRowBody(vm: AppViewModel, h: HistoryEntity, f: FileValue, style: TextStyle, now: Long) {
+internal fun FileRowBody(vm: AppViewModel, h: HistoryEntity, f: FileValue, style: TextStyle, now: Long, expanded: Boolean) {
     val cs = MaterialTheme.colorScheme
     val sent = h.direction == "SENT"
     val rows by vm.files.rows.collectAsState()
@@ -155,11 +156,11 @@ internal fun FileRowBody(vm: AppViewModel, h: HistoryEntity, f: FileValue, style
     Column(Modifier.fillMaxWidth()) {
         MiddleEllipsisText(name, if (faded) style.copy(color = cs.onSurfaceVariant) else style, Modifier.fillMaxWidth())
         // a file that never reached the relay server with no size known (it could not be read) shows no size
-        Text(if (f.url.isEmpty() && f.size == 0L) FileUi.typeLabel(name) else FileUi.detail(name, f.size),
+        if (expanded) Text(if (f.url.isEmpty() && f.size == 0L) FileUi.typeLabel(name) else FileUi.detail(name, f.size),
             style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
         // a sent file: its expiry, then the state of its copy as for a received file (the Download button carries the expiry);
         // a file that never reached the relay server (no URL) has no expiry
-        if (sent && f.url.isNotEmpty() && !(status is FileUi.Status.Failed && status.download) && status !is FileUi.Status.Pending)
+        if (expanded && sent && f.url.isNotEmpty() && !(status is FileUi.Status.Failed && status.download) && status !is FileUi.Status.Pending)
             Text(FileUi.expiresText(f.expires, now / 1000), style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
         if (sent && status == null) return@Column
         @Composable fun line(icon: ImageVector, text: String, color: Color) = Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -174,7 +175,7 @@ internal fun FileRowBody(vm: AppViewModel, h: HistoryEntity, f: FileValue, style
         when (status) {
             null, FileUi.Status.Ready -> if (status == FileUi.Status.Ready && row.plain != null && !row.image && FileUi.kind(name) == FileUi.Kind.IMAGE)
                 Text(FileUi.PREVIEW_NA, style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
-            is FileUi.Status.Pending -> button("Download", PaIcons.Download, status.expires) { vm.files.download(h.id) }
+            is FileUi.Status.Pending -> button("Download", PaIcons.Download, status.expires.takeIf { expanded }) { vm.files.download(h.id) }
             is FileUi.Status.Downloading -> {
                 line(PaIcons.Download, "Downloading ${status.percent}%", cs.onSurfaceVariant)
                 LinearProgressIndicator({ status.percent / 100f }, Modifier.fillMaxWidth().padding(top = 4.dp).heightIn(max = 4.dp))
@@ -187,7 +188,7 @@ internal fun FileRowBody(vm: AppViewModel, h: HistoryEntity, f: FileValue, style
             is FileUi.Status.Failed -> {
                 val removed = status.text == FileUi.REMOVED
                 line(if (removed) PaIcons.Info else PaIcons.Error, status.text, if (removed) cs.onSurfaceVariant else cs.error)
-                if (status.download) button("Download", PaIcons.Download, status.expires) { vm.files.download(h.id) }
+                if (status.download) button("Download", PaIcons.Download, status.expires.takeIf { expanded }) { vm.files.download(h.id) }
             }
             FileUi.Status.NoMemory -> {
                 line(PaIcons.Error, FileUi.NO_MEMORY, cs.error)

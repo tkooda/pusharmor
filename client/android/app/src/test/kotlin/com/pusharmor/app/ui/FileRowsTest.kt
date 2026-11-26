@@ -140,27 +140,34 @@ class FileRowsTest {
         val vm = AppViewModel(app)
         val (c, v) = show({ HistoryScreen(vm) }) { t ->
             "Decrypt" in t && "Download" in t && vm.files.rows.value.values.count { it.status == com.pusharmor.app.files.FileUi.Status.Ready } == 2 }
-        // file rows show collapsed: no actions until a tap opens the row
+        // file rows show collapsed: no actions, no size and type, and no expiry until a tap opens the row
         val collapsed = texts(v)
         assertEquals(collapsed.toString(), listOf(0, 0, 0, 0, 0), listOf("View", "Copy", "Open", "Share", "Save").map { w -> collapsed.count { it == w } })
+        assertTrue(collapsed.toString(), collapsed.none { it.startsWith("2.1 MB") || it.startsWith("expires in") })
+        assertTrue(collapsed.toString(), listOf("pending.pdf", "memory.jpg", "old.txt", "photo.png", "report.pdf").all { it in collapsed })
         tap(v, "photo.png")
         val photo = texts(v)
         assertEquals(photo.toString(), listOf(1, 1, 0, 1, 1), listOf("View", "Copy", "Open", "Share", "Save").map { w -> photo.count { it == w } })
         tap(v, "report.pdf")
         val t = texts(v)
         assertTrue(t.toString() + vm.files.rows.value, "Download" in t)
-        assertTrue(t.toString(), "expires in 2 h" in t)
-        assertTrue(t.toString(), "2.1 MB - PDF" in t)
+        assertEquals(t.toString(), 1, t.count { it == "2.1 MB - PDF" })
         assertTrue("Not enough memory to decrypt" in t)
         assertTrue("Decrypt" in t)
         assertTrue(t.toString(), "Expired" in t)
         // an image: View, Copy, Share, Save; any other file: Open, Share, Save; one row open at a time; no expiry once downloaded
         assertEquals(t.toString(), listOf(0, 0, 1, 1, 1), listOf("View", "Copy", "Open", "Share", "Save").map { w -> t.count { it == w } })
-        assertEquals(1, t.count { it.startsWith("expires in") })
+        assertEquals(0, t.count { it.startsWith("expires in") })
+        // the file to download, opened: its size and type, and the expiry right of Download
+        tap(v, "pending.pdf")
+        val pending = texts(v)
+        assertTrue(pending.toString(), "Download" in pending && "2.1 MB - PDF" in pending)
+        assertEquals(pending.toString(), listOf("expires in 2 h"), pending.filter { it.startsWith("expires in") })
         // the open row again: it closes
-        tap(v, "report.pdf")
+        tap(v, "pending.pdf")
         val closed = texts(v)
         assertEquals(closed.toString(), listOf(0, 0, 0, 0, 0), listOf("View", "Copy", "Open", "Share", "Save").map { w -> closed.count { it == w } })
+        assertTrue(closed.toString(), closed.none { it.startsWith("2.1 MB") || it.startsWith("expires in") })
         vm.files.setShown(false)
         close(c)
     }
@@ -177,6 +184,7 @@ class FileRowsTest {
         val vm = AppViewModel(app)
         runBlocking(Dispatchers.IO) { vm.files.failedRow(FileModel.Chosen("file:///x/doc.pdf", "doc.pdf", 1000), text) }
         val (c, v) = show({ HistoryScreen(vm) }) { t -> text in t }
+        tap(v, "doc.pdf")
         val t = texts(v)
         assertTrue(t.toString(), text in t)
         assertTrue(t.toString(), t.none { it == "Expired" || it.startsWith("expires in") || it == "Download" })
@@ -196,6 +204,7 @@ class FileRowsTest {
         val vm = AppViewModel(app)
         runBlocking(Dispatchers.IO) { vm.files.failedRow(FileModel.Chosen("file:///x/doc.pdf", "doc.pdf", 0), text) }
         val (c, v) = show({ HistoryScreen(vm) }) { t -> text in t }
+        tap(v, "doc.pdf")
         val t = texts(v)
         assertTrue(t.toString(), com.pusharmor.app.files.FileUi.typeLabel("doc.pdf") in t)
         assertTrue(t.toString(), t.none { it.contains("bytes") })

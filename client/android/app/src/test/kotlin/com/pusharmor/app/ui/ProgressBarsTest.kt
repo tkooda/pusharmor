@@ -144,7 +144,7 @@ class ProgressBarsTest {
         val vm = AppViewModel(app)
         runBlocking { vm.files.refresh(decrypt = false).join() }
         vm.files.decryptPercent.value = h.id to 40
-        val (c, v) = show({ FileRowBody(vm, h, f, MaterialTheme.typography.bodyLarge, now) }) { bars(it).isNotEmpty() }
+        val (c, v) = show({ FileRowBody(vm, h, f, MaterialTheme.typography.bodyLarge, now, expanded = true) }) { bars(it).isNotEmpty() }
         val b = bars(v).single()
         assertTrue(b.toString(), b != ProgressBarRangeInfo.Indeterminate)
         assertEquals(0.4f, b.current, 0.001f)

@@ -1551,7 +1551,7 @@ private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, e
                             Icon(PaIcons.Cancel, null, Modifier.size(18.dp), tint = cs.error)
                             Text(body, Modifier.padding(start = 4.dp), style = style, color = cs.error, maxLines = 2, overflow = TextOverflow.Ellipsis)
                         }
-                        file != null -> FileRowBody(vm, h, file, style, System.currentTimeMillis())
+                        file != null -> FileRowBody(vm, h, file, style, System.currentTimeMillis(), expanded)
                         expanded && hc != null && messageKind(h.type, hc) == MessageKind.TEXT -> TextBox(hc, style)
                         expanded && hc != null -> SelectionContainer { Text(hc, style = style) }
                         h.type == "url" -> MiddleEllipsisText(body, style, Modifier.fillMaxWidth())
