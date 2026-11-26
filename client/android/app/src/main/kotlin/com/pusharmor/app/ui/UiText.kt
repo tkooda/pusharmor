@@ -193,10 +193,11 @@ object UiText {
         else -> Mark.WAIT to "Unconfirmed"
     }
 
-    /** Device-limit row: "Trusts 3 devices. Trusted by 1." then "Unreachable." and "Logged out." when they apply. */
-    fun limitRow(approves: Int, approvedBy: Int, reachable: Boolean, loggedOut: Boolean): String =
-        "Trusts $approves ${if (approves == 1) "device" else "devices"}. Trusted by $approvedBy." +
-            (if (!reachable) " Unreachable." else "") + (if (loggedOut) " Logged out." else "")
+    /** Device-limit row: "Trusts 3 devices. Trusted by 1." then "Unreachable." and "Logged out." on their own line when they apply. */
+    fun limitRow(approves: Int, approvedBy: Int, reachable: Boolean, loggedOut: Boolean): String {
+        val off = listOfNotNull(if (!reachable) "Unreachable." else null, if (loggedOut) "Logged out." else null).joinToString(" ")
+        return "Trusts $approves ${if (approves == 1) "device" else "devices"}. Trusted by $approvedBy." + (if (off.isEmpty()) "" else "\n$off")
+    }
 
     /** Device-limit order: fewest pairings (trusts + trusted by) first, then oldest added first. */
     fun limitOrder(peers: List<com.pusharmor.protocol.engine.ListedPeer>): List<com.pusharmor.protocol.engine.ListedPeer> =

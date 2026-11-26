@@ -297,7 +297,7 @@ class UiTextTest {
         assertEquals("Trusts 0 devices. Trusted by 0.", UiText.limitRow(0, 0, reachable = true, loggedOut = false))
         assertEquals("Trusts 1 device. Trusted by 1.", UiText.limitRow(1, 1, reachable = true, loggedOut = false))
         assertEquals("Trusts 2 devices. Trusted by 2.", UiText.limitRow(2, 2, reachable = true, loggedOut = false))
-        assertEquals("Trusts 2 devices. Trusted by 1. Unreachable. Logged out.", UiText.limitRow(2, 1, reachable = false, loggedOut = true))
+        assertEquals("Trusts 2 devices. Trusted by 1.\nUnreachable. Logged out.", UiText.limitRow(2, 1, reachable = false, loggedOut = true))
     }
 
     @Test fun renameFieldError() {
