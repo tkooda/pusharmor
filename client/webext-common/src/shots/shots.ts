@@ -225,6 +225,39 @@ const HEADLINES: Record<string, string> = {
   history: "Send URLs or text to your devices, end-to-end encrypted.",
 };
 
+// Store shots: no pairing step or device row shows cut at the top of the view. Scrolls it
+// out of view, with an empty spacer above the foot bar when the view cannot scroll that far.
+function noCutTop(pn: HTMLElement): void {
+  const top = pn.getBoundingClientRect().top;
+  const cut = [...pn.querySelectorAll<HTMLElement>(".fp-steps > li, .prow")].find((r) => {
+    const b = r.getBoundingClientRect();
+    return b.height > 0 && b.top < top - 0.5 && b.bottom > top + 0.5;
+  });
+  if (!cut) return;
+  // step by step, measured on screen (the Firefox popup shots zoom the page)
+  const spacer = document.createElement("div");
+  spacer.className = "shot-spacer";
+  const foot = pn.querySelector(".foot");
+  if (foot) foot.before(spacer);
+  else pn.append(spacer);
+  for (let i = 0; i < 1000 && cut.getBoundingClientRect().bottom > top + 0.5; i++) {
+    if (pn.scrollTop + pn.clientHeight >= pn.scrollHeight - 1) spacer.style.height = spacer.offsetHeight + 4 + "px";
+    pn.scrollTop += 1;
+  }
+}
+
+// Runs place now and again whenever the view changes size: headless Chrome can still grow the
+// window to its final size after the page has scrolled, which would leave the view scrolled
+// for the smaller size.
+function onSize(pn: HTMLElement, place: () => void): void {
+  const again = (): void => {
+    pn.querySelectorAll(".shot-spacer").forEach((x) => x.remove());
+    place();
+  };
+  again();
+  new ResizeObserver(again).observe(pn);
+}
+
 async function main(): Promise<void> {
   document.documentElement.dataset.mode = MARKER;
   // ?bare: the popup alone at its real size (no store frame)
@@ -325,20 +358,27 @@ async function main(): Promise<void> {
   if (q.has("store") && (q.get("only") === "new" || (q.has("tab") && q.has("wait")))) {
     await new Promise((done) => setTimeout(done, 500));
     const pn = document.getElementById("panel")!;
-    const plate = pn.querySelector(".plate");
-    pn.scrollTop = q.has("tab") && plate ? pn.scrollTop + plate.getBoundingClientRect().top - pn.getBoundingClientRect().top - 12 : pn.scrollHeight;
-    // ?about (site About page): scrolled just enough that the whole pairing card shows above the sticky foot bar
-    const card = q.has("about") && !q.has("tab") ? pn.querySelector(".pair") : null;
-    const bottom = pn.querySelector(".foot")?.getBoundingClientRect().top ?? pn.getBoundingClientRect().bottom;
-    if (card) pn.scrollTop += card.getBoundingClientRect().bottom - bottom + 4;
+    onSize(pn, () => {
+      const plate = pn.querySelector(".plate");
+      pn.scrollTop = q.has("tab") && plate ? pn.scrollTop + plate.getBoundingClientRect().top - pn.getBoundingClientRect().top - 12 : pn.scrollHeight;
+      // ?about (site About page): scrolled just enough that the whole pairing card shows above the sticky foot bar
+      const card = q.has("about") && !q.has("tab") ? pn.querySelector(".pair") : null;
+      const bottom = pn.querySelector(".foot")?.getBoundingClientRect().top ?? pn.getBoundingClientRect().bottom;
+      if (card) pn.scrollTop += card.getBoundingClientRect().bottom - bottom + 4;
+      noCutTop(pn);
+    });
   }
   // ?store#peers: scrolled just enough that the Pair a new device button shows above the sticky foot bar
   if (q.has("store") && tab === "peers" && !q.has("only") && !q.has("wait")) {
     await new Promise((done) => setTimeout(done, 500));
     const pn = document.getElementById("panel")!;
-    const btn = pn.querySelector(".pairnew button");
-    const bottom = pn.querySelector(".foot")?.getBoundingClientRect().top ?? pn.getBoundingClientRect().bottom;
-    if (btn) pn.scrollTop += Math.max(0, btn.getBoundingClientRect().bottom - bottom + 12);
+    onSize(pn, () => {
+      pn.scrollTop = 0;
+      const btn = pn.querySelector(".pairnew button");
+      const bottom = pn.querySelector(".foot")?.getBoundingClientRect().top ?? pn.getBoundingClientRect().bottom;
+      if (btn) pn.scrollTop += Math.max(0, btn.getBoundingClientRect().bottom - bottom + 12);
+      noCutTop(pn);
+    });
   }
   if ((tab === "settings" || tab === "signout") && !q.has("top")) {
     await new Promise((done) => setTimeout(done, 500));
