@@ -72,8 +72,8 @@ import {
   getEntry,
   pairKeyOf,
 } from "./state.ts";
-import { checkName, displayName } from "../model/names.ts";
-import { R, T, actionLine, peerLabel, quoted, rowLabel, sendResultText, syncDeleteResultText } from "./texts.ts";
+import { checkName, displayName, uniqueDefault } from "../model/names.ts";
+import { R, T, actionLine, clashLabels, nameUsedText, platformLabel, peerLabel, quoted, rowLabel, sendResultText, syncDeleteResultText } from "./texts.ts";
 import { AUTH_CHANGED, AUTH_SWITCHED } from "../model/signin.ts";
 import { BUSY, type Busy, DEL_CAP, STEP } from "../model/busy.ts";
 
@@ -306,12 +306,25 @@ export class Engine {
 
   async myName(): Promise<string> {
     const n = await this.db.meta<string>("my_name");
-    return n ?? (this.p.platformName === "chrome" ? "Chrome" : "Firefox");
+    if (n !== undefined && n !== null) return n;
+    // the default: the browser's name, with " (2)" and up when a known device already has it
+    const others = (await this.db.peers()).filter((p) => !p.removed && p.name !== null).map((p) => displayName(p.name!));
+    return uniqueDefault(platformLabel(this.p.platformName), others);
+  }
+
+  /** Name-only places: each other device's name, with its ID when another listed device shows the same name. */
+  async nameOnlyLabels(): Promise<Map<string, string>> {
+    const self = await this.self();
+    return clashLabels((await this.db.peers()).filter((p) => !p.removed && p.id !== self?.id).map((p) => ({ id: p.id, label: rowLabel(p) })));
+  }
+
+  /** A device's name in a notification or menu (with its ID on a clash). */
+  private async shortLabel(p: PeerRow | null | undefined): Promise<string> {
+    return p ? ((await this.nameOnlyLabels()).get(p.id) ?? peerLabel(p)) : peerLabel(p);
   }
 
   async peerName(id: string): Promise<string> {
-    const p = await this.db.peer(id);
-    return peerLabel(p);
+    return this.shortLabel(await this.db.peer(id));
   }
 
   // ---------------------------------------------------------------- receive
@@ -524,7 +537,7 @@ export class Engine {
         const row = applied ?? peer;
         if (row.ruling === "approved") {
           await this.p.storageLocal.remove([pairKeyOf(peer.id)]);
-          if (src === "push") this.p.notify("a:" + peer.id, T.appName, T.approved(peerLabel(row)));
+          if (src === "push") this.p.notify("a:" + peer.id, T.appName, T.approved(await this.shortLabel(row)));
           await this.rebuildMenus();
         }
         return;
@@ -560,7 +573,7 @@ export class Engine {
       case "login": {
         await this.db.updatePeer(peer.id, (p) => (p && n > p.logout_n ? { ...p, logged_out: c.type === "logout", logout_n: n } : null));
         if (this.penalized && src === "push") {
-          const nm = peerLabel(peer);
+          const nm = await this.shortLabel(peer);
           this.p.notify("d:" + peer.id, T.appName, c.type === "logout" ? T.loggedOutRecv(nm) : T.loggedInRecv(nm));
         }
         await this.rebuildMenus();
@@ -569,7 +582,7 @@ export class Engine {
       case "deny": {
         await this.db.updatePeer(peer.id, (p) => (p ? { ...p, denies_me: true, approves_me: false } : null));
         await this.p.storageLocal.remove([pairKeyOf(peer.id)]);
-        if (this.penalized && src === "push") this.p.notify("d:" + peer.id, T.appName, T.denied(peerLabel(peer)));
+        if (this.penalized && src === "push") this.p.notify("d:" + peer.id, T.appName, T.denied(await this.shortLabel(peer)));
         await this.rebuildMenus();
         return;
       }
@@ -595,7 +608,7 @@ export class Engine {
     const peer = row.peer ? await this.db.peer(row.peer) : undefined;
     const show = (await this.settings()).allowContent && peer?.allow_content !== false;
     // Title: the sender's device name in quotes; body: the message. Hidden content keeps the app name over "New message from".
-    const from = peerLabel(peer);
+    const from = await this.shortLabel(peer);
     if (show) this.p.notify("h:" + row.id, quoted(from), ellipsize(row.content, 120));
     else this.p.notify("h:" + row.id, T.appName, T.newMessageFrom(from));
   }
@@ -1059,6 +1072,8 @@ export class Engine {
         return r;
       })) ?? peer;
     const name = await this.myName();
+    // the default name goes out now: keep it, so a later clash suffix does not change it
+    if (!(await this.db.meta<string>("my_name"))) await this.db.setMeta("my_name", name);
     const body = await this.buildApprove(x, self, name);
     if (e) await this.p.storageLocal.set({ [pairKeyOf(x)]: { ...e, approved: true, approve_body: body, approve_name: name } satisfies PairEntry });
     if (peer.approve_verified) await this.p.storageLocal.remove([pairKeyOf(x)]);
@@ -2049,6 +2064,9 @@ export class Engine {
     // spaces trimmed and collapsed; the error text is the whole message ("Invalid characters", "Name too short")
     const { error, name } = checkName(typed);
     if (error !== null) throw new UserError(error);
+    // the exact name of another device on the account: not allowed
+    const taken = (await this.db.peers()).find((p) => !p.removed && p.id !== self.id && p.name === name);
+    if (taken) throw new UserError(nameUsedText(displayName(taken.name!), deviceId(b64urlDecode(taken.id))));
     // the same name: nothing to tell the other devices
     if (name === (await this.myName())) return;
     let names: Record<string, string> = {};
@@ -2192,7 +2210,8 @@ export class Engine {
 
   async rebuildMenus(): Promise<void> {
     const s = await this.settings();
-    const peers = (await this.allSet()).map((p) => ({ id: p.id, name: peerLabel(p) }));
+    const short = await this.nameOnlyLabels();
+    const peers = (await this.allSet()).map((p) => ({ id: p.id, name: short.get(p.id) ?? peerLabel(p) }));
     const paired = (await this.db.peers()).some((p) => p.pinned && p.ruling === "approved" && p.approves_me && !p.removed);
     const mode = !(await this.self()) || (await this.regState()) !== "registered" ? "login" : paired ? "send" : "pair";
     this.p.menusRebuild(peers, s.showAll, mode);

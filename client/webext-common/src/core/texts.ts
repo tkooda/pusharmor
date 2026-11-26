@@ -2,6 +2,8 @@
 
 import type { PeerRow } from "../store/db.ts";
 import { displayName } from "../model/names.ts";
+import { b64urlTryDecode } from "../crypto/b64url.ts";
+import { ID_LEN, deviceId } from "../crypto/labels.ts";
 
 const A_DEVICE = "A device";
 /** True for the label of a device with no name yet (New Firefox device). */
@@ -156,6 +158,26 @@ export function greyedText(name: string, greyed: string): string {
   if (greyed.startsWith("Rejected by ")) return to + "It rejected this device. Pair with it again to send it messages.";
   return to + "It cannot be reached right now. Try again later.";
 }
+
+/**
+ * Places that show only a name (menus, Send chips, notifications, History): devices whose shown
+ * names are equal ignoring case read "Name (NNN-NNN-NNN)"; the others keep their name.
+ */
+export function clashLabels(devs: { id: string; label: string }[]): Map<string, string> {
+  const fold = (s: string) => s.replace(/[A-Z]/g, (c) => c.toLowerCase());
+  const count = new Map<string, number>();
+  for (const d of devs) count.set(fold(d.label), (count.get(fold(d.label)) ?? 0) + 1);
+  return new Map(
+    devs.map((d) => {
+      const raw = b64urlTryDecode(d.id);
+      const id = raw && raw.length === ID_LEN ? deviceId(raw) : null;
+      return [d.id, count.get(fold(d.label))! > 1 && id ? d.label + " (" + id + ")" : d.label];
+    }),
+  );
+}
+
+/** The error when a new name is the name of another device (shown name and ID), two lines, no period. */
+export const nameUsedText = (name: string, id: string): string => 'Name already used by "' + name + '" (' + id + ")\nRemove that device, or rename it on that device";
 
 /** A device's name, else New Firefox device; "A device" only when the device is not known here. */
 export function peerLabel(p: PeerRow | null | undefined): string {

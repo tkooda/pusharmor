@@ -2037,3 +2037,38 @@ test("an approve whose name cannot be read fails the pairing: no pairing, the ro
   assert.deepEqual(row.lines, text.split("\n"));
   assert.ok(!row.paired);
 });
+
+test("duplicate names: name-only labels add the ID on a clash, Rename refuses another device's name, the default name gets (2)", async () => {
+  const { clock, w, a, b } = await setup();
+  const c = await device(w, clock);
+  await pairAndApprove(w, a, b);
+  await pairAndApprove(w, a, c);
+  // b and c both took the default "Chrome" when they confirmed a
+  assert.equal((await a.db.peer(b.id))!.name, "Chrome");
+  assert.equal((await a.db.peer(c.id))!.name, "Chrome");
+  const bid = deviceId(b64urlDecode(b.id));
+  const cid = deviceId(b64urlDecode(c.id));
+  const short = await a.e.nameOnlyLabels();
+  assert.equal(short.get(b.id), "Chrome (" + bid + ")");
+  assert.equal(short.get(c.id), "Chrome (" + cid + ")");
+  const views = (await new Rpc(a.e).peers()).peers;
+  assert.equal(views.find((v) => v.id === b.id)!.chip, "Chrome (" + bid + ")");
+  assert.equal(views.find((v) => v.id === b.id)!.label, "Chrome"); // the device card keeps the name (its ID is on the card)
+  // Rename to another device's exact name is refused
+  const used = await a.e.rename("Chrome").then(() => "", (e: Error) => e.message);
+  assert.ok([bid, cid].some((id) => used === 'Name already used by "Chrome" (' + id + ")\nRemove that device, or rename it on that device"), used);
+  await a.e.rename("chrome"); // another case is allowed
+  assert.equal(await a.e.myName(), "chrome");
+  // a device with no saved name: the default skips the names of known devices
+  await a.db.del("meta", "my_name");
+  assert.equal(await a.e.myName(), "Chrome (2)");
+});
+
+test("clashLabels: only names equal ignoring case get the ID", async () => {
+  const { clashLabels } = await import("../src/core/texts.ts");
+  const id = (n: number) => b64urlEncode(new Uint8Array(30).fill(n));
+  const m = clashLabels([{ id: id(1), label: "Pixel 8" }, { id: id(2), label: "pixel 8" }, { id: id(3), label: "Laptop" }]);
+  assert.equal(m.get(id(1)), "Pixel 8 (" + deviceId(new Uint8Array(30).fill(1)) + ")");
+  assert.equal(m.get(id(2)), "pixel 8 (" + deviceId(new Uint8Array(30).fill(2)) + ")");
+  assert.equal(m.get(id(3)), "Laptop");
+});

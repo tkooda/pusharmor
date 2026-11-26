@@ -48,6 +48,8 @@ export interface PeerView {
   created?: number;
   /** Devices section: Waiting to pair, Pairing, or Paired devices (rejected rows go under Rejected devices) */
   section?: "waiting" | "pairing" | "paired";
+  /** the name in name-only places (Send chips, Send to): with its ID when another device shows the same name */
+  chip?: string;
   /** Codes match done here: waiting for the other device's response */
   awaiting?: boolean;
 }
@@ -343,10 +345,11 @@ export class Rpc {
     const local = await e.p.storageLocal.get(null);
     const out: PeerView[] = [];
     const t = e.p.now();
+    const short = await e.nameOnlyLabels();
     for (const p of await e.db.peers()) {
       if (p.removed || p.id === self?.id) continue;
       const label = rowLabel(p);
-      const v: PeerView = { id: p.id, label, platform: p.platform, lines: [], actions: [], countdown: null, fingerprint: null, pk: null, greyed: null, hidden: p.hidden, allowContent: p.allow_content !== false, sendable: false, approvesMe: p.approves_me, paired: false, created: p.created };
+      const v: PeerView = { id: p.id, label, platform: p.platform, lines: [], actions: [], countdown: null, fingerprint: null, pk: null, greyed: null, hidden: p.hidden, allowContent: p.allow_content !== false, sendable: false, approvesMe: p.approves_me, paired: false, created: p.created, chip: short.get(p.id) ?? label };
       const pv = entries.has(p.id) ? await e.pairRowView(p.id) : null;
       // no pairing started here, or the other device wants to pair again: Waiting to pair
       v.section = "waiting";
@@ -400,6 +403,7 @@ export class Rpc {
     const e = this.e;
     const waiting = await e.settleDeletes();
     const peers = new Map((await e.db.peers()).map((p) => [p.id, p]));
+    const short = await e.nameOnlyLabels();
     const f = e.files as Files | null;
     const here = f ? await f.here().catch(() => new Set<string>()) : new Set<string>();
     // no device status rows: those an older version stored stay in the database, unlisted
@@ -408,11 +412,11 @@ export class Rpc {
       let sender: string = T.unknownSender;
       if (r.peer) {
         const raw = p?.name ?? r.peer_name ?? null;
-        const nm = raw === null ? null : displayName(raw);
+        const nm = p && short.has(p.id) ? short.get(p.id)! : raw === null ? null : displayName(raw);
         sender = (nm ?? peerLabel(p)) + (!p || p.removed ? " (removed)" : "");
       } else if (r.dir === "out" && r.targets?.length === 1) {
         // A message to one device: History names it (Sent to "Laptop").
-        sender = peerLabel(peers.get(r.targets[0]!));
+        sender = short.get(r.targets[0]!) ?? peerLabel(peers.get(r.targets[0]!));
       }
       // a delete not done yet: the names of the devices it waits on
       const left = waiting.get(r.id!);

@@ -384,7 +384,9 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
   const sendBtn = h("button", { class: "primary big" }, icon("send", 18), sendLabel) as HTMLButtonElement;
   const head = sh("");
   const chips = h("div", { class: "dchips" });
-  const data = await rpc<{ peers: PeerView[] }>(env, "peers");
+  const got = await rpc<{ peers: PeerView[] }>(env, "peers");
+  // chips and Send to show the name-only label: with the ID when two devices share a name
+  const data = { ...got, peers: got.peers.map((p) => ({ ...p, label: p.chip ?? p.label })) };
   // Like Android: a device that cannot receive right now is a greyed chip, never selected and not counted.
   const sendable = data.peers.filter(canReceiveNow);
   const checks: { id: string; chip: HTMLButtonElement }[] = [];
@@ -637,7 +639,7 @@ async function menuSendHere(env: UiEnv, m: { text: string; child: string }): Pro
   // the send starts first and runs in the background, so a popup that closes cannot lose it; the names come after
   const sending = rpc<SendResult | null>(env, "menuSendRun");
   try {
-    const peers = (await rpc<{ peers: PeerView[] }>(env, "peers").catch(() => null))?.peers ?? [];
+    const peers = ((await rpc<{ peers: PeerView[] }>(env, "peers").catch(() => null))?.peers ?? []).map((p) => ({ ...p, label: p.chip ?? p.label }));
     const one = peers.find((p) => p.id === m.child);
     const names = m.child === "all" ? peers.filter(canReceiveNow).map((p) => p.label) : one ? [one.label] : [];
     const d = await rpc<{ type: string }>(env, "detect", { text: m.text }).catch(() => ({ type: "text" }));
