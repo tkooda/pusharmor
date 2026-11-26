@@ -680,6 +680,8 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
     // Pairing and note lines replace the status line (catalog order).
     val stateText = when {
         !p.pinned -> null
+        p.offersPairAgain -> UiText.WANTS_TO_PAIR_AGAIN
+        p.rejectsMe -> UiText.REJECTED_THIS_DEVICE
         p.notPairedOnPeer -> if (p.listDeniesMe) UiText.rejectedBy(x) else UiText.notPairedOn(x)
         p.waiting -> UiText.waitingCodesMatch(x)
         p.missing -> null
@@ -739,7 +741,7 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
                         // Per device, on by default.
                         if (p.pinned) CheckItem("Show shortcut in sharing menu", shareShown) { menu = false; vm.setShareShown(p.id, !shareShown) }
                         HorizontalDivider()
-                        if (p.offersPairAgain) DropdownMenuItem(text = { Text("Cancel pairing request") }, onClick = { menu = false; vm.cancelPairing(p.id) })
+                        if (p.offersPairAgain || p.rejectsMe) DropdownMenuItem(text = { Text("Cancel pairing request") }, onClick = { menu = false; vm.cancelPairing(p.id) })
                         if (p.missing) DropdownMenuItem(text = { Text("Delete") }, onClick = { menu = false; onDelete() })
                         DropdownMenuItem(text = { Text("Remove device from account") }, onClick = { menu = false; onRemove() })
                     }
@@ -758,13 +760,18 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
                     border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error)) { Text("Reject", style = WIDE_BUTTON_TEXT) }
                 TonalGreenButton(onClick = { vm.pair(p.id) }, text = "Pair", modifier = Modifier.weight(1f), enabled = "pair:${p.id}" !in running, style = WIDE_BUTTON_TEXT)
             }
+            // Asked to pair again, or rejected this device: Reject cancels the old pairing and rejects; Pair cancels it and starts a new one.
+            p.offersPairAgain || p.rejectsMe -> Row(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedButton(onClick = { vm.rejectAgain(p.id) }, Modifier.weight(1f).heightIn(min = 48.dp), enabled = "deny:${p.id}" !in running && p.id !in pairingAgain,
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error)) { Text("Reject", style = WIDE_BUTTON_TEXT) }
+                TonalGreenButton(onClick = { vm.pairAgain(p.id) }, text = "Pair", modifier = Modifier.weight(1f), enabled = p.id !in pairingAgain && "deny:${p.id}" !in running, style = WIDE_BUTTON_TEXT)
+            }
             p.notPairedOnPeer -> Row(inset.padding(bottom = 8.dp)) {
-                if (p.offersPairAgain) OutlinedButton(onClick = { vm.pairAgain(p.id) }, Modifier.heightIn(min = 48.dp), enabled = p.id !in pairingAgain) { Text("Pair again") }
-                else OutlinedButton(onClick = { vm.cancelPairing(p.id) }, Modifier.heightIn(min = 48.dp), enabled = "cancel:${p.id}" !in running) { Text("Cancel pairing request") }
+                OutlinedButton(onClick = { vm.cancelPairing(p.id) }, Modifier.heightIn(min = 48.dp), enabled = "cancel:${p.id}" !in running) { Text("Cancel pairing request") }
             }
             p.waiting -> ButtonRow(inset.padding(bottom = 8.dp)) {
-                if (p.offersPairAgain) OutlinedButton(onClick = { vm.pairAgain(p.id) }, Modifier.heightIn(min = 48.dp), enabled = p.id !in pairingAgain) { Text("Pair again") }
-                else OutlinedButton(onClick = { vm.cancelPairing(p.id) }, Modifier.heightIn(min = 48.dp), enabled = "cancel:${p.id}" !in running) { Text("Cancel pairing request") }
+                OutlinedButton(onClick = { vm.cancelPairing(p.id) }, Modifier.heightIn(min = 48.dp), enabled = "cancel:${p.id}" !in running) { Text("Cancel pairing request") }
                 WaitingSendAgain(vm, p, now)
             }
         }

@@ -62,8 +62,11 @@ data class Peer(
     /** Pinned row with no open entry that offers Cancel pairing ("Not paired on $X" / "Rejected by $X"). */
     val notPairedOnPeer: Boolean get() = pinned && approveVerified && listAfterVerify && !listApprovesMe
 
-    /** Row offers [Pair again]: the pair-again notice fired and the row is still in the half state. */
+    /** The device asked to pair again: the pair-again notice fired and the row is still in the half state ("Wants to pair again"). */
     val offersPairAgain: Boolean get() = pairAgain && (waiting || notPairedOnPeer)
+
+    /** A pinned row the other device rejected ("Rejected this device"). */
+    val rejectsMe: Boolean get() = pinned && (declined || (notPairedOnPeer && listDeniesMe))
 
     /** Member of the catalog "All" set. */
     val inAll: Boolean get() = pinned && approved && approvesMe && !hidden && !loggedOut && listening && !missing && !removed

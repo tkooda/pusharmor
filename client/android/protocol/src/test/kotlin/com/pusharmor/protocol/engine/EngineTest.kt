@@ -725,6 +725,19 @@ class EngineTest {
         assertEquals(PairStart.NO_DEVICE, n.pairing.pairAgain("not-on-this-account", t0) {})
     }
 
+    @Test fun pairOnRowTheOtherDeviceRejectedStartsFreshPairing() {
+        pairShown()
+        n.approve.approve(x.id) // N waiting
+        x.approve.deny(n.id) // X rejects N
+        n.deliver(t0); n.fetch()
+        val p0 = n.store.peer(x.id)!!
+        assertTrue(p0.rejectsMe)
+        assertFalse(p0.offersPairAgain)
+        assertEquals(PairStart.STARTED, n.pairing.pairAgain(x.id, t0 + 1000) { n.reconcile.run() })
+        assertFalse(n.store.peer(x.id)!!.pinned) // old pin dropped
+        assertEquals(PairState.COMMITTED, n.store.pairing(x.id)!!.state)
+    }
+
     @Test fun pairAgainOnHalfStateCancelsThenStartsFreshPairing() {
         pairShown()
         n.approve.approve(x.id) // N waiting; X never approves

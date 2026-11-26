@@ -144,7 +144,7 @@ class UiTextTest {
     }
 
     @Test fun pairAgainNotice() {
-        assertEquals("\"Chrome\" wants to pair again. Tap Pair again on its row.", UiText.pairAgainNotice("Chrome"))
+        assertEquals("\"Chrome\" wants to pair again. Tap Pair on its row.", UiText.pairAgainNotice("Chrome"))
     }
 
     /** Device names are always in straight double quotes; no name reads "a device". */
@@ -161,7 +161,7 @@ class UiTextTest {
         assertEquals("\"Pixel\": Logged out", UiText.greyedChip("Pixel", "Logged out"))
         assertEquals("Messages from \"Pixel\" are blocked.", UiText.blockedChannel("Pixel"))
         assertEquals("Messages from a device are blocked.", UiText.blockedChannel(null))
-        assertEquals("A device wants to pair again. Tap Pair again on its row.", UiText.pairAgainNotice(null))
+        assertEquals("A device wants to pair again. Tap Pair on its row.", UiText.pairAgainNotice(null))
         assertEquals("Pairing with \"Pixel\" is in progress. Open PushArmor.", UiText.pairingInProgress("Pixel"))
         assertEquals("Pairing with a device is in progress. Open PushArmor.", UiText.pairingInProgress(null))
         assertEquals("\"Pixel\" wants to pair.", UiText.wantsToPairNotice("Pixel"))

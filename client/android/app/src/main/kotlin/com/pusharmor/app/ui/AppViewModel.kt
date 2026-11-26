@@ -379,14 +379,20 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         io(UiText.unablePair(nameOf(id))) { g.pairing().tryAgain(id, now) }
     }
     fun cancelPairing(id: String) = once("cancel:$id", UiText.unableCancelPairing(nameOf(id))) { g.pairing().cancelPairing(id); g.reconcile().run() }
-    /** Peer ids with a Pair again call running; their button is greyed so a second tap cannot cancel the first. */
+    /** Reject on a row that asked to pair again or rejected this device: the old pairing is cancelled, then the device is rejected. */
+    fun rejectAgain(id: String) = once("deny:$id", UiText.unableReject(nameOf(id))) {
+        g.pairing().cancelPairing(id)
+        g.reconcile().run()
+        val r = g.approve().deny(id); if (r !is ApiResult.Ok) message.value = ErrorText.of(UiText.unableReject(nameOf(id)), r)
+    }
+    /** Peer ids with a Pair call running on a row that asked to pair again; their button is greyed so a second tap cannot cancel the first. */
     val pairingAgain = MutableStateFlow<Set<String>>(emptySet())
     fun pairAgain(id: String) {
         if (id in pairingAgain.value) return
         pairingAgain.update { it + id }
         io(UiText.unablePair(nameOf(id))) {
             try {
-                val offered = g.store.peer(id)?.offersPairAgain == true
+                val offered = g.store.peer(id)?.let { it.offersPairAgain || it.rejectsMe } == true
                 val r = g.pairing().pairAgain(id, System.currentTimeMillis()) { g.reconcile().run() }
                 // Past the offer check the old pairing is already cancelled; say so, the row is now a plain Pair row.
                 if (r != PairStart.STARTED && offered) message.value = UiText.pairAgainFailed(nameOf(id))

@@ -458,7 +458,7 @@ object UiText {
     const val NAME_RULE = "Use 1 to 32 plain ASCII characters, with no double quote."
     fun nameError(name: String): String? = if (NameEntry.isValidName(name)) null else NAME_RULE
 
-    /** Why a Pair or Pair again tap did not start a pairing; null when it did. Pairing is not live, so no "online". */
+    /** Why a Pair tap did not start a pairing; null when it did. Pairing is not live, so no "online". */
     fun pairRefused(r: PairStart, name: String): String? = when (r) {
         PairStart.STARTED -> null
         PairStart.NO_DEVICE -> "This device is no longer on your account."
@@ -480,7 +480,10 @@ object UiText {
     fun newDeviceWithId(platform: String, deviceId: String): String = "${com.pusharmor.app.notify.AppEffects.platformLabel(platform)} device with ID $deviceId"
 
     /** Notice when a device in the half state sends a new pairing request. */
-    fun pairAgainNotice(x: String?): String = "${quoted(x, "A device")} wants to pair again. Tap Pair again on its row."
+    fun pairAgainNotice(x: String?): String = "${quoted(x, "A device")} wants to pair again. Tap Pair on its row."
+    /** Status lines of a Waiting to pair row in the half state. */
+    const val WANTS_TO_PAIR_AGAIN = "Wants to pair again"
+    const val REJECTED_THIS_DEVICE = "Rejected this device"
 
     // Device texts: the name is always in straight double quotes; no name reads "A device" / "a device".
     fun approvedNotice(name: String?): String = "${quoted(name, "A device")} confirmed this device."

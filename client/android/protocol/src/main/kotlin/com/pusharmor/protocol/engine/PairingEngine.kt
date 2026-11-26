@@ -429,12 +429,12 @@ class PairingEngine(
     }
 
     /**
-     * [Pair again] on a row that got the pair-again notice and is still in the half state: the
+     * [Pair] on a row that asked to pair again (still in the half state) or that the other device rejected: the
      * Cancel pairing path, then [afterCancel] (the allow reconcile, run to the end), then the Pair path.
      */
     fun pairAgain(peerId: String, now: Long, afterCancel: () -> Unit): PairStart {
         val p = store.peer(peerId) ?: return PairStart.NO_DEVICE
-        if (!p.offersPairAgain) return refusal(p) ?: PairStart.PAIRED
+        if (!p.offersPairAgain && !p.rejectsMe) return refusal(p) ?: PairStart.PAIRED
         cancelPairing(peerId)
         afterCancel()
         return tapPair(peerId, now)
