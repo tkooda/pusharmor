@@ -396,11 +396,11 @@ internal fun FirstDeviceSteps(modifier: Modifier = Modifier) {
  * Cancel and Save beside it. Done saves, Back cancels; an invalid name shows why and Save is greyed.
  */
 @Composable
-internal fun NameEditRow(current: String, modifier: Modifier = Modifier, onSave: (String) -> Unit) {
+internal fun NameEditRow(current: String, modifier: Modifier = Modifier, sub: String? = null, onSave: (String) -> Unit) {
     val st = rememberSaveable(saver = NameEdit.Saver) { NameEdit() }
     val cs = MaterialTheme.colorScheme
     if (!st.editing) {
-        SettingRow(current, null, modifier, trailing = { Icon(PaIcons.Edit, null, tint = cs.onSurfaceVariant) }) { st.start(current) }
+        SettingRow(current, sub, modifier, trailing = { Icon(PaIcons.Edit, null, tint = cs.onSurfaceVariant) }) { st.start(current) }
         return
     }
     val error = st.error
@@ -680,6 +680,8 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
                 // Status icons sit beside lines 2-3, so the name line keeps its full width.
                 LinesBesideIcons({
                     Text(AppEffects.platformLabel(p.platform))
+                    Text("ID: ${UiText.shortDeviceId(p.id)}")
+                    Text("Added: ${UiText.addedDate(p.created)}")
                     if (lines.isEmpty()) { val (k, w) = UiText.status(p); StatusLine(k, w) } else for (l in lines) Text(l)
                 }) {
                     val se = ents.firstOrNull { it.id == p.id }
@@ -861,6 +863,8 @@ private fun PairingCard(vm: AppViewModel, p: Peer, row: PairingRow, now: Long, m
             Column {
                 Text(if (shown || prompted) "Pair with new device: \"$x\"" else x, style = MaterialTheme.typography.titleMedium)
                 Text(AppEffects.platformLabel(p.platform), style = body, color = cs.onSurfaceVariant)
+                Text("ID: ${UiText.shortDeviceId(p.id)}", style = body, color = cs.onSurfaceVariant)
+                Text("Added: ${UiText.addedDate(p.created)}", style = body, color = cs.onSurfaceVariant)
             }
         }
         Spacer(Modifier.height(16.dp))
@@ -1679,7 +1683,7 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
             if (signedIn) {
                 SectionHeader("Device name")
                 GroupedList(listOf<@Composable (Modifier) -> Unit> { m ->
-                    NameEditRow(me?.name ?: "", m) { vm.rename(it) }
+                    NameEditRow(me?.name ?: "", m, me?.let { "Device ID: ${UiText.shortDeviceId(it.id)}" }) { vm.rename(it) }
                 })
             }
             SectionHeader("Appearance")

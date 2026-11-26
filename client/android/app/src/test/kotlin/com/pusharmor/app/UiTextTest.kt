@@ -260,6 +260,15 @@ class UiTextTest {
         assertEquals("Pairing code K, 7, Q, D", UiText.fingerprintLabel("K7QD"))
     }
 
+    @Test fun addedDateIsYearMonthDayInTheGivenZone() {
+        val utc = java.time.ZoneOffset.UTC
+        assertEquals("1970-01-01", UiText.addedDate(0, utc))
+        assertEquals("2026-11-23", UiText.addedDate(1_795_392_000L, utc))
+        assertEquals("2026-11-23", UiText.addedDate(1_795_478_399L, utc))
+        assertEquals("2026-11-24", UiText.addedDate(1_795_478_400L, utc))
+        assertEquals("2026-11-22", UiText.addedDate(1_795_392_000L, java.time.ZoneOffset.ofHours(-5)))
+    }
+
     @Test fun dayLabels() {
         val utc = ZoneOffset.UTC
         val now = 1_760_000_000_000L

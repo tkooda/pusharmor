@@ -383,6 +383,8 @@ object UiText {
     const val FIRST_DEVICE_TITLE = "Pair your first device"
     /** Same steps as the iOS first-pair screen; each shows with a numbered circle. */
     val FIRST_DEVICE_STEPS = listOf("Install PushArmor on another device.", "Log in with the same account.", "When it shows below, tap Pair, then tap Codes match when the codes match.")
+    /** Added date of a device from its created time (seconds), as YYYY-MM-DD in the device's time zone. */
+    fun addedDate(created: Long, zone: ZoneId = ZoneId.systemDefault()): String = Instant.ofEpochSecond(created).atZone(zone).toLocalDate().toString()
     /** The device ID the command line prints for this device. */
     fun shortDeviceId(id: String): String = com.pusharmor.crypto.Ids.deviceId(java.util.Base64.getUrlDecoder().decode(id))
     /** Extra line on an unpaired command line device; the command is monospace with no-break spaces so it never splits. */
