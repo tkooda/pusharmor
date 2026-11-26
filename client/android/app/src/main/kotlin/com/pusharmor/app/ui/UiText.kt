@@ -461,7 +461,7 @@ object UiText {
         }
     }
 
-    /** Rename field error: null when [name] is a valid device name, else "Name too short" or "Invalid characters" (same as Session.rename). */
+    /** Rename field error: null when [name] is a valid device name, else "Name too short", "Name too long" (two lines), or "Invalid characters" (same as Session.rename). */
     fun nameError(name: String): String? = DeviceName.inputError(name)
 
     /** Why a Pair tap did not start a pairing; null when it did. Pairing is not live, so no "online". */

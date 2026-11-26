@@ -358,7 +358,7 @@ class UiTextTest {
         assertEquals("Name too short", UiText.nameError(""))
         assertEquals("Invalid characters", UiText.nameError("Caf\u00e9"))
         assertEquals("Name too long\nUse 32 characters or fewer", UiText.nameError("x".repeat(33)))
-        assertEquals("Name too long\nUse 32 characters or fewer", UiText.nameError("  " + "x".repeat(30) + " !" + "  "))
+        assertEquals("Name too long\nUse 32 characters or fewer", UiText.nameError("  " + "x".repeat(31) + " !" + "  "))
         assertEquals(null, UiText.nameError("  " + "x".repeat(32) + "  "))
         assertEquals("Invalid characters", UiText.nameError("My \"phone\""))
         assertEquals("Invalid characters", UiText.nameError("-phone"))

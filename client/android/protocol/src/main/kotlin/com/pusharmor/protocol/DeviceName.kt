@@ -8,6 +8,7 @@ package com.pusharmor.protocol
 object DeviceName {
     const val TOO_SHORT = "Name too short"
     const val INVALID = "Invalid characters"
+    const val TOO_LONG = "Name too long\nUse 32 characters or fewer"
     const val MAX = 32
     private const val BAD = "`\\\"{}<>|!$;?"
     private val SPACES = Regex(" +")
@@ -22,12 +23,16 @@ object DeviceName {
 
     private fun cps(s: String): List<String> = s.codePoints().toArray().map { String(Character.toChars(it)) }
 
-    /** A typed name (rename): spaces cleaned first; the cleaned name when valid, else "Name too short" or "Invalid characters". */
+    /**
+     * A typed name (rename): spaces cleaned first; the cleaned name when valid, else "Name too short", "Name too long"
+     * (over 32, checked before the characters), or "Invalid characters".
+     */
     fun check(s: String): Checked {
         val name = squeeze(s)
         val cps = name.codePoints().toArray()
         if (cps.isEmpty()) return Checked(TOO_SHORT, null)
-        if (cps.size > MAX || cps[0] == '-'.code || cps.any { !allowed(it) }) return Checked(INVALID, null)
+        if (cps.size > MAX) return Checked(TOO_LONG, null)
+        if (cps[0] == '-'.code || cps.any { !allowed(it) }) return Checked(INVALID, null)
         return Checked(null, name)
     }
 

@@ -61,6 +61,12 @@ class SessionRenameTest {
         assertEquals("Phone", io { g.dao.self()!!.name })
     }
 
+    @Test fun nameOver32CharactersIsTooLong() {
+        assertEquals("Name too long\nUse 32 characters or fewer", io { g.session.rename("x".repeat(33)) })
+        assertEquals(0, calls)
+        assertEquals("Phone", io { g.dao.self()!!.name })
+    }
+
     @Test fun newNameIsSent() {
         io { g.session.rename("Tablet") }
         assertEquals(1, calls)
