@@ -8,7 +8,7 @@ import { type Engine, type Settings, UserError } from "./engine.ts";
 import { ActionError, RestartError, reasonOf, failText } from "./failtext.ts";
 import { Login, type Purpose } from "./login.ts";
 import { type Files, fileKey } from "./files.ts";
-import { PAIR_MSG_PREFIX, allEntries } from "./state.ts";
+import { PAIR_AGAIN_PREFIX, PAIR_MSG_PREFIX, allEntries } from "./state.ts";
 import { type ActionId, T, peerLabel, pushVendor, rowLabel } from "./texts.ts";
 
 export interface Req {
@@ -89,7 +89,6 @@ const ACTION: Record<string, ActionId> = {
   refresh: "refresh",
   rename: "rename",
   pair: "pair",
-  pairAgain: "pair",
   sendAgain: "pair",
   tryAgain: "pair",
   reply: "pair",
@@ -240,7 +239,7 @@ export class Rpc {
         this.files().shown(s("picked"));
         return null;
       case "pair":
-        return e.pairStart(s("id"));
+        return e.pair(s("id"));
       case "sendAgain":
         return e.pairSendAgain(s("id"));
       case "tryAgain":
@@ -253,8 +252,6 @@ export class Rpc {
         return e.deny(s("id"));
       case "cancel":
         return e.cancelPairing(s("id"));
-      case "pairAgain":
-        return e.pairAgain(s("id"));
       case "remove":
         return e.remove(s("id"));
       case "localDelete":
@@ -353,7 +350,8 @@ export class Rpc {
       // no pairing started here, or the other device wants to pair again: Waiting to pair
       v.section = "waiting";
       if (pv) {
-        if (!(entries.get(p.id)!.half && p.pinned)) v.section = "pairing";
+        if (entries.get(p.id)!.half && p.pinned) v.greyed = T.wantsPairAgain;
+        else v.section = "pairing";
         v.lines = pv.lines;
         v.actions = pv.actions;
         v.countdown = pv.countdown;
@@ -375,11 +373,14 @@ export class Rpc {
         const msg = local[PAIR_MSG_PREFIX + p.id];
         if (typeof msg === "string") v.lines.push(...msg.split("\n"));
       } else if (p.denies_me) {
-        v.greyed = T.declinedBy(label);
-        v.actions = ["cancel"];
+        // it rejected this device: Reject moves it to Rejected devices, Pair asks again
+        v.greyed = T.rejectedThis;
+        v.actions = ["deny", "pair"];
       } else if (p.approve_verified && p.get_after_verify && !p.approves_me) {
-        v.greyed = T.notPairedOn(label);
-        v.actions = ["pair_again", "cancel"];
+        // it no longer pairs with this device: Cancel pairing request until it asks to pair again
+        const again = local[PAIR_AGAIN_PREFIX + p.id] === true;
+        v.greyed = again ? T.wantsPairAgain : T.notPairedOn(label);
+        v.actions = again ? ["deny", "pair"] : ["cancel"];
       } else if (p.ruling === "approved" && p.approves_me) {
         v.section = "paired";
         v.paired = true;

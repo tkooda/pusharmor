@@ -41,6 +41,33 @@ test("Codes differ on a pairing also takes the device out of the list", async ()
   assert.ok(!row.actions.includes("deny"));
 });
 
+test("a device that rejected this one shows Rejected this device under Waiting to pair, with Reject and Pair", async () => {
+  for (const choice of ["pair", "deny"] as const) {
+    const { w, a, b } = await setup();
+    await a.e.pairStart(b.id);
+    await deliver(w, b);
+    await deliver(w, a);
+    await deliver(w, b);
+    await a.e.approve(b.id); // a confirmed the codes
+    await b.e.deny(a.id); // b: Codes differ
+    await deliver(w, a);
+    await a.e.fetchPeersNow();
+    const row = await rowOf(a, b.id);
+    assert.deepEqual([row.greyed, row.section, row.actions, row.rejected], ["Rejected this device", "waiting", ["deny", "pair", "remove"], undefined]);
+    await new Rpc(a.e).handle({ op: choice, args: { id: b.id } });
+    if (choice === "pair") {
+      // the old pairing is dropped and a new pairing request goes out
+      const e = (await getEntry(a.p.storageLocal, b.id))!;
+      assert.deepEqual([e.role, e.state], ["N", "committed"]);
+      assert.equal((await rowOf(a, b.id)).section, "pairing");
+    } else {
+      const r = await rowOf(a, b.id);
+      assert.equal(r.rejected, true);
+      assert.ok(!w.rows.get(a.id)!.allow.has(b.id)); // the old approval is withdrawn
+    }
+  }
+});
+
 test("a Reject the relay server does not take shows why, and the device stays rejected here", async () => {
   const { w, a, b } = await setup();
   w.inject.push({ match: /POST \/v1\/deny\//, status: 503, body: { error: "unavailable" }, times: 9 });

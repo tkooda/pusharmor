@@ -11,7 +11,6 @@ import { devicesArt, icon, platformIcon, shield } from "./icons.ts";
 
 const ACTION_LABEL: Record<string, string> = {
   pair: "Pair",
-  pair_again: "Pair again",
   deny: "Reject",
   approve: "Codes match",
   reply: "Reply",
@@ -23,12 +22,11 @@ const ACTION_LABEL: Record<string, string> = {
   localDelete: "Delete",
 };
 // Display order of a row's actions: the main action first, the row tools last.
-const ACTION_ORDER = ["pair", "pair_again", "approve", "approve_again", "reply", "send_again", "try_again", "deny", "cancel", "localDelete", "remove"];
-const ACTION_CLASS: Record<string, string> = { pair: "approve", pair_again: "tonal", approve: "approve", reply: "tonal", deny: "reject" };
+const ACTION_ORDER = ["pair", "approve", "approve_again", "reply", "send_again", "try_again", "deny", "cancel", "localDelete", "remove"];
+const ACTION_CLASS: Record<string, string> = { pair: "approve", approve: "approve", reply: "tonal", deny: "reject" };
 // Row tools live in the overflow menu.
 const MENU = new Set(["remove", "localDelete"]);
-// With Pair again on the row, Cancel pairing request moves to the overflow menu.
-const inMenu = (p: PeerView, a: string): boolean => MENU.has(a) || (a === "cancel" && p.actions.includes("pair_again"));
+const inMenu = (_p: PeerView, a: string): boolean => MENU.has(a);
 const rank = (a: string): number => (ACTION_ORDER.indexOf(a) + 1 || ACTION_ORDER.length + 1);
 // "NNN-NNN-NNN" of a device id, or null for an id that is not 30 bytes.
 const idText = (id: string): string | null => {
@@ -293,7 +291,8 @@ function statusIcons(p: PeerView, globalAllow: boolean): HTMLElement {
 }
 
 function peerRow(env: UiEnv, p: PeerView, redraw: Redraw, globalAllow = true, selfId?: string): HTMLElement {
-  const dim = p.greyed !== null && p.greyed !== "logged out" && p.greyed !== "send only";
+  // a grey status under a full-strength name: logged out, send only, wants to pair again, rejected this device
+  const dim = p.greyed !== null && !["logged out", "send only", T.wantsPairAgain, T.rejectedThis].includes(p.greyed);
   const row = h("div", { class: "prow peer" + (dim ? " off" : ""), id: "peer-" + p.id, tabindex: "-1" });
   const col = h("div", { class: "txt" });
   const head = h("div", { class: "t1 name" }, p.label);
@@ -385,7 +384,7 @@ async function act(env: UiEnv, a: string, p: PeerView, b: HTMLButtonElement, red
     await redraw(p.id);
     return toast(msg, ok ? "ok" : "err");
   }
-  const op = a === "pair_again" ? "pairAgain" : a === "send_again" ? "sendAgain" : a === "try_again" ? "tryAgain" : a === "approve_again" ? "approve" : a;
+  const op = a === "send_again" ? "sendAgain" : a === "try_again" ? "tryAgain" : a === "approve_again" ? "approve" : a;
   const args: Record<string, unknown> = { id: p.id };
   if (a === "send_again" || a === "approve_again") greyFor(b, 60_000);
   else if (a === "try_again") {

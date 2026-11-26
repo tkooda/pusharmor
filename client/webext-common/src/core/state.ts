@@ -7,6 +7,8 @@ import { SEND_SEL_KEY } from "../model/sendsel.ts";
 export const PAIR_PREFIX = "pair:";
 export const PAIR_AUTO = "pair_auto";
 export const PAIR_MSG_PREFIX = "pairmsg:";
+/** A paired-before device with no open pairing here sent a new pairing request: its row offers Reject and Pair. */
+export const PAIR_AGAIN_PREFIX = "pairagain:";
 /** Commits from an unlisted sender kept while GET /peers could not run; decided again after the next fetch. */
 export const PAIR_HELD = "pair_held";
 export const ALLOW_SET = "allow";
@@ -19,7 +21,7 @@ export const REG_MARKER = "registered";
 
 /** A storage.local key of the active account (it moves on an account switch); the rest belong to the device. */
 export function accountKey(k: string): boolean {
-  return k.startsWith(PAIR_PREFIX) || k.startsWith(PAIR_MSG_PREFIX) || [PAIR_AUTO, PAIR_HELD, ALLOW_SET, NET_NOT_BEFORE, REG_MARKER, SEND_SEL_KEY].includes(k);
+  return k.startsWith(PAIR_PREFIX) || k.startsWith(PAIR_MSG_PREFIX) || k.startsWith(PAIR_AGAIN_PREFIX) || [PAIR_AUTO, PAIR_HELD, ALLOW_SET, NET_NOT_BEFORE, REG_MARKER, SEND_SEL_KEY].includes(k);
 }
 export interface PairEntry {
   role: Role;
@@ -42,7 +44,7 @@ export interface PairEntry {
   approve_name?: string; // own name when approve_body was built
   approve_result?: string;
   approve_last?: number;
-  half?: boolean; // the device started a new pairing while this one was open (row offers Pair again)
+  half?: boolean; // the device started a new pairing while this one was open (row offers Reject and Pair)
 }
 
 export const pairKeyOf = (id: string) => PAIR_PREFIX + id;

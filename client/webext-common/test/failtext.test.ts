@@ -227,7 +227,6 @@ test("each device list action shows its own action line", async () => {
   };
   await stub("localDelete", "localDelete", { id: b.id }, 'Unable to remove "' + nm + '".');
   await stub("pairStart", "pair", { id: b.id }, 'Unable to pair with "' + nm + '".');
-  await stub("pairAgain", "pairAgain", { id: b.id }, 'Unable to pair with "' + nm + '".');
   await stub("pairSendAgain", "sendAgain", { id: b.id }, 'Unable to pair with "' + nm + '".');
   await stub("pairReplyTap", "reply", { id: b.id }, 'Unable to pair with "' + nm + '".');
   await stub("approve", "approve", { id: b.id }, 'Unable to confirm "' + nm + '".');

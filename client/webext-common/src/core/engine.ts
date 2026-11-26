@@ -61,6 +61,7 @@ import {
   PAIR_AUTO,
   PAIR_HELD,
   PAIR_MSG_PREFIX,
+  PAIR_AGAIN_PREFIX,
   PAIR_PREFIX,
   type PairEntry,
   RECHECK_AT,
@@ -706,6 +707,7 @@ export class Engine {
         if (d.notice === "half") {
           const cur = await getEntry(this.p.storageLocal, from);
           if (cur && !cur.half) await this.p.storageLocal.set({ [pairKeyOf(from)]: { ...cur, half: true } satisfies PairEntry });
+          else if (!cur) await this.p.storageLocal.set({ [PAIR_AGAIN_PREFIX + from]: true });
           return this.pairNotice(pkX, T.pairHalf(name));
         }
         if (d.notice === "crossing") {
@@ -953,7 +955,7 @@ export class Engine {
         started: now(this.p),
         msg,
       };
-      await this.p.storageLocal.remove([PAIR_MSG_PREFIX + x]);
+      await this.p.storageLocal.remove([PAIR_MSG_PREFIX + x, PAIR_AGAIN_PREFIX + x]);
       await this.p.storageLocal.set({ [pairKeyOf(x)]: e });
       await this.clearDenied(x);
       this.pairSent(await this.sendStored(x, "commit", self));
@@ -1162,7 +1164,7 @@ export class Engine {
       recipientId: x,
       recipientEncPub: peer.enc_pub,
     });
-    await this.p.storageLocal.remove([pairKeyOf(x)]);
+    await this.p.storageLocal.remove([pairKeyOf(x), PAIR_AGAIN_PREFIX + x]);
     if (peer.pinned) await this.db.unpin(x);
     await this.db.updatePeer(x, (p) => (p ? { ...p, ruling: "denied" } : null));
     let result: string;
@@ -1175,6 +1177,8 @@ export class Engine {
       failure = e;
     }
     await this.rebuildMenus();
+    // Reject on a device paired before: the old approval is withdrawn too
+    if (peer.pinned) await this.reconcileAllow().catch(() => undefined);
     if (failure !== null) throw failure; // the click shows why; the row stays rejected here
     return result;
   }
@@ -1182,7 +1186,7 @@ export class Engine {
   /** Cancel pairing: local drop, then the allow reconcile. */
   async cancelPairing(x: string): Promise<void> {
     await this.lock.run(async () => {
-      await this.p.storageLocal.remove([pairKeyOf(x), PAIR_MSG_PREFIX + x]);
+      await this.p.storageLocal.remove([pairKeyOf(x), PAIR_MSG_PREFIX + x, PAIR_AGAIN_PREFIX + x]);
       this.p.clearAlarm("pair:" + x);
       const peer = await this.db.peer(x);
       if (peer && peer.pinned) await this.db.unpin(x);
@@ -1191,7 +1195,14 @@ export class Engine {
     await this.reconcileAllow();
   }
 
-  /** [Pair again] on a half-state row: Cancel pairing (local drop + allow reconcile), then [Pair]. */
+  /** [Pair]: on a device paired before (it wants to pair again, or it rejected this one) the old pairing is cancelled first. */
+  async pair(x: string): Promise<void> {
+    const peer = await this.db.peer(x);
+    if (peer?.pinned && !(peer.ruling === "approved" && peer.approves_me)) return this.pairAgain(x);
+    return this.pairStart(x);
+  }
+
+  /** Pair on a half-state row: Cancel pairing (local drop + allow reconcile), then a new pairing. */
   async pairAgain(x: string): Promise<void> {
     if (this.pairingAgain.has(x)) return; // a second click while it runs
     this.pairingAgain.add(x);
@@ -2154,7 +2165,7 @@ export class Engine {
     await this.db.clear(["keys", "peers", "replay"]);
     for (const k of ["reg", LOGOUT_PENDING, "push_hash", "listed", "my_push_sha256", "my_relay_fault", "fetch_pending", "last_fetch", "push_issue", "push_miss", "push_fail", KEYS_BROKEN, WIPE_CHECK]) await this.db.del("meta", k);
     const all = await this.p.storageLocal.get(null);
-    const drop = Object.keys(all).filter((k) => k.startsWith(PAIR_PREFIX) || k.startsWith(PAIR_MSG_PREFIX) || k === PAIR_AUTO || k === PAIR_HELD || k === ALLOW_SET || k === NET_NOT_BEFORE);
+    const drop = Object.keys(all).filter((k) => k.startsWith(PAIR_PREFIX) || k.startsWith(PAIR_MSG_PREFIX) || k.startsWith(PAIR_AGAIN_PREFIX) || k === PAIR_AUTO || k === PAIR_HELD || k === ALLOW_SET || k === NET_NOT_BEFORE);
     await this.p.storageLocal.remove(drop);
     await this.p.pushUnsubscribe().catch(() => undefined);
     await this.p.clearAllNotifications().catch(() => undefined);
@@ -2182,7 +2193,9 @@ export class Engine {
     const nm = rowLabel(peer); // the same name as the row title
     const t = now(this.p);
     const lines: string[] = [];
-    const actions: string[] = e.half && peer.pinned ? ["pair_again", "cancel"] : ["cancel"];
+    // the device wants to pair again: Reject or Pair, nothing of the old pairing
+    if (e.half && peer.pinned) return { lines: [], actions: ["deny", "pair"], countdown: null, fingerprint: null, awaiting: false };
+    const actions: string[] = ["cancel"];
     const countdown = formatCountdown(Math.min(e.started, t) + PAIRING_TIMEOUT_DAYS * 86400e3 - t);
     if (e.approved && !peer.approve_verified) {
       lines.push(T.waiting(nm));
