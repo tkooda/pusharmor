@@ -18,7 +18,7 @@ const SHOTS = [
   ["01-pair-waiting", "wait#peers"],
   ["02-pair-fingerprint", "only=new#peers"],
   ["03-devices", "#peers"],
-  ["04-send", "#send"],
+  ["04-send", "url#send"],
   ["05-history", "open#history"],
   ["06-settings", "top#settings"],
 ];

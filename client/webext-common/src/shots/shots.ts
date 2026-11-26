@@ -27,9 +27,11 @@ const q = new URLSearchParams(location.search);
 const THIS = q.get("platform") === "firefox" ? "firefox" : "chrome";
 const OTHER = THIS === "firefox" ? "chrome" : "firefox";
 
+const PAGE_URL = q.has("store") ? "https://www.nasa.gov/image-of-the-day/" : "https://example.com/guide/hiking-trails";
+
 const state: StateView = {
   reg: "registered", banner: null, email: null, name: "Laptop", settings: DEFAULT_SETTINGS,
-  platform: THIS, isAndroid: false, receiveMode: null, receiveNote: null, setupNeeded: false, updateRequired: false, recheckLocked: false, pushIssue: null, keysBroken: false, version: "0.0.0",
+  platform: THIS, isAndroid: false, receiveMode: null, receiveNote: null, setupNeeded: false, updateRequired: false, recheckLocked: false, pushIssue: null, keysBroken: false, version: "0.0.57",
 };
 
 const paired = (pid: string, label: string, platform: string, greyed: string | null = null): PeerView => ({
@@ -196,7 +198,7 @@ const env: UiEnv = {
       return { ok: false, error: (e as Error).message };
     }
   },
-  activeUrl: async () => (q.has("store") ? "https://www.nasa.gov/image-of-the-day/" : "https://example.com/guide/hiking-trails"),
+  activeUrl: async () => PAGE_URL,
   openPage: () => undefined,
   openUrl: () => undefined,
   saveFile: async () => null,
@@ -267,7 +269,7 @@ async function main(): Promise<void> {
     [...document.querySelectorAll<HTMLElement>(".prow .more button")].pop()?.click();
     await new Promise((done) => setTimeout(done, 300));
   }
-  // ?file: a file chosen on Send (dropped on the message box); ?typed: text typed in the box
+  // ?file: a file chosen on Send (dropped on the message box); ?typed: text typed in the box; ?url: a URL typed in the box
   if (q.has("file")) {
     const dt = new DataTransfer();
     dt.items.add(new File([new Uint8Array(2_100_000)], "quarterly-report.pdf", { type: "application/pdf" }));
@@ -277,6 +279,12 @@ async function main(): Promise<void> {
   if (q.has("typed")) {
     const t = document.querySelector<HTMLTextAreaElement>(".compose textarea")!;
     t.value = "Meet at the north entrance at 6";
+    t.dispatchEvent(new Event("input"));
+    await new Promise((done) => setTimeout(done, 300));
+  }
+  if (q.has("url")) {
+    const t = document.querySelector<HTMLTextAreaElement>(".compose textarea")!;
+    t.value = PAGE_URL;
     t.dispatchEvent(new Event("input"));
     await new Promise((done) => setTimeout(done, 300));
   }
