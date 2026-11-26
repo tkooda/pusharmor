@@ -6,6 +6,8 @@ public enum DeviceName {
     public static let maxLength = 32
     public static let tooShort = "Name too short"
     public static let invalidCharacters = "Invalid characters"
+    /// A typed name over 32 characters: line 1 says so, line 2 the next step.
+    public static let tooLong = "Name too long\nUse 32 characters or fewer"
 
     static let excluded: Set<UInt32> = Set("`\\\"{}<>|!$;?".unicodeScalars.map { $0.value })
 
@@ -32,7 +34,8 @@ public enum DeviceName {
     public static func checkInput(_ s: String) -> (error: String?, name: String?) {
         let u = squeeze(Array(s.unicodeScalars))
         if u.isEmpty { return (tooShort, nil) }
-        if u.count > maxLength || u.first == "-" || !u.allSatisfy(allowed) { return (invalidCharacters, nil) }
+        if u.count > maxLength { return (tooLong, nil) }
+        if u.first == "-" || !u.allSatisfy(allowed) { return (invalidCharacters, nil) }
         return (nil, string(u))
     }
 

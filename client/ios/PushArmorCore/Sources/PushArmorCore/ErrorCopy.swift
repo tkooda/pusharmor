@@ -197,8 +197,8 @@ public enum ErrorCopy {
         return .notConfirmed(provider: provider)
     }
 
-    /// The toast after a rename of this device, nil when it went through: "Invalid characters"
-    /// or "Name too short" for a bad name, else "Unable to rename this device." and the reason.
+    /// The toast after a rename of this device, nil when it went through: "Invalid characters",
+    /// "Name too long", or "Name too short" for a bad name, else "Unable to rename this device." and the reason.
     public static func renameFailText(_ name: String, _ result: Result<APIOutcome, Error>) -> String? {
         if let e = DeviceName.inputError(name) { return e }
         switch result {
