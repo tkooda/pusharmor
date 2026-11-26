@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { NAME_CUT, cutFileName } from "../src/model/filename.ts";
 import * as F from "../src/model/filerow.ts";
@@ -24,4 +25,10 @@ test("a file name in a toast or error is cut in the middle to 24 characters; a s
   assert.equal(fileOpenFailed(LONG), 'Unable to decrypt "' + short + '"\nTry again');
   assert.equal(saveFailText(new Error("x"), LONG).split("\n")[0], 'Unable to save "' + short + '"');
   assert.equal(F.tooLarge("cat.png"), '"cat.png" is too large to send');
+});
+
+test("the Copy image error cuts the file name in the middle; no toast in the popup quotes an uncut file name", () => {
+  const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
+  assert.match(pop, /toast\('Unable to copy "' \+ cutFileName\(name\) \+ '"', "err"\)/);
+  assert.doesNotMatch(pop, /'"' \+ (name|f\.name|r\.content|chosen\.name) \+ '"'/);
 });

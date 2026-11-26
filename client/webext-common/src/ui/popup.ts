@@ -16,6 +16,7 @@ import { icon, type IconName, messagesArt, platformIcon } from "./icons.ts";
 import { ownCard, renderPeers, resetPeersView } from "./peersview.ts";
 import { THEME_CHOICES, parseTheme, setTheme, startTheme } from "./theme.ts";
 import * as F from "../model/filerow.ts";
+import { cutFileName } from "../model/filename.ts";
 import { storageFullText } from "../model/filerules.ts";
 import { PICKER_SIZES } from "../model/filerules.ts";
 import { fileKey } from "../core/files.ts";
@@ -1074,7 +1075,7 @@ function fileButtons(env: UiEnv, r: HistRow): HTMLElement[] {
           try {
             await env.files!.copyImage(b);
           } catch {
-            return toast('Unable to copy "' + name + '"', "err");
+            return toast('Unable to copy "' + cutFileName(name) + '"', "err");
           }
           toast(T.copied, "ok");
         },
