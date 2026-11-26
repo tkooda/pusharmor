@@ -324,6 +324,14 @@ async function main(): Promise<void> {
     const bottom = pn.querySelector(".foot")?.getBoundingClientRect().top ?? pn.getBoundingClientRect().bottom;
     if (card) pn.scrollTop += card.getBoundingClientRect().bottom - bottom + 4;
   }
+  // ?store#peers: scrolled just enough that the Pair a new device button shows above the sticky foot bar
+  if (q.has("store") && tab === "peers" && !q.has("only") && !q.has("wait")) {
+    await new Promise((done) => setTimeout(done, 500));
+    const pn = document.getElementById("panel")!;
+    const btn = pn.querySelector(".pairnew button");
+    const bottom = pn.querySelector(".foot")?.getBoundingClientRect().top ?? pn.getBoundingClientRect().bottom;
+    if (btn) pn.scrollTop += Math.max(0, btn.getBoundingClientRect().bottom - bottom + 12);
+  }
   if ((tab === "settings" || tab === "signout") && !q.has("top")) {
     await new Promise((done) => setTimeout(done, 500));
     // the Log out and Delete account buttons sit at the bottom of the Settings tab
