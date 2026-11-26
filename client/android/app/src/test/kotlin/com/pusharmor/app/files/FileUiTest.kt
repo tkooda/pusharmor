@@ -41,7 +41,7 @@ class FileUiTest {
         assertEquals(50 * mb, FileUi.picker(null))
         assertEquals(50 * mb, FileUi.picker(7))
         assertEquals(0L, FileUi.picker(0))
-        assertEquals("Larger files expire sooner, between 1 and 24 hours after they are sent", FileUi.HELPER)
+        assertEquals("Each received file is available to download for 1 to 24 hours after it is sent, depending on its size", FileUi.HELPER)
     }
 
     @Test fun storageChoicesFitTheDevice() {

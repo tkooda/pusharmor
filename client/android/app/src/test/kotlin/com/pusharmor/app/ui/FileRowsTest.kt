@@ -218,7 +218,7 @@ class FileRowsTest {
         val vm = AppViewModel(app)
         val (c, v) = show({ SettingsScreen(vm, onDeleteAccount = {}, onSignedOut = {}) }) { t -> "On mobile data" in t }
         val t = texts(v)
-        val helper = t.indexOf("Larger files expire sooner, between 1 and 24 hours after they are sent")
+        val helper = t.indexOf("Each received file is available to download for 1 to 24 hours after it is sent, depending on its size")
         assertTrue(t.toString(), helper >= 0)
         // the helper text sits above both pickers; both default to Up to 50 MB
         assertTrue(helper < t.indexOf("On Wi-Fi") && helper < t.indexOf("On mobile data"))
