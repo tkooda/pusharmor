@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { b64urlEncode } from "../src/crypto/b64url.ts";
-import { renderPeers } from "../src/ui/peersview.ts";
+import { addedDate } from "../src/crypto/labels.ts";
+import { ownCard, renderPeers } from "../src/ui/peersview.ts";
 import type { UiEnv } from "../src/ui/dom.ts";
 import { N } from "./fakedom.ts";
 
@@ -34,4 +35,47 @@ test("no pair command for a paired command line row, a non-command-line row, or 
 
 test("the old This device's ID line is gone from the pairing screen and the pair dialog", async () => {
   for (const peers of [[], [paired]]) assert.ok(!texts(await draw(peers)).some((t) => t.includes("This device's ID")));
+});
+
+// golden-v1 device_id peer_N
+const byClass = (r: N, c: string): N => all(r).find((n) => (n.attrs.class ?? "").split(" ").includes(c))!;
+const realId = "CuVpna7--EmbFH3LCvfiANtnCurGpyStSXIO6AUz";
+
+// The expected local day of a time, from the local Date getters (any time zone).
+const localDay = (ms: number): string => {
+  const d = new Date(ms);
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+};
+// Noon UTC on 2026-11-23 (the expected day follows the local time zone).
+const added = 1795435200;
+
+test("added date is the local day, YYYY-MM-DD", () => {
+  assert.equal(addedDate(added * 1000), localDay(added * 1000));
+  assert.match(addedDate(added * 1000), /^\d{4}-\d{2}-\d{2}$/);
+  assert.equal(addedDate(new Date(2026, 0, 5, 0, 0, 0).getTime()), "2026-01-05");
+  assert.equal(addedDate(new Date(2026, 0, 5, 23, 59, 59).getTime()), "2026-01-05");
+});
+
+test("a device row shows ID and Added lines under the platform, before the status line", async () => {
+  const r = await draw([peer({ id: realId, label: "Phone", platform: "android", paired: true, created: added })]);
+  const info = byClass(r, "info");
+  assert.deepEqual(info.kids.slice(0, 3).map((n) => n.textContent), ["Android", "ID: 009-804-535", "Added: " + localDay(added * 1000)]);
+});
+
+test("a pair request card shows ID and Added lines under the platform", async () => {
+  const r = await draw([paired, peer({ id: realId, label: "Pixel 8", platform: "android", fingerprint: "YSWH", actions: ["approve", "deny"], created: added })]);
+  const txt = byClass(byClass(r, "pair-head"), "txt");
+  assert.deepEqual(txt.kids.map((n) => n.textContent), ['Pair with new device: "Pixel 8"', "Android", "ID: 009-804-535", "Added: " + localDay(added * 1000)]);
+});
+
+test("no Added line while the added time is unknown", async () => {
+  const r = await draw([peer({ id: realId, label: "Phone", platform: "android", paired: true, created: 0 })]);
+  assert.ok(texts(r).includes("ID: 009-804-535"));
+  assert.ok(!texts(r).some((t) => t.startsWith("Added:")));
+});
+
+test("the own Settings card shows the Device ID under the name and no platform line", () => {
+  const r = ownCard({} as UiEnv, "Work laptop", "chrome", realId) as unknown as N;
+  const txt = byClass(r, "txt");
+  assert.deepEqual(txt.kids.map((n) => n.textContent), ["Work laptop", "Device ID: 009-804-535"]);
 });

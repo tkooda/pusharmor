@@ -2,6 +2,8 @@
 import type { PeerView } from "../core/rpc.ts";
 import { sortByLabel } from "../model/sendsel.ts";
 import { STEP } from "../model/busy.ts";
+import { b64urlTryDecode } from "../crypto/b64url.ts";
+import { ID_LEN, addedDate, deviceId } from "../crypto/labels.ts";
 import { T, clickWord, confirmResultText } from "../core/texts.ts";
 import { type UiEnv, add, busyBar, clear, pairCommandLine, disableFor, greyFor, group, h, overflowMenu, peerStatus, platformLabel, rpc, sh, statusLine } from "./dom.ts";
 import { confirmDialog, toast } from "./dialog.ts";
@@ -28,6 +30,19 @@ const MENU = new Set(["remove", "localDelete"]);
 // With Pair again on the row, Cancel pairing request moves to the overflow menu.
 const inMenu = (p: PeerView, a: string): boolean => MENU.has(a) || (a === "cancel" && p.actions.includes("pair_again"));
 const rank = (a: string): number => (ACTION_ORDER.indexOf(a) + 1 || ACTION_ORDER.length + 1);
+// "NNN-NNN-NNN" of a device id, or null for an id that is not 30 bytes.
+const idText = (id: string): string | null => {
+  const raw = b64urlTryDecode(id);
+  return raw && raw.length === ID_LEN ? deviceId(raw) : null;
+};
+// Grey ID and Added lines under a device's platform (each left out while unknown).
+const idLines = (p: PeerView): HTMLElement[] => {
+  const id = idText(p.id);
+  return [
+    ...(id ? [h("div", { class: "t2" }, "ID: " + id)] : []),
+    ...(p.created ? [h("div", { class: "t2" }, "Added: " + addedDate(p.created * 1000))] : []),
+  ];
+};
 
 /** Refresh stays grey until then, across redraws of the list. */
 let refreshUntil = 0;
@@ -179,15 +194,16 @@ function rejectedSection(env: UiEnv, peers: PeerView[], redraw: Redraw): HTMLEle
 }
 
 /** This device (Settings): a plain group row with Rename. */
-export function ownCard(env: UiEnv, name: string, platform: string): HTMLElement {
+export function ownCard(env: UiEnv, name: string, platform: string, id: string): HTMLElement {
   const card = h("div", { class: "srow own" });
+  const did = idText(id);
   const show = (nm: string, refocus = false) => {
     const edit = h("button", { class: "quiet ib", "aria-label": "Rename", title: "Rename" }, icon("edit", 20));
     edit.addEventListener("click", () => editing(nm));
     card.classList.remove("editing");
     clear(card).append(
       h("div", { class: "hav" }, platformIcon(platform, 20)),
-      h("div", { class: "txt" }, h("div", { class: "name" }, nm), h("div", { class: "t2" }, platformLabel(platform))),
+      h("div", { class: "txt" }, h("div", { class: "name" }, nm), ...(did ? [h("div", { class: "t2" }, "Device ID: " + did)] : [])),
       edit,
     );
     if (refocus) edit.focus();
@@ -272,7 +288,7 @@ function peerRow(env: UiEnv, p: PeerView, redraw: Redraw, globalAllow = true, se
   const head = h("div", { class: "t1 name" }, p.label);
   if (p.greyed) head.addEventListener("click", () => void rpc(env, "greyedTap"));
   const sub = h("div", { class: "sub" });
-  const info = h("div", { class: "info" }, h("div", { class: "t2" }, platformLabel(p.platform)));
+  const info = h("div", { class: "info" }, h("div", { class: "t2" }, platformLabel(p.platform)), ...idLines(p));
   const s = peerStatus(p);
   if (s) info.append(h("div", { class: "t2" }, statusLine(s.kind, s.word)));
   else if (p.greyed) info.append(h("div", { class: "t2 line" }, p.greyed));
@@ -301,7 +317,7 @@ function pairCard(env: UiEnv, p: PeerView, redraw: Redraw): HTMLElement {
     "div",
     { class: "pair-head" },
     h("div", { class: "av" }, platformIcon(p.platform)),
-    h("div", { class: "txt" }, h("div", { class: "pair-title" }, 'Pair with new device: "' + p.label + '"'), h("div", { class: "t2" }, platformLabel(p.platform))),
+    h("div", { class: "txt" }, h("div", { class: "pair-title" }, 'Pair with new device: "' + p.label + '"'), h("div", { class: "t2" }, platformLabel(p.platform)), ...idLines(p)),
   );
   const more = menuFor(env, p, redraw);
   if (more) head.append(more);

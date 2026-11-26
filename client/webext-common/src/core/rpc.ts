@@ -43,6 +43,8 @@ export interface PeerView {
   paired: boolean;
   /** rejected on this device: listed only under Rejected devices until it sends a new pairing request or gets Pair */
   rejected?: boolean;
+  /** server added time, seconds (0 = unknown) */
+  created?: number;
 }
 
 export interface StateView {
@@ -342,7 +344,7 @@ export class Rpc {
     for (const p of await e.db.peers()) {
       if (p.removed || p.id === self?.id) continue;
       const label = rowLabel(p);
-      const v: PeerView = { id: p.id, label, platform: p.platform, lines: [], actions: [], countdown: null, fingerprint: null, pk: null, greyed: null, hidden: p.hidden, allowContent: p.allow_content !== false, sendable: false, approvesMe: p.approves_me, paired: false };
+      const v: PeerView = { id: p.id, label, platform: p.platform, lines: [], actions: [], countdown: null, fingerprint: null, pk: null, greyed: null, hidden: p.hidden, allowContent: p.allow_content !== false, sendable: false, approvesMe: p.approves_me, paired: false, created: p.created };
       const pv = entries.has(p.id) ? await e.pairRowView(p.id) : null;
       if (pv) {
         v.lines = pv.lines;

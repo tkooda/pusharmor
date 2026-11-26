@@ -175,3 +175,9 @@ export function deviceId(idRaw: Uint8Array): string {
   const d = String(v % 1000000000).padStart(9, "0");
   return d.slice(0, 3) + "-" + d.slice(3, 6) + "-" + d.slice(6);
 }
+
+/** Added date "YYYY-MM-DD" of a device, in the local time zone. */
+export function addedDate(ms: number): string {
+  const d = new Date(ms);
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
