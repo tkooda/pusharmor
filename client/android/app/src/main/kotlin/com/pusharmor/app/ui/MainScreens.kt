@@ -1086,10 +1086,14 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
     // A device tapped in Devices: only it is picked, this once; the saved choice stays until a send.
     val oneOff by vm.sendOneOff.collectAsState()
     var tookOneOff by remember { mutableStateOf(false) }
+    // A send of a one-off pick saves the choice only once it reached a device; [oneOffSave] is the choice it sent.
+    var oneOffPick by rememberSaveable { mutableStateOf(false) }
+    var oneOffSave by rememberSaveable { mutableStateOf<List<String>?>(null) }
     LaunchedEffect(oneOff) {
         val id = oneOff ?: return@LaunchedEffect
         vm.sendOneOff.value = null
         tookOneOff = true
+        oneOffPick = true
         restored = true
         picked.clear()
         picked.add(id)
@@ -1214,6 +1218,7 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
                 vm.sendDone.collect { r ->
                     if (r != null) {
                         vm.sendDone.value = null
+                        if (r.ok) oneOffSave?.let { ids -> oneOffPick = false; oneOffSave = null; vm.g.settings.saveSendTo(ids) }
                         if (r.ok) { asText = false; text = "" } else result = ((result?.first ?: 0) + 1) to r.text
                         onSent(r)
                     }
@@ -1240,7 +1245,7 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
             GreenButton(onClick = {
                 // One send per tap: a second tap while the first is on its way does not send twice.
                 if (AppViewModel.claim(vm.running, "send")) {
-                    scope.launch { vm.g.settings.saveSendTo(sendTo) }
+                    if (oneOffPick) oneOffSave = sendTo else scope.launch { vm.g.settings.saveSendTo(sendTo) }
                     vm.sendStep = 0
                     vm.sendRetry = 0
                     vm.sendNames = sendTo.mapNotNull { id -> peers.firstOrNull { it.id == id } }.map { UiText.distinctLabel(it, listed) }

@@ -33,6 +33,8 @@ import com.pusharmor.crypto.B64url
 import com.pusharmor.crypto.SoftwareKeyOps
 import com.pusharmor.protocol.Peer
 import org.junit.Test
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
@@ -90,6 +92,7 @@ class DeviceTapSendTest {
     @After fun done() = runBlocking(Dispatchers.IO) {
         app.graph.dao.deleteAllHistory()
         app.graph.store.wipeRegistration()
+        (app as com.pusharmor.app.TestApp).fakeHttp = null
         app.graph.settings.clearKeepingOldId()
         com.pusharmor.app.FakeAndroidKeyStore.remove()
     }
@@ -149,6 +152,44 @@ class DeviceTapSendTest {
         assertTrue(nodes(v).map(::text).toString(), nodes(v).any { text(it) == "Send to \"Phone\"" })
         assertFalse(nodes(v).any { text(it) == "Send to 2 devices" })
         assertEquals("$laptop,$phone", saved())
+        close(c)
+    }
+
+    /** The relay server answers every call with [code]; /v1/send reports [word] for the phone. */
+    private fun answer(code: Int, word: String = "sent") {
+        (app as com.pusharmor.app.TestApp).fakeHttp = okhttp3.Interceptor { chain ->
+            val body = if (code == 200 && chain.request().url.encodedPath == "/v1/send") "{\"r\":{\"$phone\":\"$word\"}}" else "{}"
+            okhttp3.Response.Builder().request(chain.request()).protocol(okhttp3.Protocol.HTTP_1_1).code(code).message("x")
+                .body(body.toResponseBody("application/json".toMediaType())).build()
+        }
+    }
+
+    /** Taps Send to "Phone" and waits for the send to end. */
+    private fun sendOneOff(): Pair<org.robolectric.android.controller.ActivityController<ComponentActivity>, AppViewModel> {
+        var vm: AppViewModel? = null
+        val (c, v) = show("Send to \"Phone\"", { m -> SendScreen(m, initial = "hello", title = "Send") }) { vm = it; it.sendOneOff.value = phone }
+        frames(v, 10)
+        val button = generateSequence(nodes(v).first { text(it) == "Send to \"Phone\"" }) { it.parent }
+            .first { it.config.getOrNull(androidx.compose.ui.semantics.SemanticsActions.OnClick) != null }
+        button.config[androidx.compose.ui.semantics.SemanticsActions.OnClick].action!!.invoke()
+        val end = System.currentTimeMillis() + 15_000
+        frames(v, 3)
+        while (("send" in vm!!.running.value || vm!!.sendDone.value != null) && System.currentTimeMillis() < end) { Thread.sleep(20); frames(v) }
+        frames(v, 10)
+        return c to vm!!
+    }
+
+    @Test fun failedSendOfAOneOffPickKeepsTheSavedChoice() {
+        answer(500)
+        val (c, _) = sendOneOff()
+        assertEquals("$laptop,$phone", saved())
+        close(c)
+    }
+
+    @Test fun sendOfAOneOffPickThatReachesTheDeviceSavesIt() {
+        answer(200)
+        val (c, _) = sendOneOff()
+        assertEquals(phone, saved())
         close(c)
     }
 
