@@ -609,6 +609,15 @@ def open_file_blob(src, dst, key, blob_size):
         raise ValueError("file: tag")
 
 
+NAME_CUT = 24  # a file name in an error line is cut in the middle to this many characters
+
+
+def short_name(name):
+    if len(name) <= NAME_CUT:
+        return name
+    return name[:NAME_CUT - 10] + "..." + name[-7:]
+
+
 def split_ext(name):
     """(base, ".ext") when the text after the last dot is 1-10 ASCII letters or digits, else (name, "")."""
     i = name.rfind(".")
@@ -669,7 +678,9 @@ def name_check(name):
     s = _squeeze(name)
     if not s:
         return "Name too short", None
-    if len(s) > 32 or s.startswith("-") or not all(_name_char_ok(c) for c in s):
+    if len(s) > 32:
+        return "Name too long\nUse 32 characters or fewer", None
+    if s.startswith("-") or not all(_name_char_ok(c) for c in s):
         return "Invalid characters", None
     return None, s
 
@@ -2053,7 +2064,7 @@ def said(d, pid, p=None):
     p = p or d["peers"].get(pid)
     name = peer_label(p)
     if not p or not p["name"]:
-        return '"%s"' % name
+        return name
     mine = is_paired(p)
     others = [name_display(q["name"]) for i, q in d["peers"].items()
               if i != pid and q["name"] and (is_paired(q) or not mine)]
@@ -2086,7 +2097,8 @@ def local_date(t):
 
 
 def default_name():
-    return name_default(socket.gethostname()) or "CLI"
+    os_name = {"linux": "Linux", "darwin": "Mac", "win32": "Windows"}.get(sys.platform)
+    return name_default(socket.gethostname()) or ("CLI on " + os_name if os_name else "CLI")
 
 
 def seal_msg(k, x, p, n, type_, value, approve=False):
@@ -2829,7 +2841,7 @@ def upload_file(cx, f, length, file_sha256, name):
         if final:
             raise Fail(final)
         if status == 413:
-            raise Fail('"%s" is too large to send.' % name)
+            raise Fail('"%s" is too large to send.' % short_name(name))
         if status == 0 or status == 429 or status >= 500:
             attempt += 1
             if attempt < FILE_TRIES:
@@ -2870,11 +2882,11 @@ def seal_to_temp(src, size, key, name):
         out.flush()
     except ValueError:
         out.close()
-        raise Fail('The file "%s" changed while it was read. Try again.' % name)
+        raise Fail('The file "%s" changed while it was read. Try again.' % short_name(name))
     except OSError as e:
         out.close()
         if e.errno == errno.ENOSPC:
-            raise Fail('Not enough storage to send "%s".' % name)
+            raise Fail('Not enough storage to send "%s".' % short_name(name))
         raise
     return out, sha
 
@@ -2950,20 +2962,20 @@ def fetch_blob(cx, v, name, out, tries):
             cx.api.skew_ms = int(epoch) * 1000 - int(time.time() * 1000)
             continue
         if status == 410:
-            raise FileFail('Unable to download "%s". The file expired.' % name)
+            raise FileFail('Unable to download "%s". The file expired.' % short_name(name))
         if status == 404 and j.get("error") == "update required":
-            raise FileFail('Unable to download "%s". %s' % (name, UPDATE_REQUIRED))
+            raise FileFail('Unable to download "%s". %s' % (short_name(name), UPDATE_REQUIRED))
         if status == 404:
             gone = time.time() + cx.api.skew_ms / 1000 < v["expires"]
-            raise FileFail('Unable to download "%s". The file %s.' % (name, "was deleted" if gone else "expired"))
+            raise FileFail('Unable to download "%s". The file %s.' % (short_name(name), "was deleted" if gone else "expired"))
         final = file_status(status, j)
         if final:
-            raise FileFail('Unable to download "%s". %s' % (name, final))
+            raise FileFail('Unable to download "%s". %s' % (short_name(name), final))
         if not (status == 0 or status == 429 or status >= 500):
-            raise FileFail('Unable to download "%s". The file server refused the request (HTTP %d).' % (name, status))
+            raise FileFail('Unable to download "%s". The file server refused the request (HTTP %d).' % (short_name(name), status))
         tries[0] += 1
         if tries[0] >= DOWNLOAD_TRIES:
-            raise FileFail('Unable to download "%s". %s' % (name, UNREACHABLE if status == 0 else SERVER_DOWN))
+            raise FileFail('Unable to download "%s". %s' % (short_name(name), UNREACHABLE if status == 0 else SERVER_DOWN))
         ra = j.get("retry_after")
         cx.api.sleep(min(ra if type(ra) is int and ra > 0 else 2 ** tries[0], 60))
 
@@ -3034,17 +3046,17 @@ def download_file(cx, v, name, folder, temps):
     """listen --files: download, check sha256 and size, decrypt, and save one file. -> its path.
     One re-download when a check fails. Raises FileFail."""
     if v["size"] > MAX_FILE:
-        raise FileFail('Unable to download "%s". It is too large.' % name)
+        raise FileFail('Unable to download "%s". It is too large.' % short_name(name))
     if not file_url_ok(v["url"]):
         raise FileFail(FILE_DAMAGED % name)
     if time.time() >= v["expires"]:
-        raise FileFail('Unable to download "%s". The file expired.' % name)
+        raise FileFail('Unable to download "%s". The file expired.' % short_name(name))
     tries, checks = [0], 0
     while True:
         blob = plain = None
         try:
             if shutil.disk_usage(folder).free < 2 * v["size"] + FREE_MARGIN:
-                raise FileFail('Not enough storage to download "%s".' % name)
+                raise FileFail('Not enough storage to download "%s".' % short_name(name))
             blob, blob_path = _temp(folder, temps, ".part")
             try:
                 fetch_blob(cx, v, name, blob, tries)
@@ -3063,8 +3075,8 @@ def download_file(cx, v, name, folder, temps):
             return path
         except OSError as e:
             if e.errno == errno.ENOSPC:
-                raise FileFail('Not enough storage to download "%s".' % name)
-            raise FileFail('Unable to save "%s". %s' % (name, _os_error_text(e)))
+                raise FileFail('Not enough storage to download "%s".' % short_name(name))
+            raise FileFail('Unable to save "%s". %s' % (short_name(name), _os_error_text(e)))
         finally:
             for f in (blob, plain):
                 if f is not None:
@@ -3380,21 +3392,48 @@ def cmd_logout(cx, args):
     return EXIT_OK
 
 
-def match_device(cx, d, text, ids):
-    """The one id in ids whose device ID is exactly text (NNN-NNN-NNN)."""
+def pick_device(cx, d, hits):
+    """Lists the devices that share a Device ID and asks which one. -> the id, or None (Enter or end of input)."""
+    rows = []
+    for n, i in enumerate(hits, 1):
+        me = i == cx.me
+        label = name_display(d["name"]) if me else peer_label(d["peers"].get(i))
+        rows.append((str(n), device_id(i), platform_label("cli" if me else d["peers"][i]["platform"]), label))
+    w = [max(len(r[c]) for r in rows) for c in range(3)]
+    for r in rows:
+        note("  ".join(r[c].ljust(w[c]) for c in range(3)) + "  " + r[3])
+    while True:
+        try:
+            a = ask("Remove which device? [1-%d, or Enter to cancel] " % len(hits)).strip()
+        except EOFError:
+            return None
+        if not a:
+            return None
+        if a.isdigit() and a.isascii() and 1 <= int(a) <= len(hits):
+            return hits[int(a) - 1]
+
+
+def match_device(cx, d, text, ids, pick=False):
+    """The one id in ids whose device ID is exactly text (NNN-NNN-NNN). pick: when 2 or more match and a
+    terminal is attached, the person chooses one (None: cancelled)."""
     hits = [i for i in ids if device_id(i) == text]
     if not hits:
         raise Fail('No device matches "%s". Run `pusharmor devices` to see device IDs.' % text)
+    if len(hits) > 1 and pick and stdin_tty() and sys.stderr is not None and sys.stderr.isatty():
+        return pick_device(cx, d, hits)
     if len(hits) > 1:
-        names = " and ".join('"%s"' % (name_display(d["name"]) if i == cx.me else peer_label(d["peers"].get(i))) for i in hits)
-        raise Fail("More than one device has the device ID %s: %s. Remove one of them, then try again."
-                   % (text, names))
+        q = [label if label == UNKNOWN_NAME else '"%s"' % label
+             for label in (name_display(d["name"]) if i == cx.me else peer_label(d["peers"].get(i)) for i in hits)]
+        names = q[0] + " and " + q[1] if len(q) == 2 else ", ".join(q[:-1]) + ", and " + q[-1]
+        raise Fail("Two devices have the Device ID %s: %s\nRemove one of them with `pusharmor delete %s` or in the PushArmor app"
+                   % (text, names, text),
+                   EXIT_USAGE)
     return hits[0]
 
 
-def resolve_peer(cx, text, with_self=False):
+def resolve_peer(cx, text, with_self=False, pick=False):
     with cx.store.state(write=False) as d:
-        return match_device(cx, d, text, list(d["peers"]) + ([cx.me] if with_self else []))
+        return match_device(cx, d, text, list(d["peers"]) + ([cx.me] if with_self else []), pick)
 
 
 # devices: status code (--json, --tsv) -> words in the table; compare_code adds the pairing code
@@ -3809,7 +3848,10 @@ def cmd_rename(cx, args):
 
 def cmd_delete(cx, args):
     cx.setup()
-    x = resolve_peer(cx, args.id, with_self=True)
+    x = resolve_peer(cx, args.id, with_self=True, pick=True)
+    if x is None:
+        note("Nothing removed.")
+        return EXIT_ERR
     with cx.store.state(write=False) as d:
         reg = d.get("reg")
         name = '"%s"' % name_display(d.get("name") or peer_label(None)) if x == cx.me else said(d, x)

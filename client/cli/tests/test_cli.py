@@ -63,6 +63,11 @@ def answers(monkeypatch, *items):
     monkeypatch.setattr(pa, "input", lambda prompt="": next(it), raising=False)
 
 
+def q(name):
+    """A device name as the CLI quotes it: {UNKNOWN} has no quotes."""
+    return name if name == "{UNKNOWN}" else '"%s"' % name
+
+
 def run(cfg, *argv):
     return pa.main(["--config", str(cfg)] + list(argv))
 
@@ -192,7 +197,70 @@ def test_device_id_must_match_exactly():
         assert str(e.value) == 'No device matches "%s". Run `pusharmor devices` to see device IDs.' % text
     with pytest.raises(pa.Fail) as e:
         pa.match_device(cx, d, pa.device_id(one), [one, two, other])
-    assert '"one" and "two"' in str(e.value) and pa.device_id(one) in str(e.value)
+    assert str(e.value) == ('Two devices have the Device ID %s: "one" and "two"\n'
+                            'Remove one of them with `pusharmor delete %s` or in the PushArmor app' % (pa.device_id(one), pa.device_id(one)))
+    assert e.value.code == 2
+    three = pa.b64e(bytes(9) + bytes.fromhex("0102030405") + b"\x02" * 16)
+    d["peers"][three] = {"name": None}
+    with pytest.raises(pa.Fail) as e:
+        pa.match_device(cx, d, pa.device_id(one), [one, two, three])
+    assert e.value.args[0].splitlines()[0].endswith('"one", "two", and {UNKNOWN}')
+
+
+def _dup_ids():
+    one = pa.b64e(bytes(9) + bytes.fromhex("0102030405") + bytes(16))
+    two = pa.b64e(bytes(9) + bytes.fromhex("0102030405") + b"\x01" * 16)
+    cx = type("Cx", (), {"me": "me"})()
+    d = {"name": "laptop", "peers": {one: {"name": "one", "platform": "ios"}, two: {"name": "two", "platform": "android"}}}
+    return cx, d, one, two
+
+
+class _TtyErr(io.StringIO):
+    def isatty(self):
+        return True
+
+
+def test_delete_picker_lists_the_devices_and_takes_a_number(monkeypatch):
+    cx, d, one, two = _dup_ids()
+    err = _TtyErr()
+    monkeypatch.setattr(sys, "stdin", Stdin())
+    monkeypatch.setattr(sys, "stderr", err)
+    answers(monkeypatch, "x", "3", "2")
+    assert pa.match_device(cx, d, pa.device_id(one), [one, two], pick=True) == two
+    out = err.getvalue()
+    assert out.count("Remove which device? [1-2, or Enter to cancel] ") == 3
+    assert "1  %s  iOS      one\n" % pa.device_id(one) in out
+    assert "2  %s  Android  two\n" % pa.device_id(one) in out
+
+
+@pytest.mark.parametrize("reply", ["", None])
+def test_delete_picker_cancels_on_enter_or_end_of_input(monkeypatch, reply):
+    cx, d, one, two = _dup_ids()
+    monkeypatch.setattr(sys, "stdin", Stdin())
+    monkeypatch.setattr(sys, "stderr", _TtyErr())
+
+    def inp(prompt=""):
+        if reply is None:
+            raise EOFError
+        return reply
+    monkeypatch.setattr(pa, "input", inp, raising=False)
+    assert pa.match_device(cx, d, pa.device_id(one), [one, two], pick=True) is None
+
+
+def test_delete_picker_not_offered_without_a_terminal(monkeypatch):
+    cx, d, one, two = _dup_ids()
+    monkeypatch.setattr(sys, "stdin", Stdin(tty=False))
+    with pytest.raises(pa.Fail) as e:
+        pa.match_device(cx, d, pa.device_id(one), [one, two], pick=True)
+    assert e.value.code == 2 and "Remove one of them with `pusharmor delete %s` or in the PushArmor app" % pa.device_id(one) in str(e.value)
+
+
+def test_file_name_in_an_error_is_cut_in_the_middle():
+    assert pa.NAME_CUT == 24
+    assert pa.short_name("a" * 24) == "a" * 24
+    cut = pa.short_name("0123456789" * 5 + ".pdf")
+    assert len(cut) == 24 and "..." in cut and cut.endswith(".pdf")
+    assert cut == "01234567890123...789.pdf"
 
 
 def test_device_id_needs_30_id_bytes():
@@ -727,7 +795,7 @@ def test_pair_prompt_answers(answer, paired, net, tmp_path, monkeypatch, capsys)
     pair_with_b_answer(monkeypatch, net, a, b, ida, idb, answer)
     name = pa.peer_label(state(b)["peers"][ida])
     assert len(pair_with_b_answer.prompts) == 1
-    assert re.fullmatch(r'Does ".+" show the same code\? \[y/N\] ', pair_with_b_answer.prompts[0])
+    assert re.fullmatch(r'Does (".+"|\{UNKNOWN\}) show the same code\? \[y/N\] ', pair_with_b_answer.prompts[0])
     out = capsys.readouterr().err
     assert ('Paired with "%s".' % name in out) == paired
 
@@ -749,7 +817,7 @@ def test_failed_reject_says_unable_to_reject(net, tmp_path, monkeypatch, capsys)
     capsys.readouterr()
     assert pair_with_b_answer(monkeypatch, net, a, b, ida, idb, "n") == pa.EXIT_TEMP
     name = pa.peer_label(state(b)["peers"][ida])
-    assert 'error: Unable to reject "%s". %s' % (name, pa.SERVER_DOWN) in capsys.readouterr().err.splitlines()
+    assert 'error: Unable to reject %s. %s' % (q(name), pa.SERVER_DOWN) in capsys.readouterr().err.splitlines()
 
 
 def test_failed_confirm_says_unable_to_confirm(net, tmp_path, monkeypatch, capsys):
@@ -759,7 +827,7 @@ def test_failed_confirm_says_unable_to_confirm(net, tmp_path, monkeypatch, capsy
     capsys.readouterr()
     assert pair_with_b_answer(monkeypatch, net, a, b, ida, idb, "y") == 1
     name = pa.peer_label(state(b)["peers"][ida])
-    assert 'error: Unable to confirm "%s". It is not paired with this device.' % name \
+    assert 'error: Unable to confirm %s. It is not paired with this device.' % q(name) \
         in capsys.readouterr().err.splitlines()
 
 
@@ -823,7 +891,7 @@ def test_abort_then_decides_the_new_commit(net, tmp_path, monkeypatch, capsys):
     assert 'failed. Run: `pusharmor pair %s` to start again.' % pa.device_id(ida) in err
     assert "wants to pair. Run: `pusharmor pair %s`" % pa.device_id(ida) in err
     # the name is quoted once, never doubled
-    assert 'Pairing with "{UNKNOWN}" failed.' in err and 'info: "{UNKNOWN}" wants to pair.' in err
+    assert 'Pairing with {UNKNOWN} failed.' in err and 'info: {UNKNOWN} wants to pair.' in err
     assert '""' not in err
 
 
@@ -1041,7 +1109,7 @@ def test_another_device_that_wants_to_pair_is_shown_once(net, tmp_path, monkeypa
         notes = [pa.pair_note(cx, d, ida, '%s wants to pair. Compare the code: pusharmor pair %s'),
                  pa.pair_note(cx, d, ida, '%s wants to pair. Run: `pusharmor pair %s`')]
         name = pa.peer_label(d["peers"][ida])
-    assert notes == [("info", '"%s" also wants to pair. Run: `pusharmor pair %s`' % (name, pa.device_id(ida))), None]
+    assert notes == [("info", '%s also wants to pair. Run: `pusharmor pair %s`' % (q(name), pa.device_id(ida))), None]
 
 
 @pytest.mark.skipif(os.name == "nt", reason="no POSIX modes on Windows")
@@ -2136,7 +2204,7 @@ def test_pair_result_word_is_never_shown_raw(net, tmp_path, monkeypatch, capsys)
     assert run(a, "pair", pa.device_id(idb)) == 1
     name = pa.peer_label(state(a)["peers"][idb])
     err = capsys.readouterr().err.splitlines()
-    assert err[-1] == 'error: Unable to pair with "%s". It is not paired with this device.' % name
+    assert err[-1] == 'error: Unable to pair with %s. It is not paired with this device.' % q(name)
     assert not any("Unable to continue" in x for x in err)
 
 
@@ -2295,7 +2363,8 @@ def test_command_texts_are_the_approved_sentences(net, tmp_path, monkeypatch, ca
         'error: Unable to send. No device matches "abcdef". Run `pusharmor devices` to see device IDs.\n')
     assert err_of(2, "rename", 'bad "name"') == "error: Unable to rename this device. Invalid characters\n"
     assert err_of(2, "rename", "--", "-x") == "error: Unable to rename this device. Invalid characters\n"
-    assert err_of(2, "rename", "a" * 33) == "error: Unable to rename this device. Invalid characters\n"
+    assert err_of(2, "rename", "a" * 33) == (
+        "error: Unable to rename this device. Name too long\nUse 32 characters or fewer\n")
     assert err_of(2, "rename", "") == "error: Unable to rename this device. Name too short\n"
     assert err_of(2, "rename", "   ") == "error: Unable to rename this device. Name too short\n"
     assert err_of(1, "pair", pa.device_id(me)) == (
@@ -2335,7 +2404,7 @@ def test_every_stderr_line_has_a_severity_prefix(net, tmp_path, monkeypatch, cap
     pair_two(monkeypatch, net, a, b)
     cap = capsys.readouterr()
     assert cap.out == ""  # login and pair: prompts and messages only, all on stderr
-    assert any(x.startswith('info: Waiting for "') and x.endswith(" Press Ctrl+C to stop.") for x in cap.err.splitlines())
+    assert any(x.startswith("info: Waiting for ") and x.endswith(" Press Ctrl+C to stop.") for x in cap.err.splitlines())
     assert run(a, "send", "hi") == 0
     cap = capsys.readouterr()
     assert cap.out == "" and cap.err == "Sent to 1 of 1 device.\n"
@@ -2364,10 +2433,18 @@ def test_login_link_too_old_says_the_code_expired(net, tmp_path, monkeypatch, ca
 
 
 @pytest.mark.parametrize("host,name", [("my-host", "my-host"), ("-box", "?box"), ("caf\u00e9!", "caf??"),
-                                       ("Tom\u2019s " + "x" * 40, "Tom's " + "x" * 26), ("", "CLI"),
-                                       (" a  b ", "a b"), ("   ", "CLI")])
+                                       ("Tom\u2019s " + "x" * 40, "Tom's " + "x" * 26), ("", "CLI on Linux"),
+                                       (" a  b ", "a b"), ("   ", "CLI on Linux")])
 def test_default_name_follows_the_name_rule(monkeypatch, host, name):
     monkeypatch.setattr(pa.socket, "gethostname", lambda: host)
+    monkeypatch.setattr(pa.sys, "platform", "linux")
+    assert pa.default_name() == name
+
+
+@pytest.mark.parametrize("plat,name", [("darwin", "CLI on Mac"), ("win32", "CLI on Windows"), ("freebsd13", "CLI")])
+def test_default_name_fallback_names_the_os(monkeypatch, plat, name):
+    monkeypatch.setattr(pa.socket, "gethostname", lambda: "")
+    monkeypatch.setattr(pa.sys, "platform", plat)
     assert pa.default_name() == name
 
 
@@ -2701,11 +2778,11 @@ def test_pair_again_sends_the_open_again_and_says_when_it_fails(net, tmp_path, m
     assert lo.entry(hi)["state"] == "shown"
     short = pa.device_id(hi.id)
     assert capsys.readouterr().err.splitlines()[-1] == (
-        'warning: Unable to continue pairing with "%s". %s Run: `pusharmor pair %s` to try again.'
-        % (pa.peer_label(state(lo.cfg)["peers"][hi.id]), pa.SERVER_DOWN, short))
+        'warning: Unable to continue pairing with %s. %s Run: `pusharmor pair %s` to try again.'
+        % (q(pa.peer_label(state(lo.cfg)["peers"][hi.id])), pa.SERVER_DOWN, short))
     assert run(lo.cfg, "pair", pa.device_id(hi.id)) == 1
-    assert capsys.readouterr().err.splitlines()[-1] == 'error: Unable to pair with "%s". %s' % (
-        pa.peer_label(state(lo.cfg)["peers"][hi.id]), pa.SERVER_DOWN)
+    assert capsys.readouterr().err.splitlines()[-1] == 'error: Unable to pair with %s. %s' % (
+        q(pa.peer_label(state(lo.cfg)["peers"][hi.id])), pa.SERVER_DOWN)
 
 
 def test_duplicate_reply_on_a_shown_entry_is_harmless(net, tmp_path, monkeypatch, capsys):
