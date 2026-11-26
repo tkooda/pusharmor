@@ -7,6 +7,8 @@ import { type UiEnv, add, busyBar, clear, failView, group, h, platformLabel, rpc
 import { AUTH_CHANGED, AUTH_RESULT, clampFrameHeight, emailProblem, needsSecurityCheck, readAuthResult, type Restore, autoVerifyCode, formatWait, resendLeftMs, sendLeftMs } from "../model/signin.ts";
 import { toast } from "./dialog.ts";
 import { STEP } from "../model/busy.ts";
+import { b64urlTryDecode } from "../crypto/b64url.ts";
+import { ID_LEN, addedDate, deviceId } from "../crypto/labels.ts";
 import { appleLogo, googleLogo, icon, platformIcon } from "./icons.ts";
 import { startTheme } from "./theme.ts";
 import { keysCard, mountPopup, type PageStart, signinCard, updateCard, wordmark } from "./popup.ts";
@@ -510,12 +512,16 @@ interface LimitPeer {
 
 const devices = (n: number): string => n + (n === 1 ? " device" : " devices");
 
-/** Device limit row, second line: "Added Oct 2, 2026. Trusts 3 devices. Trusted by 1. Unreachable." */
-export function limitLine(p: LimitPeer): string {
-  const added = new Date(p.created * 1000).toLocaleDateString([], { year: "numeric", month: "short", day: "numeric" });
-  return ["Added " + added + ".", "Trusts " + devices(p.approves) + ".", "Trusted by " + p.approved_by + ".", p.reachable ? "" : "Unreachable.", p.logged_out ? "Logged out." : ""]
-    .filter(Boolean)
-    .join(" ");
+/** Device limit row, the lines under the platform: ID, Added (local date), Trusts, then Unreachable. and Logged out. when they apply. */
+export function limitLines(p: LimitPeer): string[] {
+  const raw = b64urlTryDecode(p.id);
+  const off = [p.reachable ? "" : "Unreachable.", p.logged_out ? "Logged out." : ""].filter(Boolean).join(" ");
+  return [
+    ...(raw && raw.length === ID_LEN ? ["ID: " + deviceId(raw)] : []),
+    "Added: " + addedDate(p.created * 1000),
+    "Trusts " + devices(p.approves) + ". Trusted by " + p.approved_by + ".",
+    ...(off ? [off] : []),
+  ];
 }
 
 /** Device limit order: fewest pairings (trusts + trusted by) first, then oldest added first. */
@@ -556,7 +562,7 @@ function limitView(env: UiEnv, root: HTMLElement, body: Record<string, unknown>,
         "label",
         { class: "prow target" },
         h("div", { class: "av" }, platformIcon(p.platform)),
-        h("div", { class: "txt" }, h("div", { class: "t1" }, platformLabel(p.platform)), h("div", { class: "t2" }, limitLine(p))),
+        h("div", { class: "txt" }, h("div", { class: "t1" }, platformLabel(p.platform)), ...limitLines(p).map((l) => h("div", { class: "t2" }, l))),
         box,
       ),
     );

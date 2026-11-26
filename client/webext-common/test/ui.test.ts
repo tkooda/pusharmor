@@ -306,13 +306,17 @@ test("one request per click; a failed tab view shows Retry", async () => {
 });
 
 test("copy: device limit rows read as sentences; desktop says Click; status lines end with a period", async () => {
-  const { limitLine } = await import("../src/ui/page.ts");
+  const { limitLines } = await import("../src/ui/page.ts");
+  const { deviceId } = await import("../src/crypto/labels.ts");
+  const { b64urlEncode } = await import("../src/crypto/b64url.ts");
   const created = new Date(2026, 9, 2, 12).getTime() / 1000;
-  const added = new Date(created * 1000).toLocaleDateString([], { year: "numeric", month: "short", day: "numeric" });
-  assert.equal(limitLine({ id: "x", platform: "android", created, approves: 3, approved_by: 1, reachable: true, logged_out: false }), "Added " + added + ". Trusts 3 devices. Trusted by 1.");
-  assert.equal(limitLine({ id: "x", platform: "ios", created, approves: 0, approved_by: 0, reachable: false, logged_out: true }), "Added " + added + ". Trusts 0 devices. Trusted by 0. Unreachable. Logged out.");
-  assert.equal(limitLine({ id: "x", platform: "android", created, approves: 1, approved_by: 2, reachable: true, logged_out: false }), "Added " + added + ". Trusts 1 device. Trusted by 2.");
-  assert.equal(limitLine({ id: "x", platform: "android", created, approves: 2, approved_by: 0, reachable: true, logged_out: false }), "Added " + added + ". Trusts 2 devices. Trusted by 0.");
+  const raw = new Uint8Array(30).fill(7);
+  const id = b64urlEncode(raw);
+  const head = ["ID: " + deviceId(raw), "Added: 2026-10-02"];
+  assert.deepEqual(limitLines({ id, platform: "android", created, approves: 3, approved_by: 1, reachable: true, logged_out: false }), [...head, "Trusts 3 devices. Trusted by 1."]);
+  assert.deepEqual(limitLines({ id, platform: "ios", created, approves: 0, approved_by: 0, reachable: false, logged_out: true }), [...head, "Trusts 0 devices. Trusted by 0.", "Unreachable. Logged out."]);
+  assert.deepEqual(limitLines({ id, platform: "android", created, approves: 1, approved_by: 2, reachable: false, logged_out: false }), [...head, "Trusts 1 device. Trusted by 2.", "Unreachable."]);
+  assert.deepEqual(limitLines({ id: "x", platform: "android", created, approves: 2, approved_by: 0, reachable: true, logged_out: true }), ["Added: 2026-10-02", "Trusts 2 devices. Trusted by 0.", "Logged out."]);
   const { T } = await import("../src/core/texts.ts");
   for (const [k, v] of Object.entries(T)) {
     const s = typeof v === "function" ? (v as (x: string) => string)("X") : v;
