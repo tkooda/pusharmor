@@ -93,6 +93,7 @@ input[type=checkbox]:focus-visible { outline: 2px solid var(--primary); outline-
 .prow.off .t1, .prow.off .av { opacity: 0.5; }
 /* device rows: the icon and the more menu at the top; Reject and Pair span the row */
 .prow.peer { align-items: start; }
+.prow.peer.tosend { cursor: pointer; }
 .prow.peer > .pair-acts { grid-column: 1 / -1; margin: 4px 8px 4px 0; }
 .line { overflow-wrap: anywhere; }
 .paircmd { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: nowrap; }
@@ -119,6 +120,8 @@ label.srow { cursor: pointer; }
 .sub { display: flex; align-items: center; gap: 6px; }
 .sub .info { flex: 1; min-width: 0; }
 .stat { display: flex; gap: 2px; }
+.sline { display: flex; flex-wrap: wrap; align-items: center; column-gap: 6px; }
+.sline .stat { margin-left: auto; }
 .stat .si { display: flex; }
 .stat .si.off { opacity: 0.38; }
 .menu { position: absolute; right: 0; top: 34px; z-index: 4; min-width: 140px; padding: 4px 0; background: var(--card); border: 1px solid var(--line); border-radius: var(--rf); display: flex; flex-direction: column; overflow-y: auto; }

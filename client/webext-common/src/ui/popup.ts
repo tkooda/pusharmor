@@ -126,7 +126,8 @@ export async function mountPopup(env: UiEnv, root: HTMLElement, page?: PageStart
   const tabs = h("div", { class: "tabs", role: "tablist" });
   const nav: Nav = { toDevices: () => show("peers", true), toSend: () => show("send") };
   // arg: the History message to show, the Devices row to highlight, or the text to send
-  const show = (t: Tab, openPair = false, arg?: string, pick?: string) => {
+  // hold: a one-off pick (a tap on a device card) that is saved as the default selection only by a send that went
+  const show = (t: Tab, openPair = false, arg?: string, pick?: string, hold = false) => {
     for (const b of Array.from(tabs.children)) {
       const on = (b as HTMLElement).dataset.tab === t;
       b.classList.toggle("on", on);
@@ -143,9 +144,9 @@ export async function mountPopup(env: UiEnv, root: HTMLElement, page?: PageStart
     const wait = h("div", { class: "loading", role: "status" }, "Loading...");
     const slow = setTimeout(() => pane.isConnected && !pane.firstChild && body.prepend(wait), 150);
     let ready: Promise<unknown> = Promise.resolve();
-    if (t === "send") ready = sendView(env, pane, st, arg, nav, pick);
+    if (t === "send") ready = sendView(env, pane, st, arg, nav, pick, hold);
     if (t === "history") ready = historyView(env, pane, arg, nav);
-    if (t === "peers") ready = renderPeers(env, pane, !!page, arg, undefined, openPair);
+    if (t === "peers") ready = renderPeers(env, pane, !!page, arg, undefined, openPair, (id) => void show("send", false, undefined, id, true));
     if (t === "settings") ready = settingsView(env, pane, st, again);
     // a view that fails shows the error with Retry in place of an empty pane
     return ready.catch((e) => pane.isConnected && failView(pane, (e as Error).message, () => show(t))).finally(() => {
@@ -358,7 +359,7 @@ export function fileIcon(name: string): IconName {
 /** A pasted or dropped file while the message box holds text: one type per message. */
 const DROP_CLEAR = "Clear the message to add a file";
 
-export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, prefill?: string, nav?: Nav, pick?: string): Promise<void> {
+export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, prefill?: string, nav?: Nav, pick?: string, hold = false): Promise<void> {
   const field = h("textarea", { rows: "3", "aria-label": "Text to send", placeholder: env.files ? F.PLACEHOLDER : "" }) as HTMLTextAreaElement;
   // the box opens empty; "Page URL" fills it with the current page's URL on request
   field.value = prefill ?? "";
@@ -393,8 +394,16 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
   const on = (c: HTMLElement) => c.classList.contains("on");
   const saved = rememberedSelection(await rpc<string[]>(env, "sendSel").catch(() => []), sendable.map((p) => p.id));
   // a device named by the right-click menu is selected instead of the remembered ones (not saved until the chips change)
-  const remembered = pick !== undefined && sendable.some((p) => p.id === pick) ? [pick] : saved;
-  const save = () => void rpc(env, "sendSelSet", { ids: checks.filter((c) => on(c.chip)).map((c) => c.id) }).catch(() => undefined);
+  // a device card tap (hold) selects only that device, and nothing when it cannot receive now
+  const remembered = hold ? sendable.filter((p) => p.id === pick).map((p) => p.id) : pick !== undefined && sendable.some((p) => p.id === pick) ? [pick] : saved;
+  const keep = () => rpc(env, "sendSelSet", { ids: checks.filter((c) => on(c.chip)).map((c) => c.id) }).catch(() => undefined);
+  // held: chip changes are not saved until a send goes to a device; that send saves the selection as the default
+  const save = () => void (hold ? undefined : keep());
+  const sent = async (r: SendResult | null) => {
+    if (!hold || !r || r.sent === 0) return;
+    hold = false;
+    await keep();
+  };
   let allChip: HTMLButtonElement | null = null;
   // A toggle chip: platform icon, or a check while selected (CSS); long names end in "...".
   const press = (c: HTMLElement, v: boolean) => {
@@ -576,6 +585,7 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
       sending = true;
       try {
         const r = await sendFile(chosen, to, names);
+        await sent(r);
         const pickedKeyOf = pickedKey;
         if (r) {
           const one = (r.all ?? r.total) === 1 && r.sent === 1 && count() === 1 ? sendable.find((p) => p.id === checks.find((c) => on(c.chip))?.id) : undefined;
@@ -606,6 +616,7 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
       } finally {
         prog.close();
       }
+      await sent(r);
       // one device sent to is named
       const one = (r.all ?? r.total) === 1 && r.sent === 1 && count() === 1 ? sendable.find((p) => p.id === checks.find((c) => on(c.chip))?.id) : undefined;
       if (r.sent > 0) field.value = ""; // a message sent to any device is not kept; one sent to none stays to send again

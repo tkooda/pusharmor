@@ -52,9 +52,9 @@ test("Chrome and Firefox open the same tab for a message notification click", as
 test("the full view gives each tab its target: the History message, the Devices row, the Send text", () => {
   const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
   assert.match(pop, /const first: Tab = over \? "send" : page\?\.tab \?\? \(peers \? launchTab\(peers\) : "send"\);/);
-  assert.match(pop, /if \(t === "send"\) ready = sendView\(env, pane, st, arg, nav, pick\);/);
+  assert.match(pop, /if \(t === "send"\) ready = sendView\(env, pane, st, arg, nav, pick, hold\);/);
   assert.match(pop, /if \(t === "history"\) ready = historyView\(env, pane, arg, nav\);/);
-  assert.match(pop, /if \(t === "peers"\) ready = renderPeers\(env, pane, !!page, arg, undefined, openPair\);/);
+  assert.match(pop, /if \(t === "peers"\) ready = renderPeers\(env, pane, !!page, arg, undefined, openPair, \(id\) => void show\("send", false, undefined, id, true\)\);/);
   assert.match(pop, /: show\(first, page\?\.openPair, page\?\.arg\);/);
   assert.match(pop, /if \(focus\) document\.getElementById\("h-" \+ focus\)\?\.scrollIntoView/);
 });

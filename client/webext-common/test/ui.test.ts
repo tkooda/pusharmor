@@ -501,7 +501,7 @@ test("empty screens have a call to action button", async () => {
   assert.match(pop, /"Messages you send or receive show here\."/);
   // the popup and the full tab switch tab and open the pairing steps; #pair starts there
   assert.match(pop, /toDevices: \(\) => show\("peers", true\), toSend: \(\) => show\("send"\)/);
-  assert.match(pop, /renderPeers\(env, pane, !!page, arg, undefined, openPair\)/);
+  assert.match(pop, /renderPeers\(env, pane, !!page, arg, undefined, openPair, \(id\) => void show\("send", false, undefined, id, true\)\)/);
   assert.match(rd("page.ts"), /if \(route === "pair"\) return \{ tab: "peers", openPair: true \};/);
   assert.match(rd("peersview.ts"), /hidden: !open/);
   // the first-device screen still replaces the tabs until the first pairing

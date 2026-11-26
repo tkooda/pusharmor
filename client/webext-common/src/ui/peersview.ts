@@ -64,11 +64,12 @@ export function resetPeersView(): void {
 /** Draws the list again, with focus on that row after an action. */
 type Redraw = (focusId?: string) => Promise<void>;
 
-export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, highlight?: string, focusId?: string, openPair = false): Promise<void> {
+/** toSend: a tap on a paired device card opens Send with only that device selected. */
+export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, highlight?: string, focusId?: string, openPair = false, toSend?: (id: string) => void): Promise<void> {
   const data = await rpc<{ self?: { id: string } | null; peers: PeerView[]; allowContent?: boolean }>(env, "peers");
   clear(root);
   // focusId: the list was rebuilt after an action, so put focus back on that row (or the first heading if it is gone).
-  const redraw: Redraw = (focusId) => renderPeers(env, root, full, undefined, focusId);
+  const redraw: Redraw = (focusId) => renderPeers(env, root, full, undefined, focusId, false, toSend);
   // rejected devices list only under Rejected devices, until they send a new pairing request or get Pair
   const listed = data.peers.filter((p) => !p.rejected);
   const rejected = sortByLabel(data.peers.filter((p) => p.rejected));
@@ -89,7 +90,7 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
     const cards = peers.filter((p) => p.fingerprint);
     const rest = peers.filter((p) => !p.fingerprint);
     if (!peers.length) return [];
-    return [sh(title), ...cards.map((p) => pairCard(env, p, redraw)), ...(rest.length ? [group(...rest.map((p) => (first ? peerRow(env, p, redraw) : peerRow(env, p, redraw, allow, data.self?.id))))] : [])];
+    return [sh(title), ...cards.map((p) => pairCard(env, p, redraw)), ...(rest.length ? [group(...rest.map((p) => (first ? peerRow(env, p, redraw) : peerRow(env, p, redraw, allow, data.self?.id, toSend))))] : [])];
   };
   if (!data.peers.some((p) => p.paired)) {
     // no paired device yet: the first-pair steps and the devices waiting to pair (live)
@@ -140,7 +141,7 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
       const row = active?.closest<HTMLElement>('[id^="peer-"]') ?? null;
       const name = (el: Element) => el.getAttribute("aria-label") ?? el.textContent;
       const ctl = row && active !== row ? name(active!) : null;
-      await renderPeers(env, root, full);
+      await renderPeers(env, root, full, undefined, undefined, false, toSend);
       if (refocus) root.querySelector<HTMLElement>(".fp-title, .sh")?.focus();
       else if (row) {
         const again = document.getElementById(row.id);
@@ -167,7 +168,7 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
     upBar.start(STEP.updating);
     try {
       await rpc(env, "refresh");
-      await renderPeers(env, root, full);
+      await renderPeers(env, root, full, undefined, undefined, false, toSend);
     } catch (e) {
       toast((e as Error).message, "err");
     } finally {
@@ -298,7 +299,7 @@ function statusIcons(p: PeerView, globalAllow: boolean): HTMLElement {
   return h("span", { class: "stat", role: "img", "aria-label": statusLabel(send, notif) }, one("send", send), one("bell", notif));
 }
 
-function peerRow(env: UiEnv, p: PeerView, redraw: Redraw, globalAllow = true, selfId?: string): HTMLElement {
+function peerRow(env: UiEnv, p: PeerView, redraw: Redraw, globalAllow = true, selfId?: string, toSend?: (id: string) => void): HTMLElement {
   // a grey status under a full-strength name: logged out, send only, wants to pair again, rejected this device
   const dim = p.greyed !== null && !["logged out", "send only", T.wantsPairAgain, T.rejectedThis].includes(p.greyed);
   const row = h("div", { class: "prow peer" + (dim ? " off" : ""), id: "peer-" + p.id, tabindex: "-1" });
@@ -309,13 +310,15 @@ function peerRow(env: UiEnv, p: PeerView, redraw: Redraw, globalAllow = true, se
   // the platform line only on paired devices; elsewhere the name or New Firefox device says it
   const info = h("div", { class: "info" }, ...(p.section === "paired" || (!p.section && p.paired) ? [h("div", { class: "t2" }, platformLabel(p.platform))] : []), ...idLines(p));
   const s = peerStatus(p);
-  if (s) info.append(h("div", { class: "t2" }, statusLine(s.kind, s.word)));
+  // the status icons sit at the right end of the status line, on a line of their own only when they do not fit
+  const icons = p.paired && globalAllow !== undefined ? statusIcons(p, globalAllow) : null;
+  if (s) info.append(h("div", { class: "t2" + (icons ? " sline" : "") }, statusLine(s.kind, s.word), icons));
   else if (p.greyed) info.append(h("div", { class: "t2 line" }, p.greyed));
   for (const l of p.lines) info.append(h("div", { class: "t2 line" }, l));
   if (p.countdown) info.append(h("div", { class: "t2 countdown" }, T.countdownLeft(p.countdown)));
   sub.append(info);
   const pairCmd = selfId && p.platform === "cli" && !p.paired && !p.hidden ? pairCommandLine(p.label, selfId) : null;
-  if (p.paired && globalAllow !== undefined) sub.append(statusIcons(p, globalAllow));
+  if (icons && !s) sub.append(icons);
   col.append(head, sub);
   if (pairCmd) col.append(pairCmd);
   // Negative actions (Reject, Cancel pairing request) on the left, the main action on the right.
@@ -328,6 +331,14 @@ function peerRow(env: UiEnv, p: PeerView, redraw: Redraw, globalAllow = true, se
   const more = menuFor(env, p, redraw, globalAllow);
   if (more) row.append(more);
   if (wide) row.append(h("div", { class: "pair-acts" }, ...main.map((a) => actionButton(env, a, p, redraw))));
+  // a paired device: a tap on its card (not on a button, the menu, or a command) opens Send with only it selected
+  if (toSend && p.paired) {
+    row.classList.add("tosend");
+    row.addEventListener("click", (ev: Event) => {
+      if ((ev.target as Element | null)?.closest("button, a, input, code, .more")) return;
+      toSend(p.id);
+    });
+  }
   return row;
 }
 
