@@ -1,5 +1,5 @@
 /* Firefox tokens (copied to the build as tokens.css; style.css uses them).
-   Firefox neutrals and Acorn radii, so the popup sits in the panel without a seam. */
+   Firefox neutrals, so the popup sits in the panel without a seam. */
 :root {
   --bg: #F0F0F4; --card: #FFFFFF; --s1: #F0F0F4; --s2: #E6E6EB; --s3: #D7D7DF;
   --ink: #15141A; --ink2: #4A4A55; --line: #CAD2DB; --ctl: #747775;
@@ -13,7 +13,7 @@
   --plate: #EEF3FA; --fpcell: #FFFFFF; --signin: #EEF3FA;
   --halo: #D9E5F4; --ring: #738399; --tile-edge: transparent;
   --g-bg: #FFFFFF; --g-line: #747775; --g-ink: #1F1F1F; --a-bg: #000000; --a-ink: #FFFFFF;
-  --rb: 4px; --rc: 8px; --rf: 4px; --ra: 6px; --rp: 8px; --rcell: 4px; --rl: 8px;
+  --rb: 999px; --rc: 12px; --rf: 8px; --ra: 8px; --rp: 16px; --rcell: 10px; --rl: 28px;
   color-scheme: light dark;
 }
 /* Dark: true black page. Follows the system unless the Theme setting says Light;
