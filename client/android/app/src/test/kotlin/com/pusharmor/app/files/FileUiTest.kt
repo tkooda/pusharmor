@@ -45,9 +45,13 @@ class FileUiTest {
     }
 
     @Test fun storageChoicesFitTheDevice() {
-        assertEquals(listOf("100 MB", "500 MB", "1 GB", "5 GB"), FileUi.storageOptions(64_000_000_000).map(FileUi::storageLabel))
+        assertEquals(listOf("100 MB", "500 MB", "1 GB", "5 GB", "10 GB"), FileUi.storageOptions(64_000_000_000).map(FileUi::storageLabel))
+        assertEquals(listOf(100 * mb, 500 * mb, 1000 * mb, 5000 * mb), FileUi.storageOptions(8_000_000_000))
+        assertEquals(10_000_000_000L, FileUi.storageLimit(10_000_000_000L, 64_000_000_000))
+        // a saved choice is kept as it is
+        assertEquals(500 * mb, FileUi.storageLimit(500 * mb, 64_000_000_000))
         assertEquals(listOf(100 * mb, 500 * mb, 1000 * mb), FileUi.storageOptions(4_000_000_000))
-        assertEquals(500 * mb, FileUi.storageLimit(null, 64_000_000_000))
+        assertEquals(1000 * mb, FileUi.storageLimit(null, 64_000_000_000))
         // an unsupported choice falls back to the largest that fits
         assertEquals(1000 * mb, FileUi.storageLimit(5000 * mb, 4_000_000_000))
         assertEquals(100 * mb, FileUi.storageLimit(null, 200 * mb))

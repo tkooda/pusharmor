@@ -81,15 +81,15 @@ object FileUi {
 
     // ---- storage limit ----
 
-    val STORAGE_SIZES = longArrayOf(100_000_000, 500_000_000, 1_000_000_000, 5_000_000_000)
-    const val DEFAULT_STORAGE = 500_000_000L
+    val STORAGE_SIZES = longArrayOf(100_000_000L, 500_000_000L, 1_000_000_000L, 5_000_000_000L, 10_000_000_000L)
+    const val DEFAULT_STORAGE = 1_000_000_000L
 
     fun storageLabel(bytes: Long): String = if (bytes >= 1_000_000_000) "${bytes / 1_000_000_000} GB" else "${bytes / 1_000_000} MB"
 
     /** Choices that fit the device's storage ([total] bytes); the smallest always shows. */
     fun storageOptions(total: Long): List<Long> = STORAGE_SIZES.filter { it <= total }.ifEmpty { listOf(STORAGE_SIZES[0]) }
 
-    /** The limit in force: the saved choice (default 500 MB), else the largest choice that fits. */
+    /** The limit in force: the saved choice (default 1 GB), else the largest choice that fits. */
     fun storageLimit(saved: Long?, total: Long): Long {
         val o = storageOptions(total)
         val s = saved ?: DEFAULT_STORAGE
