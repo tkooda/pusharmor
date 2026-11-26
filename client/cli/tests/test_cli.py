@@ -769,9 +769,9 @@ def test_rejected_device_is_listed_as_rejected_until_it_asks_again_or_pair_id_ru
     assert run(b, "devices") == 0
     out = capsys.readouterr().out
     row = [l for l in out.splitlines() if pa.device_id(ida) in l]
-    assert len(row) == 1 and row[0].endswith("  rejected") and "this device" in out
+    assert len(row) == 1 and "  rejected  " in row[0] and "this device" in out
     assert out.index("this device") < out.index(row[0])
-    assert "To pair with a device: pusharmor pair ID" in out
+    assert "pusharmor pair" not in out
     assert "No other devices yet" not in out
     assert run(b, "devices") == 0
     assert "  rejected" in capsys.readouterr().out
@@ -795,7 +795,7 @@ def test_incoming_request_shows_a_rejected_device_again(net, tmp_path, monkeypat
     capsys.readouterr()
     assert run(b, "devices") == 0
     out = capsys.readouterr().out
-    assert any(pa.device_id(ida) in l and l.endswith("  rejected") for l in out.splitlines())
+    assert any(pa.device_id(ida) in l and "  rejected  " in l for l in out.splitlines())
     pa.on_commit(cx, ida, b"d" * 32, "yes")
     assert state(b)["peers"][ida]["ruling"] == "none"
     capsys.readouterr()
@@ -964,6 +964,32 @@ def test_pair_timeouts_quote_the_device_name(net, tmp_path, monkeypatch, capsys)
     assert 'info: Waiting for "bee". Open PushArmor on it to continue pairing. Press Ctrl+C to stop.\n' in err
 
 
+def test_device_list_columns(net, tmp_path, monkeypatch, capsys):
+    a, b = tmp_path / "a", tmp_path / "b"
+    ida, idb = login(monkeypatch, a), login(monkeypatch, b)
+    with pa.Store(a).state() as d:
+        d["name"] = "Desk|top"
+    capsys.readouterr()
+    assert run(a, "devices") == 0
+    rows = capsys.readouterr().out.splitlines()
+    assert rows[0].split() == ["ID", "ADDED", "PLATFORM", "STATUS", "NAME"]
+    today = time.strftime("%Y-%m-%d")
+    assert rows[1].split() == [pa.device_id(ida), today, "CLI", "this", "device", "Desk?top"]
+    assert rows[2].split() == [pa.device_id(idb), today, "CLI", "not", "paired", "{UNKNOWN}"]
+    assert rows[0].index("NAME") == rows[1].index("Desk?top") == rows[2].index("{UNKNOWN}")
+    assert len(rows) == 3
+
+
+def test_peer_status_words():
+    p = pa.new_peer({"sign_pub": "", "enc_pub": ""})
+    e = pa.new_entry("N", "shown", b"", b"")
+    e["fingerprint"] = "YSWH"
+    assert pa.peer_status(p, e) == "compare code: YSWH"
+    p.update(pinned=True, ruling="approved")
+    assert pa.peer_status(p, None) == "awaiting confirmation"
+    assert [pa.platform_label(k) for k in ("ios", "cli")] == ["iOS", "CLI"]
+
+
 def test_device_list_shows_a_device_that_wants_to_pair(net, tmp_path, monkeypatch, capsys):
     a, b = tmp_path / "a", tmp_path / "b"
     ida, idb = login(monkeypatch, a), login(monkeypatch, b)
@@ -973,7 +999,7 @@ def test_device_list_shows_a_device_that_wants_to_pair(net, tmp_path, monkeypatc
     for cmd in ("devices",):
         assert run(b, cmd) == 0
         row = [x for x in capsys.readouterr().out.splitlines() if x.startswith(pa.device_id(ida))]
-        assert len(row) == 1 and row[0].endswith("  wants to pair"), row
+        assert len(row) == 1 and "  wants to pair  {UNKNOWN}" in row[0], row
 
 
 def test_another_device_that_wants_to_pair_is_shown_once(net, tmp_path, monkeypatch, capsys):
@@ -1759,7 +1785,8 @@ def test_odd_peer_list_from_the_relay_server(allow, net, tmp_path, monkeypatch, 
     net.hooks[("GET", "peers")] = lambda *a: (200, {}, body)
     capsys.readouterr()
     assert run(tmp_path, "devices") == 0
-    assert "iPhone device added Jan 1" in capsys.readouterr().out
+    row = capsys.readouterr().out.splitlines()[2]
+    assert row.split()[1:4] + row.split()[-1:] == [pa.local_date(0), "iOS", "not", "{UNKNOWN}"]
     assert pa.gmtime(-10 ** 18).tm_year == 1970
 
 

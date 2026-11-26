@@ -1157,8 +1157,7 @@ LISTEN_TIMEOUT_S = 120  # ntfy sends a keepalive every 45 s
 WAIT_TIMEOUT_S = 60  # login and pair: above the 45 s keepalive, so an idle read is not cut short
 LISTEN_REPORT_S = 86400
 FETCH_GAP_S = 60
-PLATFORMS = {"android": "Android", "ios": "iPhone", "chrome": "Chrome", "firefox": "Firefox", "cli": "Command line"}
-MONTHS = "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split()
+PLATFORMS = {"android": "Android", "ios": "iOS", "chrome": "Chrome", "firefox": "Firefox", "cli": "CLI"}
 REC_KEYS = ("from", "name", "platform", "type", "body", "date", "file")
 NOT_LOGGED_IN = "This device is not logged in. Run: `pusharmor login`"
 LOGGED_OUT = "This device is logged out. Log in to resume."
@@ -1583,7 +1582,7 @@ def _loopback(url):
 
 STATE_LISTS = (("my_allow", str), ("listed", str), ("pair_auto", int))
 STATE_OPTIONAL = (("reg", str), ("name", str), ("ntfy", str), ("topic", str), ("since", str), ("listen_at", int),
-                  ("push_ok", bool), ("logout_pending", bool))
+                  ("push_ok", bool), ("logout_pending", bool), ("created", int))
 
 
 def check_shape(d, path):
@@ -2037,13 +2036,23 @@ def gmtime(t):
         return time.gmtime(0)
 
 
+UNKNOWN_NAME = "{UNKNOWN}"  # the name of a device that has not sent its name to this device
+
+
 def peer_label(p):
     if not p:
         return "A device"
     if p["name"]:
         return name_display(p["name"])
-    t = gmtime(p["created"])
-    return "%s device added %s %d" % (platform_label(p["platform"]), MONTHS[t.tm_mon - 1], t.tm_mday)
+    return UNKNOWN_NAME
+
+
+def local_date(t):
+    """Seconds -> "YYYY-MM-DD" in this device's time zone; a time out of range reads as 1970."""
+    try:
+        return time.strftime("%Y-%m-%d", time.localtime(t))
+    except (OverflowError, OSError, ValueError):
+        return time.strftime("%Y-%m-%d", time.localtime(0))
 
 
 def default_name():
@@ -2128,6 +2137,8 @@ def merge_peers(d, j, k):
             open_fetched_remove(d, k, b, m)
     seen = []
     for it in j.get("peers", []) if isinstance(j.get("peers"), list) else []:
+        if isinstance(it, dict) and it.get("id") == me and type(it.get("created")) is int:
+            d["created"] = it["created"]
         if not isinstance(it, dict) or it.get("id") == me:
             continue
         pid = it.get("id")
@@ -3339,9 +3350,9 @@ def peer_status(p, e):
     if p["pinned"] and p["ruling"] == "approved" and p["approves_me"]:
         return "paired" + (", logged out" if p["logged_out"] else ", not listening" if not p["listening"] else "")
     if e and e["state"] == "shown" and not e["approved"]:
-        return "compare code " + e["fingerprint"]
+        return "compare code: " + e["fingerprint"]
     if p["pinned"] and p["ruling"] == "approved":
-        return "waiting for it to confirm"
+        return "awaiting confirmation"
     if e:
         return "wants to pair" if e["role"] == "X" else "pairing"  # X: the other device started it
     return "not paired"
@@ -3387,21 +3398,21 @@ def pair_list(cx):
     resend_waiting(cx)
     drain_cache(cx)
     with cx.store.state(write=False) as d:
-        rows = [("ID", "NAME", "DEVICE", "STATUS"), (device_id(cx.me), d["name"], "Command line", "this device")]
+        rows = [("ID", "ADDED", "PLATFORM", "STATUS", "NAME"),
+                (device_id(cx.me), local_date(d.get("created", 0)), platform_label("cli"), "this device",
+                 name_display(d["name"]))]
         rejected = []
         for pid, p in sorted(d["peers"].items(), key=lambda kv: kv[1]["created"]):
+            row = (device_id(pid), local_date(p["created"]), platform_label(p["platform"]))
             if p["ruling"] == "denied" and pid not in d["pairs"]:
                 # rejected: listed last until it asks again or pair ID is run
-                rejected.append((device_id(pid), peer_label(p), platform_label(p["platform"]), "rejected"))
+                rejected.append(row + ("rejected", peer_label(p)))
                 continue
-            rows.append((device_id(pid), peer_label(p), platform_label(p["platform"]),
-                         peer_status(p, d["pairs"].get(pid))))
+            rows.append(row + (peer_status(p, d["pairs"].get(pid)), peer_label(p)))
         rows += rejected
-    w = [max(len(r[i]) for r in rows) for i in range(3)]
+    w = [max(len(r[i]) for r in rows) for i in range(4)]
     for r in rows:
-        print("  ".join(c.ljust(w[i]) for i, c in enumerate(r[:3])) + "  " + r[3])
-    if len(rows) > 2:
-        print("\nTo pair with a device: pusharmor pair ID")
+        print("  ".join(c.ljust(w[i]) for i, c in enumerate(r[:4])) + "  " + r[4])
     return EXIT_OK
 
 
