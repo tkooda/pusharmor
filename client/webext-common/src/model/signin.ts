@@ -1,6 +1,8 @@
 // Sign-in tab: saved progress (storage.session, key SIGNIN_PROGRESS) and the
 // Turnstile frame height. Never holds the code or the Turnstile token.
 import { R, T, actionLine } from "../core/texts.ts";
+import { normalizeEmail } from "../crypto/labels.ts";
+import { sha256 } from "../crypto/hash.ts";
 export const SIGNIN_PROGRESS = "signin_progress";
 /** Restore step 2 only while the code still works: Worker REQUEST_TOKEN_LIFE_S 900 s less 60 s. */
 export const RESTORE_MS = 14 * 60_000;
@@ -118,6 +120,20 @@ export function readAuthResult(v: unknown, now: number): AuthResult | null {
   if (typeof r.ticket === "string") out.ticket = r.ticket;
   if (typeof r.error === "string") out.error = r.error;
   return out;
+}
+
+/** SHA-256 hex of the two TOTP login addresses, normalized as the relay server does; the same values as the relay server's list. */
+export const TOTP_LOGIN_HASHES: ReadonlySet<string> = new Set([
+  "0cb0ee6c640e13641d605d3fd417c1e412e707676424a34a92bef701c855c7c4",
+  "34a7fa4e54529533ee628eb78cee8b7322eda149625c442bf1b33f13e55f3120",
+]);
+
+/** False for a TOTP login address: the relay server skips the security check for it. */
+export async function needsSecurityCheck(email: string, hashes: ReadonlySet<string> = TOTP_LOGIN_HASHES): Promise<boolean> {
+  const n = normalizeEmail(email);
+  if (n === null) return true;
+  const d = await sha256(new TextEncoder().encode(n));
+  return !hashes.has(Array.from(d, (x) => x.toString(16).padStart(2, "0")).join(""));
 }
 
 /** The check before a code is sent: "" when the address is usable, else the two-line help text. */

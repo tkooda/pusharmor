@@ -4,7 +4,7 @@ import type { LoginResult, Purpose } from "../core/login.ts";
 import type { StateView } from "../core/rpc.ts";
 import { R, T, actionLine } from "../core/texts.ts";
 import { type UiEnv, add, busyBar, clear, failView, group, h, platformLabel, rpc } from "./dom.ts";
-import { AUTH_CHANGED, AUTH_RESULT, clampFrameHeight, emailProblem, readAuthResult, type Restore, autoVerifyCode, formatWait, resendLeftMs, sendLeftMs } from "../model/signin.ts";
+import { AUTH_CHANGED, AUTH_RESULT, clampFrameHeight, emailProblem, needsSecurityCheck, readAuthResult, type Restore, autoVerifyCode, formatWait, resendLeftMs, sendLeftMs } from "../model/signin.ts";
 import { toast } from "./dialog.ts";
 import { STEP } from "../model/busy.ts";
 import { appleLogo, googleLogo, icon, platformIcon } from "./icons.ts";
@@ -225,7 +225,9 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
       email.focus();
       return;
     }
-    if (!token || tokenUsed) {
+    // The two TOTP login addresses skip the security check: the relay server does not ask for it.
+    const check = await needsSecurityCheck(v);
+    if (check && (!token || tokenUsed)) {
       // wait for the security check (it may still be loading), with the button saying so
       loadFrame();
       sending = true;
@@ -249,13 +251,15 @@ async function loginView(env: UiEnv, root: HTMLElement, forced: string | null, s
     sendBtn.textContent = "Sending...";
     sendBar.start(STEP.sendingCode);
     try {
-      await rpc(env, "emailStart", { email: v, turnstile: token, purpose });
-      tokenUsed = true;
+      await rpc(env, "emailStart", { email: v, turnstile: check ? token : "", purpose });
+      if (check) tokenUsed = true;
       showCode(v, Date.now(), false);
     } catch (e) {
-      tokenUsed = true; // a token is single use: the next try needs a fresh check
       setHelp(sendHelp, (e as Error).message, true);
-      freshFrame();
+      if (check) {
+        tokenUsed = true; // a token is single use: the next try needs a fresh check
+        freshFrame();
+      }
     } finally {
       sendBar.stop();
       sending = false;

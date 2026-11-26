@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { AUTH_RESULT_MS, RESEND_MS, RESTORE_MS, clampFrameHeight, formatWait, readAuthResult, readProgress, resendLeftMs, restoreStep, sendLeftMs } from "../src/model/signin.ts";
+import { AUTH_RESULT_MS, RESEND_MS, RESTORE_MS, clampFrameHeight, formatWait, needsSecurityCheck, readAuthResult, readProgress, resendLeftMs, restoreStep, sendLeftMs } from "../src/model/signin.ts";
 
 const T0 = 1_800_000_000_000;
 const code = (o: Record<string, unknown> = {}) => ({ v: 1, step: "code", email: "sam@example.com", purpose: "register", sentAt: T0, ...o });
@@ -102,4 +102,12 @@ test("a code is checked on its own only once: the same rejected code is not sent
   assert.equal(autoVerifyCode("ABC123", "ABC123"), null); // typed a 7th character, then deleted it
   assert.equal(autoVerifyCode("ABC1234", "ABC123"), null);
   assert.equal(autoVerifyCode("ABC124", "ABC123"), "ABC124"); // a changed code is checked
+});
+
+test("sign-in: a TOTP login address skips the security check; any other address gets it", async () => {
+  const fake = new Set(["57a72913d39ff4c5b84e2dee71d61484737975c6308199293aa6a16666b411dd"]); // fake.login@example.com
+  assert.equal(await needsSecurityCheck("fake.login@example.com", fake), false);
+  assert.equal(await needsSecurityCheck(" \tFake.Login@Example.COM\n", fake), false);
+  assert.equal(await needsSecurityCheck("other@example.com", fake), true);
+  assert.equal(await needsSecurityCheck("fake.login@example.com"), true);
 });
