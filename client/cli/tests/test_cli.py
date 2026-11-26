@@ -2696,7 +2696,7 @@ def test_user_visible_text_says_url_not_link():
     src = open(pa.__file__, encoding="utf-8").read()
     for text in ("Open this URL in a browser and log in:", "Open the URL to get a new code:",
                  "Send a URL or text to your paired devices", "not as a URL or phone number",
-                 "send URLs and text to your own"):
+                 "send URLs, text, and small files to your own"):
         assert text in src
     assert "Open this link" not in src and "Open the link" not in src
 

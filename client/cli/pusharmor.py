@@ -3765,7 +3765,7 @@ class Parser(argparse.ArgumentParser):
 
 
 def build_parser():
-    p = Parser(prog="pusharmor", description="PushArmor: send URLs and text to your own "
+    p = Parser(prog="pusharmor", description="PushArmor: send URLs, text, and small files to your own "
                                 "devices, end-to-end encrypted. See https://pusharmor.com",
                                 epilog="exit codes:\n" + "\n".join("  %-3d %s" % c for c in EXIT_CODES),
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
