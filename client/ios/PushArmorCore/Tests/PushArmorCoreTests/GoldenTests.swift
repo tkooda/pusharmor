@@ -85,6 +85,14 @@ final class GoldenTests: XCTestCase {
         }
     }
 
+    func testDeviceId() {
+        let cs = cases("device_id")
+        XCTAssertFalse(cs.isEmpty)
+        for c in cs {
+            XCTAssertEqual(Ids.deviceId(b(c["id"])), str(c["device_id"]), str(c["name"]))
+        }
+    }
+
     func testOAuthNonce() {
         for c in cases("oauth_nonce") {
             let sp = b(c["sign_pub"])

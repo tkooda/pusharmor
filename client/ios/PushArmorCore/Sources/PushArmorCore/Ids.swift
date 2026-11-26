@@ -45,6 +45,17 @@ public enum Ids {
         Bytes.sha256(Bytes.ascii("PA-ID1\n"), signPub, encPub).prefix(12)
     }
 
+    /// Device ID shown to users: id bytes 9..14 (first 5 keyhash bytes) as a big-endian
+    /// unsigned integer mod 1e9, zero-padded to 9 digits, as "NNN-NNN-NNN".
+    public static func deviceId(_ idRaw: Data) -> String {
+        let b = [UInt8](idRaw)
+        var v: UInt64 = 0
+        for i in 9 ..< 14 { v = v << 8 | UInt64(b[i]) }
+        let s = String(format: "%09llu", v % 1_000_000_000)
+        let c = Array(s)
+        return String(c[0 ..< 3]) + "-" + String(c[3 ..< 6]) + "-" + String(c[6 ..< 9])
+    }
+
     /// Unsigned lexicographic compare of raw bytes; true if a < b.
     public static func idLess(_ a: Data, _ b: Data) -> Bool {
         let x = [UInt8](a), y = [UInt8](b)
