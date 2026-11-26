@@ -27,9 +27,16 @@ class RejectedDevicesTest {
         assertEquals(emptyList<String>(), devicesRejected(all, setOf("b")).map { it.id })
     }
 
-    @Test fun pairedRowStaysAfterReject() {
+    /** A pinned row this device rejected (Codes differ, or Reject on a row that asked to pair again) lists under Rejected devices. */
+    @Test fun pinnedRowRejectedHereListsUnderRejected() {
         val p = paired.copy(deniedByMe = true)
-        assertEquals(listOf("c"), devicesShown(listOf(p), emptySet()).map { it.id })
+        assertEquals(emptyList<String>(), devicesShown(listOf(p), emptySet()).map { it.id })
+        assertEquals(listOf("c"), devicesRejected(listOf(p), emptySet()).map { it.id })
+        // not paired for the name ID rule either, and not among the devices other names must differ from
+        assertEquals(false, pairedForName(p))
+        assertEquals(emptyList<String>(), listedPeers(listOf(p), "self", emptySet()).map { it.id })
+        // a new pairing shows it in the list again
+        assertEquals(listOf("c"), devicesShown(listOf(p), setOf("c")).map { it.id })
     }
 
     @Test fun halfDoneRowsWaitToPair() {

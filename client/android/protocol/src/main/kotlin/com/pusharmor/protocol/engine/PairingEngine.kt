@@ -434,12 +434,13 @@ class PairingEngine(
     }
 
     /**
-     * [Pair] on a row that asked to pair again (still in the half state) or that the other device rejected: the
-     * Cancel pairing path, then [afterCancel] (the allow reconcile, run to the end), then the Pair path.
+     * [Pair] on a row that asked to pair again (still in the half state), that the other device rejected, or that
+     * this device rejected while it was pinned: the Cancel pairing path, then [afterCancel] (the allow reconcile, run
+     * to the end), then the Pair path.
      */
     fun pairAgain(peerId: String, now: Long, afterCancel: () -> Unit): PairStart {
         val p = store.peer(peerId) ?: return PairStart.NO_DEVICE
-        if (!p.offersPairAgain && !p.rejectsMe) return refusal(p) ?: PairStart.PAIRED
+        if (!p.offersPairAgain && !p.rejectsMe && !(p.pinned && p.deniedByMe)) return refusal(p) ?: PairStart.PAIRED
         cancelPairing(peerId)
         afterCancel()
         return tapPair(peerId, now)

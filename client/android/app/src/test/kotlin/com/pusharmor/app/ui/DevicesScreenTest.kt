@@ -111,4 +111,58 @@ class DevicesScreenTest {
         assertTrue("${added.fontSize} ${id.fontSize}", added.fontSize.value < id.fontSize.value)
         assertEquals(com.pusharmor.app.ui.theme.LightColors.onSurfaceVariant, added.color)
     }
+
+    /** A pinned device this device rejected lists under Rejected devices, not Paired devices; Pair there drops the old pin. */
+    @Test fun pinnedRejectedDeviceListsUnderRejectedAndPairWorks() {
+        val app = ApplicationProvider.getApplicationContext<PaApp>()
+        (app as TestApp).fakeHttp = okhttp3.Interceptor { chain ->
+            okhttp3.Response.Builder().request(chain.request()).protocol(okhttp3.Protocol.HTTP_1_1).code(500).message("x")
+                .body(okhttp3.ResponseBody.Companion.run { "{}".toResponseBody(null) }).build()
+        }
+        com.pusharmor.app.FakeAndroidKeyStore.install()
+        try {
+            val t = Thread {
+                app.graph.keysOrNull = com.pusharmor.app.keys.KeystoreKeyOps.createFresh()
+                app.graph.dao.putSelf(SelfEntity(id = "s".repeat(40), accountPrefix = ByteArray(9), name = "Pixel 9", email = "someone@example.com"))
+                app.graph.dao.putPeer(PeerEntity(
+                    id = "r".repeat(40), platform = "android", created = 0, listSignPub = null, listEncPub = null,
+                    signPub = "B".repeat(87), encPub = "C".repeat(87), pairingId = ByteArray(16), approved = false, deniedByMe = true,
+                    approveVerified = false, listApprovesMe = false, listDeniesMe = false, listAfterVerify = false, declined = false,
+                    reachable = true, loggedOut = false, logoutN = 0, hidden = false, name = "Rejected tablet", nameN = 1, removed = false, missing = false,
+                    lastN = 0, channelId = null, storedApprove = null, storedApproveName = null, lastApproveResult = null, lastSendAt = 0, note = null,
+                ))
+            }
+            t.start(); t.join()
+            val vm = AppViewModel(app)
+            while (vm.peers.value.isEmpty() || vm.self.value == null) { Thread.sleep(20); idle() }
+            UiHostActivity.content = { PeersScreen(vm) }
+            val c = Robolectric.buildActivity(UiHostActivity::class.java).setup()
+            idle()
+            var v = c.get().window.decorView
+            for (i in 0 until 100) { if (nodes(v).any { text(it) == "Rejected devices (1)" }) break; Thread.sleep(50); idle() }
+            val texts = nodes(v).map { text(it) }
+            assertTrue(texts.toString(), "Rejected devices (1)" in texts && "Paired devices" !in texts && "Rejected tablet" !in texts)
+            fun click(t: String) {
+                var n: SemanticsNode? = nodes(v).first { text(it) == t }
+                while (n != null && n.config.getOrNull(SemanticsActions.OnClick) == null) n = n.parent
+                n!!.config[SemanticsActions.OnClick].action!!.invoke()
+                androidx.compose.runtime.snapshots.Snapshot.sendApplyNotifications(); idle()
+            }
+            click("Rejected devices (1)")
+            // Composed again from saved state, so the opened section shows without waiting for a frame, whatever test ran before.
+            c.recreate(); idle()
+            v = c.get().window.decorView
+            for (i in 0 until 100) { if (nodes(v).any { text(it) == "Pair" }) break; Thread.sleep(50); idle() }
+            assertTrue(nodes(v).any { text(it) == "Rejected tablet" })
+            click("Pair")
+            // Pair takes the pairing-again path: the old pin goes first, then a new pairing starts
+            var pinned = true
+            for (i in 0 until 200) { pinned = vm.peers.value.firstOrNull { it.id == "r".repeat(40) }?.pinned != false; if (!pinned) break; Thread.sleep(50); idle() }
+            assertTrue(!pinned)
+            // the Pair call ends within the test, so nothing of it runs on into the next test
+            for (i in 0 until 200) { if (vm.pairingAgain.value.isEmpty()) break; Thread.sleep(50); idle() }
+            assertTrue(vm.pairingAgain.value.isEmpty())
+            c.pause().stop().destroy()
+        } finally { app.fakeHttp = null; com.pusharmor.app.FakeAndroidKeyStore.remove() }
+    }
 }

@@ -197,8 +197,11 @@ internal fun label(p: Peer) = UiText.peerLabel(p.name, p.platform)
 /** Peers other than self; none until self is known, so the own device never shows as a peer. */
 internal fun others(peers: List<Peer>, selfId: String?): List<Peer> = if (selfId == null) emptyList() else peers.filter { it.id != selfId }
 
-/** A not-yet-paired device this device rejected, with no pairing open: gone from the list until a new pairing starts. */
-internal fun rejectedHidden(p: Peer, pairing: Set<String>): Boolean = p.deniedByMe && !p.pinned && !p.removed && p.id !in pairing
+/**
+ * A device this device rejected, with no pairing open (also one that was pinned, as after Codes differ or Reject on a
+ * row that asked to pair again): gone from the list, in the Rejected devices section, until a new pairing starts.
+ */
+internal fun rejectedHidden(p: Peer, pairing: Set<String>): Boolean = p.deniedByMe && !p.removed && p.id !in pairing
 
 /** The Devices list: a removed device only while it is still pinned or pairing, and no rejected device. */
 internal fun devicesShown(others: List<Peer>, pairing: Set<String>): List<Peer> =
@@ -778,11 +781,13 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
         }
         when {
             // Reject and Pair share the row width, in the larger label size iOS uses.
-            !p.pinned -> Row(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            !p.pinned || rejected -> Row(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 // A rejected device (Rejected devices section) offers only Pair.
                 if (!rejected) OutlinedButton(onClick = { vm.deny(p.id) }, Modifier.weight(1f).heightIn(min = 48.dp), enabled = "deny:${p.id}" !in running, colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
                     border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error)) { Text("Reject", style = WIDE_BUTTON_TEXT) }
-                TonalGreenButton(onClick = { vm.pair(p.id) }, text = "Pair", modifier = Modifier.weight(1f), enabled = "pair:${p.id}" !in running, style = WIDE_BUTTON_TEXT)
+                // A rejected device that was pinned drops its old pin first, then starts a new pairing.
+                if (p.pinned) TonalGreenButton(onClick = { vm.pairAgain(p.id) }, text = "Pair", modifier = Modifier.weight(1f), enabled = p.id !in pairingAgain, style = WIDE_BUTTON_TEXT)
+                else TonalGreenButton(onClick = { vm.pair(p.id) }, text = "Pair", modifier = Modifier.weight(1f), enabled = "pair:${p.id}" !in running, style = WIDE_BUTTON_TEXT)
             }
             // Asked to pair again, or rejected this device: Reject cancels the old pairing and rejects; Pair cancels it and starts a new one.
             p.offersPairAgain || p.rejectsMe -> Row(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {

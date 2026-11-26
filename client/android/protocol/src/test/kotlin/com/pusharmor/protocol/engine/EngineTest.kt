@@ -744,6 +744,20 @@ class EngineTest {
         assertFalse(n.effects.log.contains("couldNotRead"))
     }
 
+    /** Pair on a row this device rejected while it was pinned (Rejected devices section) drops the old pin and starts a fresh pairing. */
+    @Test fun pairOnPinnedRowThisDeviceRejectedStartsFreshPairing() {
+        pairShown()
+        n.approve.deny(x.id) // Codes differ
+        val p0 = n.store.peer(x.id)!!
+        assertTrue(p0.pinned && p0.deniedByMe)
+        assertNull(n.store.pairing(x.id))
+        assertEquals(PairStart.STARTED, n.pairing.pairAgain(x.id, t0 + 1000) { n.reconcile.run() })
+        val p = n.store.peer(x.id)!!
+        assertFalse(p.pinned) // old pin dropped
+        assertFalse(p.deniedByMe) // the rejection ends
+        assertEquals(PairState.COMMITTED, n.store.pairing(x.id)!!.state)
+    }
+
     @Test fun pairOnRowTheOtherDeviceRejectedStartsFreshPairing() {
         pairShown()
         n.approve.approve(x.id) // N waiting
