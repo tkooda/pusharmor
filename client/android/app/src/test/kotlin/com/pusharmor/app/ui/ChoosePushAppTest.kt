@@ -52,6 +52,13 @@ class ChoosePushAppTest {
         assertNotNull(vm.prefs.value)
         return vm
     }
+    /** A frame left pending by an earlier test would stop the Push method choice from opening; clear it. */
+    private fun unstickFrames() {
+        val d = androidx.compose.ui.platform.AndroidUiDispatcher.CurrentThread[kotlin.coroutines.ContinuationInterceptor]!!
+        for (n in listOf("scheduledFrameDispatch", "scheduledTrampolineDispatch")) {
+            d.javaClass.getDeclaredField(n).apply { isAccessible = true }.setBoolean(d, false)
+        }
+    }
     private fun roots(v: View): List<ViewRootForTest> = when (v) {
         is ViewRootForTest -> listOf(v)
         is ViewGroup -> (0 until v.childCount).flatMap { roots(v.getChildAt(it)) }
@@ -84,6 +91,7 @@ class ChoosePushAppTest {
         val vm = loaded(AppViewModel(app))
         var chosen = 0
         UiHostActivity.content = { PeersScreen(vm, onChoosePush = { chosen++ }) }
+        unstickFrames()
         val a = Robolectric.buildActivity(UiHostActivity::class.java).setup().get()
         idle()
         val all = nodes(a.window.decorView)
@@ -96,6 +104,7 @@ class ChoosePushAppTest {
         // Settings opens the Push method choice once.
         vm.openPushMethod.value = true
         UiHostActivity.content = { SettingsScreen(vm, onDeleteAccount = {}, onSignedOut = {}) }
+        unstickFrames()
         val s = Robolectric.buildActivity(UiHostActivity::class.java).setup()
         idle()
         assertFalse(vm.openPushMethod.value)
