@@ -573,7 +573,7 @@
         "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa?"
       }
     ],
-    "description": "Device name rule. Allowed: ASCII 32..126 except backtick, backslash, double quote, { } < > | ! $ ; ?; 1..32 characters; no leading \"-\"; no padding. All lengths and positions count Unicode code points (an astral character such as an emoji is one). \"Space cleanup\" means: trim leading and trailing spaces and collapse each run of spaces to one; only the ASCII space 0x20 is a space (tab, newline and U+00A0 are disallowed characters). Three legs, each over its own cases: (1) input_cases: for a typed name (setup and rename) apply space cleanup, then check: error must equal the error (null when accepted) and name must equal the name to save (null on error). Empty after cleanup is \"Name too short\"; any disallowed character (including every non-ASCII character and control character), a leading \"-\", or more than 32 code points is \"Invalid characters\" (the input field stops typing at 32). (2) default_cases: setupDefault(input) must equal name: per code point U+2018 and U+2019 become \"'\", every other disallowed character becomes \"?\"; then space cleanup; then a leading \"-\" becomes \"?\"; then keep at most the first 32 code points and trim a trailing space left by the cut. A system name whose result is empty is not a case: each client then uses its own fallback name. (3) display_cases: display(input) must equal shown: per code point every disallowed character (curly apostrophes too) becomes \"?\"; then space cleanup; then a leading \"-\" becomes \"?\"; an empty result is shown as \"?\". No truncation and no padding. (4) clash_cases: uniqueDefault(base, taken) must equal name. base is a setup default; taken lists the other devices' names. If base equals no taken name ignoring ASCII case, name is base. Else N is the smallest number >= 2 whose result equals no taken name ignoring ASCII case; suffix is \" (N)\"; name is base cut to 32 minus the suffix length code points, trailing spaces trimmed, then the suffix.",
+    "description": "Device name rule. Allowed: ASCII 32..126 except backtick, backslash, double quote, { } < > | ! $ ; ?; 1..32 characters; no leading \"-\"; no padding. All lengths and positions count Unicode code points (an astral character such as an emoji is one). \"Space cleanup\" means: trim leading and trailing spaces and collapse each run of spaces to one; only the ASCII space 0x20 is a space (tab, newline and U+00A0 are disallowed characters). Three legs, each over its own cases: (1) input_cases: for a typed name (setup and rename) apply space cleanup, then check: error must equal the error (null when accepted) and name must equal the name to save (null on error). Empty after cleanup is \"Name too short\"; more than 32 code points is \"Name too long\\nUse 32 characters or fewer\" (two lines; the input field stops typing at 32); else any disallowed character (including every non-ASCII character and control character) or a leading \"-\" is \"Invalid characters\". (2) default_cases: setupDefault(input) must equal name: per code point U+2018 and U+2019 become \"'\", every other disallowed character becomes \"?\"; then space cleanup; then a leading \"-\" becomes \"?\"; then keep at most the first 32 code points and trim a trailing space left by the cut. A system name whose result is empty is not a case: each client then uses its own fallback name. (3) display_cases: display(input) must equal shown: per code point every disallowed character (curly apostrophes too) becomes \"?\"; then space cleanup; then a leading \"-\" becomes \"?\"; an empty result is shown as \"?\". No truncation and no padding. (4) clash_cases: uniqueDefault(base, taken) must equal name. base is a setup default; taken lists the other devices' names. If base equals no taken name ignoring ASCII case, name is base. Else N is the smallest number >= 2 whose result equals no taken name ignoring ASCII case; suffix is \" (N)\"; name is base cut to 32 minus the suffix length code points, trailing spaces trimmed, then the suffix.",
     "display_cases": [
       {
         "input": "Phone",
@@ -877,7 +877,7 @@
         "name": "a b"
       },
       {
-        "error": "Invalid characters",
+        "error": "Name too long\nUse 32 characters or fewer",
         "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa b",
         "name": null
       },
@@ -1127,7 +1127,7 @@
         "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
       },
       {
-        "error": "Invalid characters",
+        "error": "Name too long\nUse 32 characters or fewer",
         "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         "name": null
       },
@@ -1137,7 +1137,7 @@
         "name": null
       },
       {
-        "error": "Invalid characters",
+        "error": "Name too long\nUse 32 characters or fewer",
         "input": "\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9",
         "name": null
       },
@@ -1147,12 +1147,12 @@
         "name": null
       },
       {
-        "error": "Invalid characters",
+        "error": "Name too long\nUse 32 characters or fewer",
         "input": "\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00",
         "name": null
       },
       {
-        "error": "Invalid characters",
+        "error": "Name too long\nUse 32 characters or fewer",
         "input": "-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         "name": null
       },
@@ -1162,7 +1162,7 @@
         "name": null
       },
       {
-        "error": "Invalid characters",
+        "error": "Name too long\nUse 32 characters or fewer",
         "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\ud83d\ude00b",
         "name": null
       },

@@ -15,12 +15,14 @@ const squeeze = (s) => s.replace(/ +/g, ' ').replace(/^ | $/g, '');
 // Typed name (setup and rename): spaces are trimmed and collapsed first; the result
 // is the name to save. Returns { error, name }: error null and the saved name when
 // valid, else the error text and name null. Longer than 32 code points (after the
-// space cleanup) is "Invalid characters" (the input field stops typing at 32).
+// space cleanup) is "Name too long" and "Use 32 characters or fewer" on two lines
+// (the input field stops typing at 32).
 export function checkInput(s) {
   const name = squeeze(s);
   const cps = [...name];
   if (cps.length === 0) return { error: 'Name too short', name: null };
-  if (cps.some((ch) => !allowed(ch)) || cps[0] === '-' || cps.length > 32) return { error: 'Invalid characters', name: null };
+  if (cps.length > 32) return { error: 'Name too long\nUse 32 characters or fewer', name: null };
+  if (cps.some((ch) => !allowed(ch)) || cps[0] === '-') return { error: 'Invalid characters', name: null };
   return { error: null, name };
 }
 

@@ -281,8 +281,9 @@ function deviceNameSection() {
       'ASCII space 0x20 is a space (tab, newline and U+00A0 are disallowed characters). Three legs, each over its own cases: ' +
       '(1) input_cases: for a typed name (setup and rename) apply space cleanup, then check: error must equal the error ' +
       '(null when accepted) and name must equal the name to save (null on error). Empty after cleanup is "Name too short"; ' +
-      'any disallowed character (including every non-ASCII character and control character), a leading "-", or more than ' +
-      '32 code points is "Invalid characters" (the input field stops typing at 32). ' +
+      'more than 32 code points is "Name too long\\nUse 32 characters or fewer" (two lines; the input field stops typing at ' +
+      '32); else any disallowed character (including every non-ASCII character and control character) or a leading "-" ' +
+      'is "Invalid characters". ' +
       '(2) default_cases: setupDefault(input) must equal name: per code point U+2018 and U+2019 become "\'", every other ' +
       'disallowed character becomes "?"; then space cleanup; then a leading "-" becomes "?"; then keep at most the first ' +
       '32 code points and trim a trailing space left by the cut. A system name whose result is empty is not a case: each ' +
