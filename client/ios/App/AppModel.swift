@@ -882,8 +882,11 @@ final class AppModel: ObservableObject {
     /// Devices screen lists shows the same name.
     func label(_ p: Peer) -> String { PeerLabel.label(p, among: DeviceList.visible(peers, withHistory: historyIds)) }
 
-    /// A device's name in History rows: with its ID when another device in History shows the same name.
-    func historyLabel(_ p: Peer) -> String { PeerLabel.label(p, among: peers.filter { historyIds.contains($0.id.text) }) }
+    /// A device's name in History rows: with its ID when another paired device, or another
+    /// device in History, shows the same name (a paired device counts only paired ones).
+    func historyLabel(_ p: Peer) -> String {
+        PeerLabel.label(p, among: peers.filter { historyIds.contains($0.id.text) || PeerLabel.paired($0) })
+    }
 
     func pair(_ p: Peer) async {
         guard let core = core else { return }

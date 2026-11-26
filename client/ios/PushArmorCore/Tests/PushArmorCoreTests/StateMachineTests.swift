@@ -955,35 +955,49 @@ final class StateMachineTests: XCTestCase {
         XCTAssertEqual(DeviceList.rejected([removed, rejected]).map { $0.id.text }, [b.id.text])
     }
 
-    /// Notices and toasts: a same name adds the ID only when another device the Devices screen
-    /// lists shows it (a rejected device, or a removed one with no History rows, does not count).
-    func testShownNameClashOnlyAmongListedDevices() throws {
+    /// Notices and toasts: a paired device takes the ID only from another paired device with
+    /// the same name; a device not paired takes it from a paired or another listed device.
+    func testShownNamePairedNeverTakesIdFromUnpaired() throws {
         let n = try dev("Ndev")
         let s = n.core.store
-        let a = TestPeer(), b = TestPeer(), c = TestPeer()
-        var pa = Peer(id: a.id); pa.name = "Xdev"; pa.state = .approved; try s.savePeer(pa)
-        var pb = Peer(id: b.id); pb.name = "xdev"; pb.state = .removed; try s.savePeer(pb)
+        let a = TestPeer(), b = TestPeer(), c = TestPeer(), d = TestPeer()
+        func pin(_ p: inout Peer) { p.signPub = Data([1]); p.encPub = Data([2]); p.pairingId = Data(count: 8) }
+        var pa = Peer(id: a.id); pa.name = "Xdev"; pa.state = .approved; pin(&pa); try s.savePeer(pa)
+        var pb = Peer(id: b.id); pb.name = "xdev"; pb.state = .removed; pin(&pb); try s.savePeer(pb)
         var pc = Peer(id: c.id); pc.name = "XDEV"; pc.state = .denied; try s.savePeer(pc)
-        XCTAssertEqual(n.core.shownName(pa), "Xdev")
+        XCTAssertEqual(n.core.shownName(pa), "Xdev")                                  // removed, rejected: never
+        XCTAssertEqual(n.core.shownName(pc), "XDEV (" + Ids.deviceId(c.id.raw) + ")")  // rejected vs paired
         try s.addMessage(dir: .incoming, peer: b.id, type: "text", content: "1", n: 1, pairingId: nil, read: false, results: nil, now: 1)
-        XCTAssertEqual(n.core.shownName(pa), "Xdev (" + Ids.deviceId(a.id.raw) + ")")   // the removed one shows now
+        XCTAssertEqual(n.core.shownName(pa), "Xdev")
+        XCTAssertEqual(n.core.shownName(pb), "xdev (" + Ids.deviceId(b.id.raw) + ")")  // removed vs paired
+        var pd = Peer(id: d.id); pd.name = "XDev"; pd.state = .approved; pin(&pd); try s.savePeer(pd)
+        XCTAssertEqual(n.core.shownName(pa), "Xdev (" + Ids.deviceId(a.id.raw) + ")")  // paired vs paired
+        XCTAssertEqual(n.core.shownName(pd), "XDev (" + Ids.deviceId(d.id.raw) + ")")
     }
 
-    /// History filter: a same name adds the ID only when another device in History shows it.
-    func testHistoryFilterClashOnlyAmongHistoryDevices() throws {
+    /// History filter: a paired device takes the ID only from another paired device (in History
+    /// or not); a removed device in History takes it from a paired one.
+    func testHistoryFilterPairedClashOnlyWithPaired() throws {
         let path = NSTemporaryDirectory() + "pa-hc-\(UUID().uuidString).sqlite"
         let s = try Store(path: path)
-        let a = TestPeer(), b = TestPeer(), c = TestPeer()
-        var pa = Peer(id: a.id); pa.name = "Xdev"; try s.savePeer(pa)
-        var pb = Peer(id: b.id); pb.name = "Tablet"; try s.savePeer(pb)
-        var pc = Peer(id: c.id); pc.name = "xdev"; try s.savePeer(pc)
+        let a = TestPeer(), b = TestPeer(), c = TestPeer(), d = TestPeer()
+        func pin(_ p: inout Peer) { p.signPub = Data([1]); p.encPub = Data([2]); p.pairingId = Data(count: 8) }
+        func labels() throws -> [String: String] {
+            var out: [String: String] = [:]
+            for case let .peer(id, l) in HistoryFilter.options(rows: try s.history(), peers: try s.peers()) { out[id] = l }
+            return out
+        }
+        var pa = Peer(id: a.id); pa.name = "Xdev"; pa.state = .approved; pin(&pa); try s.savePeer(pa)
+        var pb = Peer(id: b.id); pb.name = "Tablet"; pb.state = .approved; pin(&pb); try s.savePeer(pb)
+        var pd = Peer(id: d.id); pd.name = "XDEV"; pd.state = .removed; try s.savePeer(pd)
         try s.addMessage(dir: .incoming, peer: a.id, type: "text", content: "1", n: 1, pairingId: nil, read: false, results: nil, now: 1)
         try s.addMessage(dir: .incoming, peer: b.id, type: "text", content: "2", n: 1, pairingId: nil, read: false, results: nil, now: 2)
-        XCTAssertEqual(HistoryFilter.options(rows: try s.history(), peers: try s.peers()),
-                       [.all, .peer(b.id.text, "Tablet"), .peer(a.id.text, "Xdev")])
-        try s.addMessage(dir: .outgoing, peer: c.id, type: "text", content: "3", n: nil, pairingId: nil, read: true, results: "{}", now: 3)
-        XCTAssertEqual(HistoryFilter.options(rows: try s.history(), peers: try s.peers()),
-                       [.all, .peer(b.id.text, "Tablet"), .peer(a.id.text, "Xdev (" + Ids.deviceId(a.id.raw) + ")")])
+        XCTAssertEqual(try labels(), [a.id.text: "Xdev", b.id.text: "Tablet"])
+        try s.addMessage(dir: .incoming, peer: d.id, type: "text", content: "3", n: 1, pairingId: nil, read: false, results: nil, now: 3)
+        XCTAssertEqual(try labels(), [a.id.text: "Xdev", b.id.text: "Tablet", d.id.text: "XDEV (" + Ids.deviceId(d.id.raw) + ")"])
+        var pc = Peer(id: c.id); pc.name = "xdev"; pc.state = .approved; pin(&pc); try s.savePeer(pc)   // no History rows
+        XCTAssertEqual(try labels(), [a.id.text: "Xdev (" + Ids.deviceId(a.id.raw) + ")", b.id.text: "Tablet",
+                                      d.id.text: "XDEV (" + Ids.deviceId(d.id.raw) + ")"])
     }
 
     func testMessagesMissingWithdrawsThenRetriesOnce() async throws {

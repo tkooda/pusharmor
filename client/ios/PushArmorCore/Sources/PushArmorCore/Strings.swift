@@ -409,14 +409,19 @@ public enum PeerLabel {
     public static func sorted(_ peers: [Peer]) -> [Peer] { sortedByName(peers) { label($0) } }
 
     /// The label in places that show only a name: when another device's shown name is the same
-    /// ignoring ASCII case, its device ID follows, as "Pixel 8 (907-331-064)".
+    /// ignoring ASCII case, its device ID follows, as "Pixel 8 (907-331-064)". A paired device
+    /// counts only other paired devices; a device not paired counts every other device in `peers`.
     public static func label(_ p: Peer?, among peers: [Peer]) -> String {
         guard let p = p else { return S.aPeer }
         let l = label(p)
         let key = DeviceName.fold(l)
-        let clash = peers.contains { $0.id.text != p.id.text && DeviceName.fold(label($0)) == key }
+        let mine = paired(p)
+        let clash = peers.contains { $0.id.text != p.id.text && (!mine || paired($0)) && DeviceName.fold(label($0)) == key }
         return clash ? l + " (" + Ids.deviceId(p.id.raw) + ")" : l
     }
+
+    /// Paired: pinned by a pairing, and not removed or rejected.
+    public static func paired(_ p: Peer) -> Bool { p.pinned && p.state != .removed && p.state != .denied }
 
     /// A shown name cut before a " (NNN-NNN-NNN)" device ID at its end ("" when none), so a
     /// place that shortens the name keeps the ID whole.

@@ -154,6 +154,30 @@ final class InboxTests: XCTestCase {
                        "Name already used by \"Pixel 8\" (" + Ids.deviceId(a.id.raw) + ")\nRemove that device, or rename it on that device")
     }
 
+    /// Device ID suffix: paired vs paired both carry it; paired vs rejected, waiting, or
+    /// removed: only the device not paired carries it; no clash: none.
+    func testPairedNameClash() {
+        func peer(_ b: UInt8, _ name: String, _ state: PeerState, pinned: Bool) -> Peer {
+            var p = Peer(id: PeerId(raw: Data([0x10] + [UInt8](repeating: b, count: 29)))!)
+            p.name = name
+            p.state = state
+            if pinned { p.signPub = Data([1]); p.encPub = Data([2]); p.pairingId = Data(count: 8) }
+            return p
+        }
+        func id(_ p: Peer) -> String { " (" + Ids.deviceId(p.id.raw) + ")" }
+        let a = peer(1, "Pixel 8", .approved, pinned: true), b = peer(2, "pixel 8", .approved, pinned: true)
+        let rej = peer(3, "PIXEL 8", .denied, pinned: false), wait = peer(4, "Pixel 8", .unruled, pinned: false)
+        let gone = peer(5, "Pixel 8", .removed, pinned: true), tab = peer(6, "Tablet", .approved, pinned: true)
+        XCTAssertEqual(PeerLabel.label(a, among: [a, b]), "Pixel 8" + id(a))
+        XCTAssertEqual(PeerLabel.label(b, among: [a, b]), "pixel 8" + id(b))
+        XCTAssertEqual(PeerLabel.label(a, among: [a, rej, wait, gone]), "Pixel 8")
+        XCTAssertEqual(PeerLabel.label(rej, among: [a, rej]), "PIXEL 8" + id(rej))
+        XCTAssertEqual(PeerLabel.label(wait, among: [a, wait]), "Pixel 8" + id(wait))
+        XCTAssertEqual(PeerLabel.label(gone, among: [a, gone]), "Pixel 8" + id(gone))
+        XCTAssertEqual(PeerLabel.label(tab, among: [a, b, rej, tab]), "Tablet")
+        XCTAssertEqual(PeerLabel.label(rej, among: [rej, tab]), "PIXEL 8")
+    }
+
     /// A received name shows with every disallowed character as "?", in lists and notices.
     func testShownNameFiltered() {
         var p = Peer(id: PeerId(raw: Data(repeating: 7, count: 30))!)
