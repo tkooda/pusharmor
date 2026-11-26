@@ -610,26 +610,33 @@ struct PeerRowView: View {
                 Text(removed ? PeerLabel.label(p) + " (removed)" : PeerLabel.label(p))
                     .font(.body)
                     .foregroundColor(greyed ? .secondaryText : .primary)
-                // The status icons sit right of lines 2-3 only; the name keeps its full width.
-                HStack(spacing: 8) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(PeerLabel.platformName(p.platform))
-                            .font(.subheadline)
-                            .foregroundColor(.secondaryText)
-                        Text("ID: " + Ids.deviceId(p.id.raw))
-                            .font(.subheadline)
-                            .foregroundColor(.secondaryText)
-                        if let c = p.created {
-                            Text("Added: " + PeerLabel.addedDate(c))
-                                .font(.subheadline)
-                                .foregroundColor(.secondaryText)
+                Text(PeerLabel.platformName(p.platform))
+                    .font(.subheadline)
+                    .foregroundColor(.secondaryText)
+                Text("ID: " + Ids.deviceId(p.id.raw))
+                    .font(.subheadline)
+                    .foregroundColor(.secondaryText)
+                if let c = p.created {
+                    Text("Added: " + PeerLabel.addedDate(c))
+                        .font(.subheadline)
+                        .foregroundColor(.secondaryText)
+                }
+                // The status icons sit at the right end of the status line; on their own line
+                // under it only when they do not fit there.
+                if icons {
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 8) {
+                            StatusLine(kind: status.kind, text: status.text)
+                            Spacer(minLength: 0)
+                            statusIcons
                         }
-                        StatusLine(kind: status.kind, text: status.text)
+                        VStack(alignment: .leading, spacing: 2) {
+                            StatusLine(kind: status.kind, text: status.text)
+                            statusIcons
+                        }
                     }
-                    if icons {
-                        Spacer(minLength: 0)
-                        statusIcons
-                    }
+                } else {
+                    StatusLine(kind: status.kind, text: status.text)
                 }
             }
             .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
