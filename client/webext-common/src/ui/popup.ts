@@ -1010,12 +1010,13 @@ async function plainOf(env: UiEnv, r: HistRow): Promise<Blob | null> {
 function fileLines(env: UiEnv, r: HistRow, nowMs: number, row: HTMLElement): HTMLElement[] {
   const f = r.file!;
   const nowSec = Math.floor(nowMs / 1000);
-  const out = [h("div", { class: "dim" }, F.detail(r.content, f.size))];
-  if (r.dir === "out" && !r.fs) return [...out, h("div", { class: "dim" }, F.expiresText(f.expires, nowSec))];
+  // size and type and the expiry (class "xd") show only while the row is open
+  const out = [h("div", { class: "dim xd" }, F.detail(r.content, f.size))];
+  if (r.dir === "out" && !r.fs) return [...out, h("div", { class: "dim xd" }, F.expiresText(f.expires, nowSec))];
   const st = F.fileRowStatus(r.fs ?? {}, r.pct !== undefined, r.pct ?? 0, r.here === true, f.expires, nowSec);
   const line = (glyph: IconName, text: string, cls: string) => h("div", { class: "fline " + cls }, icon(glyph, 16), h("span", {}, text));
   const button = (label: string, glyph: IconName, run: () => void, expires: string | null) =>
-    h("div", { class: "fbtn" }, h("button", { type: "button", class: "ac", onclick: run }, icon(glyph, 15), label), expires ? h("span", { class: "dim" }, expires) : null);
+    h("div", { class: "fbtn" }, h("button", { type: "button", class: "ac", onclick: run }, icon(glyph, 15), label), expires ? h("span", { class: "dim xd" }, expires) : null);
   const download = () => void rpc(env, "fileDownload", { id: r.id }).catch((e: unknown) => toast((e as Error).message, "err"));
   switch (st.k) {
     case "pending":
