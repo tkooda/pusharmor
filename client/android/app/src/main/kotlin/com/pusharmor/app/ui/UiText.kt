@@ -322,8 +322,15 @@ object UiText {
 
     private fun cutName(name: String) = if (name.length > SEND_NAME_MAX) name.take(SEND_NAME_MAX - 3).trimEnd() + "..." else name
 
-    /** History title of a sent row (F22): reached its one device reads Sent to "Laptop", cut like the Send button; else "Sent". */
+    /**
+     * History title of a sent row (F22): reached its one device reads Sent to "Laptop", cut like the Send button; a send
+     * to 2 or more devices reads "Sent to 3 devices" when all got it, else "Sent to 2 of 3 devices"; else "Sent".
+     */
     fun sentTitle(results: Map<String, String>, nameOf: (String) -> String): String {
+        if (results.size > 1) {
+            val sent = results.values.count { it == "sent" }
+            return if (sent == results.size) "Sent to ${results.size} devices" else "Sent to $sent of ${results.size} devices"
+        }
         val only = results.entries.singleOrNull()
         return if (only?.value == "sent") "Sent to ${qCut(nameOf(only.key))}" else "Sent"
     }

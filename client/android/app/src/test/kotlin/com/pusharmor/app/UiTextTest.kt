@@ -217,11 +217,18 @@ class UiTextTest {
         assertEquals("Send to \"12345678901234567890\"", UiText.sendLabel(1, "12345678901234567890"))
     }
 
+    @Test fun sentTitleCountsTwoOrMoreRecipients() {
+        val names = mapOf("a" to "Laptop", "b" to "Phone", "c" to "Tablet")
+        assertEquals("Sent to 2 devices", UiText.sentTitle(mapOf("a" to "sent", "b" to "sent"), names::getValue))
+        assertEquals("Sent to 3 devices", UiText.sentTitle(mapOf("a" to "sent", "b" to "sent", "c" to "sent"), names::getValue))
+        assertEquals("Sent to 2 of 3 devices", UiText.sentTitle(mapOf("a" to "sent", "b" to "unreachable", "c" to "sent"), names::getValue))
+        assertEquals("Sent to 1 of 2 devices", UiText.sentTitle(mapOf("a" to "failed:x", "b" to "sent"), names::getValue))
+    }
+
     @Test fun sentTitleNamesTheOneRecipient() {
         val names = mapOf("a" to "Laptop", "b" to "Android device added 2026-10-29")
         assertEquals("Sent to \"Laptop\"", UiText.sentTitle(mapOf("a" to "sent"), names::getValue))
         assertEquals("Sent to \"Android device ad...\"", UiText.sentTitle(mapOf("b" to "sent"), names::getValue))
-        assertEquals("Sent", UiText.sentTitle(mapOf("a" to "sent", "b" to "sent"), names::getValue))
         assertEquals("Sent", UiText.sentTitle(mapOf("a" to "unreachable"), names::getValue))
         assertEquals("Sent", UiText.sentTitle(emptyMap(), names::getValue))
     }
@@ -350,7 +357,9 @@ class UiTextTest {
         assertEquals(null, UiText.nameError("x".repeat(32)))
         assertEquals("Name too short", UiText.nameError(""))
         assertEquals("Invalid characters", UiText.nameError("Caf\u00e9"))
-        assertEquals("Invalid characters", UiText.nameError("x".repeat(33)))
+        assertEquals("Name too long\nUse 32 characters or fewer", UiText.nameError("x".repeat(33)))
+        assertEquals("Name too long\nUse 32 characters or fewer", UiText.nameError("  " + "x".repeat(30) + " !" + "  "))
+        assertEquals(null, UiText.nameError("  " + "x".repeat(32) + "  "))
         assertEquals("Invalid characters", UiText.nameError("My \"phone\""))
         assertEquals("Invalid characters", UiText.nameError("-phone"))
         // Shown names: disallowed characters read as ?, with no padding.
