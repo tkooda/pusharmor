@@ -90,7 +90,7 @@ final class AppModel: ObservableObject {
     @Published var refreshDone = 0
     @Published var highlightPeer: String?
     @Published var showHistory = false
-    /// Peer ids with a Pair again call running; their Pair again buttons are disabled.
+    /// Peer ids with a pairAgain call running; their Pair buttons are disabled.
     @Published var pairAgainBusy: Set<String> = []
     /// Keys of taps still running ("send", "pair:<id>", ...); their buttons are disabled.
     @Published var busy: Set<String> = []
@@ -920,7 +920,8 @@ final class AppModel: ObservableObject {
             if let e = e { toast = ErrorCopy.text(.cancelPairing(label(p)), ErrorCopy.reason(local: e)) }
         }
     }
-    /// Pair again: one run per peer at a time; a failure shows a toast.
+    /// [Pair] on a device that asks to pair again or rejected this device: one run per peer at
+    /// a time; a failure shows a toast.
     func pairAgain(_ p: Peer) async {
         guard let core = core, !pairAgainBusy.contains(p.id.text) else { return }
         pairAgainBusy.insert(p.id.text)
@@ -1021,7 +1022,7 @@ final class AppModel: ObservableObject {
         return false
     }
 
-    /// Pair again replaces Cancel pairing on a half-state row (no Core: not offered).
+    /// Reject and Pair replace Cancel pairing on a half-state row (no Core: not offered).
     func offersPairAgain(_ p: Peer) -> Bool { core?.offersPairAgain(p) ?? false }
 
     var allSet: [Peer] { peers.filter { $0.inAll } }

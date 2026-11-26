@@ -20,4 +20,12 @@ final class PairingCardTests: XCTestCase {
         XCTAssertFalse(block.contains("denyButton(\"Codes differ\")"))
         XCTAssertTrue(src.contains("PeerPendingLines(p: p, showCancel: false, showWaiting: false)"))
     }
+
+    /// No Pair again button: a device that asks again or rejected this one gets Reject and Pair.
+    func testNoPairAgainButton() throws {
+        let src = try peersView()
+        XCTAssertFalse(src.contains("Button(\"Pair again\")"))
+        XCTAssertTrue(src.contains("Button(\"Pair\") { Task { await model.pairAgain(p) } }"))
+        XCTAssertTrue(src.contains("StatusLine(kind: .notPaired, text: Core.pairAgainStatus(p))"))
+    }
 }

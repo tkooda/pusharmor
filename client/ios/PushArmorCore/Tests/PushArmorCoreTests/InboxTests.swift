@@ -111,6 +111,13 @@ final class InboxTests: XCTestCase {
         XCTAssertEqual(s.waiting.map { $0.name }, ["New"])
         XCTAssertEqual(s.pairing.map { $0.name }, ["Asks", "Mid"])
         XCTAssertEqual(s.paired.map { $0.name }, ["Gone", "Paired"])
+        // a paired device that asks again (or rejected this one) moves to Waiting to pair, even
+        // with its pairing still open
+        let t = DeviceList.sections([paired, gone, mid, asks, new], open: [asks.id.text, mid.id.text],
+                                    again: [mid.id.text, paired.id.text])
+        XCTAssertEqual(t.waiting.map { $0.name }, ["Mid", "New", "Paired"])
+        XCTAssertEqual(t.pairing.map { $0.name }, ["Asks"])
+        XCTAssertEqual(t.paired.map { $0.name }, ["Gone"])
     }
 
     /// A received name shows with every disallowed character as "?", in lists and notices.

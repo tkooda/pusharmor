@@ -1601,7 +1601,7 @@ final class StateMachineTests: XCTestCase {
     }
 
     func testPairAgainNoticeText() {
-        XCTAssertEqual(S.pairAgain("Ndev"), "\"Ndev\" wants to pair again. Tap Pair again on its row.")
+        XCTAssertEqual(S.pairAgain("Ndev"), "\"Ndev\" wants to pair again.")
     }
 
     func testPairAgainOnHalfStateStartsFreshPairing() async throws {
@@ -1616,7 +1616,8 @@ final class StateMachineTests: XCTestCase {
         let r = await x.core.receive(commit, mode: .nse)
         XCTAssertEqual(r.banner?.body, S.pairAgain("Ndev"))
         let before = try x.core.store.peer(n.id)!
-        XCTAssertTrue(x.core.offersPairAgain(before))                     // the row shows Pair again
+        XCTAssertTrue(x.core.offersPairAgain(before))                     // the row shows Reject and Pair
+        XCTAssertEqual(Core.pairAgainStatus(before), "Wants to pair again")
         let oldPid = before.pairingId
         // one tap: Cancel pairing (awaited, allow withdrawn), then Pair
         let v = try await x.core.pairAgain(n.id)
@@ -1866,6 +1867,24 @@ final class StateMachineTests: XCTestCase {
         XCTAssertTrue(try n.core.store.peer(x.id)!.notPairedOnPeer)
         XCTAssertFalse(try n.core.store.peer(x.id)!.inAll)
         XCTAssertTrue(n.core.offersCancel(try n.core.store.peer(x.id)!))
+        XCTAssertFalse(n.core.offersPairAgain(try n.core.store.peer(x.id)!))   // withdrawn only: Cancel pairing request
+    }
+
+    /// A paired device that rejected this one: Waiting to pair with Reject and Pair; Reject moves
+    /// it to Rejected devices.
+    func testPeerThatRejectedThisDeviceOffersRejectAndPair() async throws {
+        let n = try dev("Ndev"), x = try dev("Xdev")
+        try await pairFully(n, x)
+        w.rows[x.id.text]!.allow = [:]
+        w.rows[x.id.text]!.deny = [n.id.text: true]
+        clock.now += 5
+        await n.core.fetchPeers(force: true)
+        let p = try n.core.store.peer(x.id)!
+        XCTAssertTrue(p.declinedByPeer)
+        XCTAssertTrue(n.core.offersPairAgain(p))
+        XCTAssertEqual(Core.pairAgainStatus(p), "Rejected this device")
+        _ = await n.core.deny(x.id)
+        XCTAssertEqual(DeviceList.rejected(try n.core.store.peers()).map { $0.id.text }, [x.id.text])
     }
 
     func testDifferentCNAbortsVisiblyAndWrongPairingIdCouldNotRead() async throws {

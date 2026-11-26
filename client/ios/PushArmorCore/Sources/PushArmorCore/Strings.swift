@@ -29,7 +29,7 @@ public enum S {
     public static let pairReply = "Pairing code ready. Open PushArmor."
     /// A device name in straight double quotes; "A device" (a name that is not known) stays as it is.
     public static func quoted(_ x: String) -> String { x == aPeer ? aPeer : "\"\(x)\"" }
-    public static func pairAgain(_ x: String) -> String { quoted(x) + " wants to pair again. Tap Pair again on its row." }
+    public static func pairAgain(_ x: String) -> String { quoted(x) + " wants to pair again." }
     /// Pair refused on this device: one line per reason, each says why and what to do.
     public static func alreadyPaired(_ x: String) -> String { "Already paired with \"\(x)\"." }
     public static func pairingInProgress(_ x: String) -> String { "Pairing with \"\(x)\" is already in progress." }

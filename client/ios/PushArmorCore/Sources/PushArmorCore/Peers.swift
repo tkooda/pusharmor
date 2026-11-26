@@ -386,7 +386,8 @@ public enum DeviceList {
 
     /// The Devices list sections, each in name order.
     public struct Sections: Sendable {
-        /// Waiting to pair: a device not paired here and with no open pairing.
+        /// Waiting to pair: a device not paired here and with no open pairing, or a paired one
+        /// that asks to pair again or rejected this device (`again`: their ids).
         public var waiting: [Peer]
         /// Pairing: a device with an open pairing (`open`: their ids).
         public var pairing: [Peer]
@@ -394,10 +395,12 @@ public enum DeviceList {
         public var paired: [Peer]
     }
 
-    public static func sections(_ visible: [Peer], open: Set<String>) -> Sections {
-        let pairing = visible.filter { open.contains($0.id.text) }
-        let waiting = visible.filter { !open.contains($0.id.text) && !$0.pinned && $0.state != .removed }
-        let paired = visible.filter { !open.contains($0.id.text) && ($0.pinned || $0.state == .removed) }
+    public static func sections(_ visible: [Peer], open: Set<String>, again: Set<String> = []) -> Sections {
+        let rest = visible.filter { !again.contains($0.id.text) }
+        let pairing = rest.filter { open.contains($0.id.text) }
+        let waiting = visible.filter { again.contains($0.id.text) }
+            + rest.filter { !open.contains($0.id.text) && !$0.pinned && $0.state != .removed }
+        let paired = rest.filter { !open.contains($0.id.text) && ($0.pinned || $0.state == .removed) }
         return Sections(waiting: PeerLabel.sorted(waiting), pairing: PeerLabel.sorted(pairing), paired: PeerLabel.sorted(paired))
     }
 }

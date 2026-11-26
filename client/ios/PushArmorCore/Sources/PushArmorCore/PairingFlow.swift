@@ -4,7 +4,7 @@ import Foundation
 public enum PairNote: String, Sendable {
     case failed      // "Pairing failed. Start again on the new peer."
     case timedOut    // "Pairing timed out. Tap Pair to start again."
-    case pairAgain   // the half-state notice fired: the row offers Pair again
+    case pairAgain   // the half-state notice fired: the device wants to pair again
 }
 
 /// Result of one POST /pair.
@@ -408,15 +408,21 @@ extension Core {
         (try? store.pairing(p.id)) != nil || p.notPairedOnPeer
     }
 
-    /// Whether a row offers Pair again in place of Cancel pairing: the half-state notice
-    /// fired for it and it still offers Cancel pairing.
+    /// Whether a device paired here shows under Waiting to pair with Reject and Pair in place of
+    /// Cancel pairing: it asked to pair again (the half-state notice fired for it) or it
+    /// rejected this device, and it still offers Cancel pairing.
     public func offersPairAgain(_ p: Peer) -> Bool {
-        p.note == PairNote.pairAgain.rawValue && offersCancel(p)
+        (p.note == PairNote.pairAgain.rawValue || p.declinedByPeer) && offersCancel(p)
     }
 
-    /// [Pair again] on a half-state row: Cancel pairing (local drop and the allow
-    /// reconcile, awaited), then [Pair]. The offer check and the drop are one transaction,
-    /// so a second tap while the first runs throws notOffered and changes nothing.
+    /// Its status line: "Wants to pair again" once it asked, else "Rejected this device".
+    public static func pairAgainStatus(_ p: Peer) -> String {
+        p.note == PairNote.pairAgain.rawValue ? "Wants to pair again" : "Rejected this device"
+    }
+
+    /// [Pair] on such a row: Cancel pairing (local drop and the allow reconcile, awaited),
+    /// then [Pair]. The offer check and the drop are one transaction, so a second tap while
+    /// the first runs throws notOffered and changes nothing.
     /// The [Pair] preconditions are checked before the drop, so a refusal keeps the row.
     public func pairAgain(_ x: PeerId) async throws -> PairSendResult {
         try store.db.write {
@@ -432,7 +438,7 @@ extension Core {
         return try await startPair(x)
     }
 
-    /// The toast after [Pair], [Pair again], [Send again], or [Reply]: nil when the message went
+    /// The toast after [Pair], [Send again], or [Reply]: nil when the message went
     /// out, is queued, or the tap was a repeat of one still running. A refusal says why, with
     /// `name` the device's label; too many tries shows the wait left at `now` (unix s).
     public static func pairAgainToast(_ r: Result<PairSendResult, Error>, name: String,

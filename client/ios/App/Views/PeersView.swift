@@ -27,7 +27,8 @@ struct PeersView: View {
     @ViewBuilder private var devices: some View {
         // Waiting to pair, Pairing, Paired devices, then Rejected devices; each hidden when
         // empty. A peer in a pairing shows only its card, never a second row.
-        let s = DeviceList.sections(visible, open: Set(model.pairings.keys))
+        let s = DeviceList.sections(visible, open: Set(model.pairings.keys),
+                                    again: Set(visible.filter { model.offersPairAgain($0) }.map { $0.id.text }))
         NavigationStack {
             ScrollViewReader { proxy in
                 List {
@@ -209,11 +210,7 @@ struct PeerPendingLines: View {
                 }
             }
         }
-        if showCancel && model.offersPairAgain(p) {
-            Button("Pair again") { Task { await model.pairAgain(p) } }
-                .buttonStyle(.bordered)
-                .disabled(model.pairAgainBusy.contains(p.id.text))
-        } else if showCancel && model.offersCancel(p) {
+        if showCancel && model.offersCancel(p) {
             Button("Cancel pairing request") { Task { await model.cancelPairing(p) } }
                 .buttonStyle(.bordered)
                 .disabled(model.busy.contains("cancelPairing:" + p.id.text))
@@ -245,7 +242,10 @@ struct PairingCardView: View {
     @State private var confirmDelete = false
 
     private var label: String { model.label(p) }
-    private var entry: PairingEntry? { model.pairings[p.id.text] }
+    /// A paired device that asks to pair again or rejected this device: a Waiting to pair card
+    /// with its name, a status, and Reject and Pair (Pair cancels the old pairing first).
+    private var again: Bool { model.offersPairAgain(p) }
+    private var entry: PairingEntry? { again ? nil : model.pairings[p.id.text] }
 
     /// The name as shown when it is known; the titles name the platform otherwise.
     private var name: String? { p.name.map(DeviceName.display) }
@@ -254,6 +254,7 @@ struct PairingCardView: View {
     private var awaiting: Bool { entry != nil && p.state == .approved && !p.approveVerified }
 
     private var title: String {
+        if again { return label }
         guard let e = entry else { return S.pairWith(name: name, platform: p.platform) }
         if awaiting { return S.awaitingResponse(name: name, platform: p.platform) }
         switch e.state {
@@ -279,15 +280,18 @@ struct PairingCardView: View {
                                 .font(.subheadline)
                                 .foregroundColor(.secondaryText)
                         }
-                        if entry == nil {
+                        if again {
+                            StatusLine(kind: .notPaired, text: Core.pairAgainStatus(p))
+                        } else if entry == nil {
                             StatusLine(kind: .notPaired, text: "Not paired")
                         }
                     }
                 }
                 .accessibilityElement(children: .combine)
                 Spacer(minLength: 0)
-                if !p.pinned {
-                    // A peer not yet paired has no row under Peers: its switches and Remove live here.
+                if !p.pinned || again {
+                    // A peer not yet paired (or back under Waiting to pair) has no row under
+                    // Paired devices: its switches and Remove live here.
                     Menu { peerActions } label: {
                         Image(systemName: "ellipsis.circle")
                             .font(.title3)
@@ -305,7 +309,7 @@ struct PairingCardView: View {
             TimelineView(.periodic(from: .now, by: 5)) { _ in
                 VStack(alignment: .leading, spacing: 12) {
                     stateBlock
-                    PeerPendingLines(p: p, showCancel: false, showWaiting: false)
+                    if !again { PeerPendingLines(p: p, showCancel: false, showWaiting: false) }
                     if entry == nil && p.platform == "cli" && !p.pinned && !p.hidden, let me = model.me?.id {
                         // The command never splits: it moves to its own line as a whole.
                         (Text(S.pairCommandPrefix(label)) + Text(S.pairCommand(me)).font(.system(.footnote, design: .monospaced)))
@@ -321,7 +325,7 @@ struct PairingCardView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .contextMenu {
             // Long press: a shortcut to the same actions as the More actions button.
-            if !p.pinned { peerActions }
+            if !p.pinned || again { peerActions }
         }
         .confirmationDialog(S.removeConfirm(label), isPresented: $confirmRemove, titleVisibility: .visible) {
             Button("Remove", role: .destructive) { Task { await model.remove(p) } }
@@ -395,6 +399,15 @@ struct PairingCardView: View {
                 }
                 .padding(.top, 4)
             }
+        } else if again {
+            // Pair drops the old pairing and sends a new request; Reject moves it to Rejected devices.
+            ButtonPair {
+                Button("Pair") { Task { await model.pairAgain(p) } }
+                    .buttonStyle(TonalGreenButtonStyle())
+                    .disabled(model.pairAgainBusy.contains(p.id.text))
+            } secondary: {
+                denyButton()
+            }
         } else {
             ButtonPair {
                 Button("Pair") { Task { await model.pair(p) } }
@@ -408,7 +421,7 @@ struct PairingCardView: View {
 
     @ViewBuilder
     private var footer: some View {
-        let cancel = model.offersCancel(p)
+        let cancel = !again && model.offersCancel(p)
         let countdown = entry.flatMap { model.countdown($0) }
         if cancel || countdown != nil {
             Divider()
@@ -437,12 +450,7 @@ struct PairingCardView: View {
 
     @ViewBuilder
     private func footerButton(_ cancel: Bool) -> some View {
-        if cancel && model.offersPairAgain(p) {
-            Button("Pair again") { Task { await model.pairAgain(p) } }
-                .buttonStyle(.bordered)
-                .disabled(model.pairAgainBusy.contains(p.id.text))
-                .font(.subheadline)
-        } else if cancel {
+        if cancel {
             Button("Cancel pairing request") { Task { await model.cancelPairing(p) } }
                 .buttonStyle(.bordered)
                 .disabled(model.busy.contains("cancelPairing:" + p.id.text))
