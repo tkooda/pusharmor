@@ -7,6 +7,8 @@ import com.pusharmor.protocol.FileRules.FinalCode
 /** What the file screens show and decide: pure functions only, so the tables are unit tested. */
 object FileUi {
     const val HELPER = "Larger files expire sooner, between 1 and 24 hours after they are sent"
+    /** Directly above the On Wi-Fi and On mobile data rows. */
+    const val AUTO_HELPER = "Download received files automatically up to these sizes"
     const val ON_WIFI = "On Wi-Fi"
     const val ON_MOBILE = "On mobile data"
     const val STORAGE_TITLE = "Storage for sent and received files"

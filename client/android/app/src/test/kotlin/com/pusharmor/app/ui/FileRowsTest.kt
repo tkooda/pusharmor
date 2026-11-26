@@ -222,6 +222,12 @@ class FileRowsTest {
         assertTrue(t.toString(), helper >= 0)
         // the helper text sits above both pickers; both default to Up to 50 MB
         assertTrue(helper < t.indexOf("On Wi-Fi") && helper < t.indexOf("On mobile data"))
+        // the auto-download line sits directly above the two rows, under the helper text
+        val shown = t.filter { it.isNotEmpty() }
+        val auto = shown.indexOf("Download received files automatically up to these sizes")
+        assertTrue(shown.toString(), auto > 0)
+        assertEquals(shown.toString(), shown.indexOf(com.pusharmor.app.files.FileUi.HELPER) + 1, auto)
+        assertEquals(shown.toString(), auto + 1, shown.indexOf("On Wi-Fi"))
         assertEquals(t.toString(), 2, t.count { it == "Up to 50 MB" })
         assertTrue("Files" in t)
         assertTrue("Storage for sent and received files" in t)

@@ -1808,6 +1808,8 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
             Text(com.pusharmor.app.files.FileUi.HELPER, Modifier.padding(start = 32.dp, end = 16.dp, bottom = 8.dp),
                 style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant)
             val fu = com.pusharmor.app.files.FileUi
+            Text(fu.AUTO_HELPER, Modifier.padding(start = 32.dp, end = 16.dp, bottom = 8.dp),
+                style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant)
             GroupedList(listOf<@Composable (Modifier) -> Unit>(
                 { m -> SettingRow(fu.ON_WIFI, modifier = m, value = fu.pickerLabel(fu.picker(prefs?.get(Settings.K.FILE_WIFI)))) { pickFile = "wifi" } },
                 { m -> SettingRow(fu.ON_MOBILE, modifier = m, value = fu.pickerLabel(fu.picker(prefs?.get(Settings.K.FILE_MOBILE)))) { pickFile = "mobile" } },
