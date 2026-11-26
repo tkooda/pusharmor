@@ -80,6 +80,8 @@ def my_id(cfg):
 def login(monkeypatch, cfg):
     answers(monkeypatch, "  `" + CODE + "`  ")
     assert run(cfg, "login") == 0
+    with pa.Store(str(cfg)).state() as d:  # every test device has the same hostname: give each its own name
+        d["name"] = "Device " + os.path.basename(str(cfg))[-20:]
     return my_id(cfg)
 
 
@@ -618,7 +620,7 @@ def test_pair_send_listen(net, tmp_path, monkeypatch, capsys):
 def test_device_names_in_stdout_are_in_double_quotes(net, tmp_path, monkeypatch, capsys):
     a, b = tmp_path / "a", tmp_path / "b"
     ida = login(monkeypatch, a)
-    assert 'Logged in. This device is named "%s". Next:' % state(a)["name"] in capsys.readouterr().err
+    assert 'Logged in. This device is named "%s". Next:' % pa.default_name() in capsys.readouterr().err
     idb = pair_two(monkeypatch, net, a, b, ids=(ida, login(monkeypatch, b)))[1]
     capsys.readouterr()
     assert run(a, "rename", "Desk") == 0
@@ -2364,6 +2366,40 @@ def test_rename_saves_the_name_with_spaces_cleaned_up(net, tmp_path, monkeypatch
     assert run(tmp_path, "rename", "  Desk   top ") == 0
     assert state(tmp_path)["name"] == "Desk top"
     assert capsys.readouterr().err == 'This device is now named "Desk top".\n'
+
+
+def test_device_names_that_clash_show_the_device_id(net, tmp_path, monkeypatch, capsys):
+    a, b = tmp_path / "a", tmp_path / "b"
+    ida, idb = pair_two(monkeypatch, net, a, b)
+    with pa.Store(str(a)).state() as d:
+        d["peers"][idb]["name"] = "PIXEL"
+        assert pa.said(d, idb) == '"PIXEL"'
+        d["name"] = "pixel"
+        assert pa.said(d, idb) == '"PIXEL" (%s)' % pa.device_id(idb)
+    net.hooks[("POST", "send")] = lambda *x: net.reply(200, {"r": {idb: "gone"}})
+    capsys.readouterr()
+    assert run(a, "send", "hi") == pa.EXIT_SEND
+    assert 'Unable to deliver message to "PIXEL" (%s).' % pa.device_id(idb) in capsys.readouterr().err
+
+
+def test_rename_to_another_devices_name_is_refused(net, tmp_path, monkeypatch, capsys):
+    a, b = tmp_path / "a", tmp_path / "b"
+    ida, idb = pair_two(monkeypatch, net, a, b)
+    with pa.Store(str(a)).state() as d:
+        d["peers"][idb]["name"] = "Pixel 8"
+    capsys.readouterr()
+    before = len(net.log)
+    assert run(a, "rename", " Pixel  8 ") == 2
+    assert capsys.readouterr().err == (
+        'error: Unable to rename this device. Name already used by "Pixel 8" (%s). Remove that device, or rename it '
+        "on that device.\n" % pa.device_id(idb))
+    assert len(net.log) == before
+    assert run(a, "rename", "pixel 8") == 0  # only an exact match is refused
+
+
+def test_setup_default_name_gets_a_number_when_taken(monkeypatch):
+    assert pa.unique_default("cube", ["Cube"]) == "cube (2)"
+    assert pa.unique_default("cube", ["x"]) == "cube"
 
 
 def test_rename_to_the_same_name_makes_no_network_call(net, tmp_path, monkeypatch, capsys):

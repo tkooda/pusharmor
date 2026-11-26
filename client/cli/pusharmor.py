@@ -2056,6 +2056,36 @@ def peer_label(p):
     return UNKNOWN_NAME
 
 
+def said(d, pid, p=None):
+    """A device's name in a message, in double quotes. When another device shows the same name (ignoring
+    case), its Device ID follows: "Pixel 8" (907-331-064)."""
+    p = p or d["peers"].get(pid)
+    name = peer_label(p)
+    if not p or not p["name"]:
+        return '"%s"' % name
+    others = [name_display(q["name"]) for i, q in d["peers"].items() if i != pid and q["name"]]
+    if d.get("name"):
+        others.append(name_display(d["name"]))
+    if any(o.lower() == name.lower() for o in others):
+        return '"%s" (%s)' % (name, device_id(pid))
+    return '"%s"' % name
+
+
+def unique_default(base, taken):
+    """A default name that another device already uses (ignoring case) gets " (N)", the smallest N from 2
+    that is free; the base is cut so the whole name stays within 32 characters."""
+    used = {t.lower() for t in taken}
+    if base.lower() not in used:
+        return base
+    n = 2
+    while True:
+        suffix = " (%d)" % n
+        name = base[:32 - len(suffix)].rstrip(" ") + suffix
+        if name.lower() not in used:
+            return name
+        n += 1
+
+
 def local_date(t):
     """Seconds -> "YYYY-MM-DD" in this device's time zone; a time out of range reads as 1970."""
     try:
@@ -2203,7 +2233,7 @@ def open_fetched_remove(d, k, b, m):
     q = d["peers"].pop(b, None)
     d["pairs"].pop(b, None)
     if q:
-        log("info", '"%s" was removed from your account.' % peer_label(q))
+        log("info", '%s was removed from your account.' % said(d, b, q))
 
 
 def reconcile_allow(cx):
@@ -2352,7 +2382,7 @@ def removed_confirmed(cx):
 
 def act(cx, d, r, p, notes):
     """Applies one accepted message to devices.toml. -> (wipe message or None, content record or None)."""
-    t, v, n, frm, name = r["type"], r["value"], r["n"], r["from"], peer_label(p)
+    t, v, n, frm, name, who = r["type"], r["value"], r["n"], r["from"], peer_label(p), said(d, r["from"], p)
     if t in ("url", "text", "tel"):
         if t == "url":
             u = parse_url(v)
@@ -2372,30 +2402,31 @@ def act(cx, d, r, p, notes):
         if p["ruling"] == "approved":
             p.update(approves_me=True, approve_verified=True, get_after_verify=False, pending_approve_n=0)
             d["pairs"].pop(frm, None)
-            notes.append(("info", '"%s" confirmed this device.' % peer_label(p)))
+            notes.append(("info", '%s confirmed this device.' % said(d, frm, p)))
         else:
             p["pending_approve_n"] = n
     elif t == "rename":
         if n > p["name_n"]:
             p["name"], p["name_n"] = v["name"], n
-            notes.append(("info", '"%s" is now named "%s".' % (name, name_display(v["name"]))))
+            notes.append(("info", '%s is now named "%s".' % (who, name_display(v["name"]))))
     elif t == "remove":
         if v == cx.me:
             return REMOVED, None
+        gone = said(d, v)
         q = d["peers"].pop(v, None)
         d["pairs"].pop(v, None)
         if q:
-            notes.append(("info", '"%s" was removed from your account.' % peer_label(q)))
+            notes.append(("info", '%s was removed from your account.' % gone))
     elif t == "delete":
         return "The account was deleted on another device.", None
     elif t in ("logout", "login"):
         if n > p["logout_n"]:
             p["logged_out"], p["logout_n"] = t == "logout", n
-        notes.append(("info", '"%s" %s.' % (name, "logged out" if t == "logout" else "logged in")))
+        notes.append(("info", '%s %s.' % (who, "logged out" if t == "logout" else "logged in")))
     elif t == "deny":
         p["denies_me"], p["approves_me"] = True, False
         d["pairs"].pop(frm, None)
-        notes.append(("info", '"%s" rejected this device.' % name))
+        notes.append(("info", '%s rejected this device.' % who))
     return None, None
 
 
@@ -2432,8 +2463,8 @@ def receive_pair(cx, pt):
         if r not in ("sent", "429") and cx.mode == "pair" and frm == cx.target:
             raise Fail(pair_reason(r))  # its fingerprint would never show; pair again sends it
         if r not in ("sent", "429"):
-            log("warning", 'Unable to continue pairing with "%s". %s Run: `pusharmor pair %s` to try again.'
-                % (peer_label(p), pair_reason(r), device_id(frm)))
+            log("warning", 'Unable to continue pairing with %s. %s Run: `pusharmor pair %s` to try again.'
+                % (said(d, frm, p), pair_reason(r), device_id(frm)))
 
 
 def pair_note(cx, d, x, text):
@@ -2445,8 +2476,8 @@ def pair_note(cx, d, x, text):
         if x in cx.also:
             return None
         cx.also.add(x)
-        text = '"%s" also wants to pair. Run: `pusharmor pair %s`'
-    return ("info", text % (peer_label(d["peers"].get(x)), device_id(x)))
+        text = '%s also wants to pair. Run: `pusharmor pair %s`'
+    return ("info", text % (said(d, x), device_id(x)))
 
 
 def on_commit(cx, frm, c_n, listed):
@@ -2551,8 +2582,8 @@ def could_not(err, verb, name):
     if isinstance(err, ApiError):
         if err.status == 401:
             return err
-        return Fail(err.reason(), action='Unable to %s "%s".' % (verb, name))
-    return Fail(str(err), err.code, action='Unable to %s "%s".' % (verb, name))
+        return Fail(err.reason(), action="Unable to %s %s." % (verb, name))
+    return Fail(str(err), err.code, action="Unable to %s %s." % (verb, name))
 
 
 def pair_reason(r):
@@ -2676,8 +2707,8 @@ def sweep(cx):
             if a == "drop_pin" and p and not p["approve_verified"]:
                 unpin(p)
                 dropped = True
-                log("info", 'Pairing with "%s" timed out. Run: `pusharmor pair %s` to start again.'
-                    % (peer_label(p), device_id(x)))
+                log("info", 'Pairing with %s timed out. Run: `pusharmor pair %s` to start again.'
+                    % (said(d, x, p), device_id(x)))
     if dropped:
         reconcile_allow(cx)
 
@@ -3235,6 +3266,8 @@ def register_with(cx, code, stream, push, ntfy):
                      push_ok=False, since=str(int(time.time())), peers={}, pairs={}, my_allow=[], listed=[],
                      pair_auto=[])
             merge_peers(d, j, k)
+            # the names this device can read now (none before pairing)
+            d["name"] = unique_default(d["name"], [p["name"] for p in d["peers"].values() if p["name"]])
     except BaseException:
         undo_register(cx)
         raise
@@ -3470,7 +3503,7 @@ def cmd_pair(cx, args):
     if x == cx.me:
         raise Fail("This is the device you are using. Choose another device.")
     with cx.store.state(write=False) as d:
-        set_action('Unable to pair with "%s".' % peer_label(d["peers"].get(x)))
+        set_action("Unable to pair with %s." % said(d, x))
     resend_waiting(cx, x)
     with cx.store.state() as d:
         if d["peers"][x]["ruling"] == "denied":
@@ -3481,14 +3514,13 @@ def cmd_pair(cx, args):
     while True:
         with cx.store.state(write=False) as d:
             p, e = d["peers"].get(x), d["pairs"].get(x)
-            sid = device_id(x)
-        name = peer_label(p)
+            sid, name = device_id(x), said(d, x)
         if p is None:
             raise Fail(SEND_WHY["unknown"])
         if p["pinned"] and p["ruling"] == "approved" and p["approves_me"]:
-            note('Paired with "%s".' % name)
+            note("Paired with %s." % name)
             return EXIT_OK
-        r, wait = "sent", 'Waiting for "%s". Open PushArmor on it to continue pairing. Press Ctrl+C to stop.' % name
+        r, wait = "sent", "Waiting for %s. Open PushArmor on it to continue pairing. Press Ctrl+C to stop." % name
         if e and e["state"] == "shown" and not e["approved"]:
             if first and e["role"] == "N":
                 r = post_pair(cx, x, "open", e["msg"])
@@ -3498,7 +3530,7 @@ def cmd_pair(cx, args):
             note("\nCompare pairing code: %s\n" % e["fingerprint"])
             try:
                 while True:
-                    a = ask('Does "%s" show the same code? [y/N] ' % name).strip().lower()
+                    a = ask("Does %s show the same code? [y/N] " % name).strip().lower()
                     if a in ("", "n", "no", "y", "yes"):
                         break
                 yes = a in ("y", "yes")
@@ -3510,17 +3542,17 @@ def cmd_pair(cx, args):
                     deny(cx, x)
                 except (ApiError, TempFail) as err:
                     raise could_not(err, "reject", name)
-                note('Did not pair with "%s".' % name)
+                note("Did not pair with %s." % name)
                 return EXIT_ERR
             try:
                 r = approve(cx, x)
             except (ApiError, TempFail) as err:
                 raise could_not(err, "confirm", name)
             if r not in ("sent", "stored"):
-                raise Fail(pair_reason(r), action='Unable to confirm "%s".' % name)
+                raise Fail(pair_reason(r), action="Unable to confirm %s." % name)
             continue
         if p["pinned"] and p["ruling"] == "approved":
-            wait = 'Waiting for "%s" to confirm this device. Press Ctrl+C to stop.' % name
+            wait = "Waiting for %s to confirm this device. Press Ctrl+C to stop." % name
             if first and e and e["approve_body"]:
                 r = post_approve(cx, x, json.loads(e["approve_body"]))
                 r = "sent" if r == "stored" else r
@@ -3697,14 +3729,14 @@ def seal_to_targets(cx, args, type_, value):
                     why = ("unknown" if p["missing"] else "unapproved" if not (
                         p["pinned"] and p["ruling"] == "approved" and p["approves_me"])
                         else "logged out" if p["logged_out"] else "not listening")
-                    raise Fail(SEND_WHY[why], EXIT_SEND, 'Unable to send to "%s".' % peer_label(p))
+                    raise Fail(SEND_WHY[why], EXIT_SEND, "Unable to send to %s." % said(d, pid, p))
                 targets.append(pid)
         if not targets:
             raise Fail("No device is paired yet. Run `pusharmor pair` to pair one.", EXIT_SEND)
         m, names = {}, {}
         for pid in dict.fromkeys(targets):
             p = d["peers"][pid]
-            names[pid] = peer_label(p)
+            names[pid] = said(d, pid, p)
             if type_ is not None:
                 m[pid] = seal_msg(cx.keys, pid, p, reserve(p), type_, value)
     return m, names
@@ -3717,7 +3749,7 @@ def post_send(cx, m, names):
     with cx.store.state() as d:
         for pid in failed:
             r = res.get(pid) if isinstance(res.get(pid), str) else "failed"
-            log("error", ('Unable to deliver message to "%s".' if r == "gone" else 'Unable to send to "%s".')
+            log("error", ("Unable to deliver message to %s." if r == "gone" else "Unable to send to %s.")
                 % names[pid] + " " + device_reason(r))
             p = d["peers"].get(pid)
             if p and r == "logged out":
@@ -3753,6 +3785,10 @@ def cmd_rename(cx, args):
         if d.get("name") == name:
             note('This device is already named "%s".' % name)
             return EXIT_OK
+        used = next((pid for pid, p in d["peers"].items() if p["name"] == name), None)
+        if used:
+            raise Fail('Name already used by "%s" (%s). Remove that device, or rename it on that device.'
+                       % (peer_label(d["peers"][used]), device_id(used)), EXIT_USAGE)
     k = cx.keys
 
     def content(pid, p, n, names):
@@ -3771,14 +3807,15 @@ def cmd_delete(cx, args):
     cx.setup()
     x = resolve_peer(cx, args.id, with_self=True)
     with cx.store.state(write=False) as d:
-        reg, name = d.get("reg"), peer_label(d["peers"].get(x))
-        set_action('Unable to remove "%s".' % (name_display(d.get("name") or name) if x == cx.me else name))
+        reg = d.get("reg")
+        name = '"%s"' % name_display(d.get("name") or peer_label(None)) if x == cx.me else said(d, x)
+        set_action("Unable to remove %s." % name)
     if reg != "registered" and (x != cx.me or reg != "logged_out"):
         raise Fail(LOGGED_OUT if reg == "logged_out" else NOT_LOGGED_IN, EXIT_LOGIN)
     if x == cx.me:
         q = "Remove this device from your account? It must log in again and pair with every device again. [y/N] "
     else:
-        q = ('Remove "%s" from your account? "%s" must log in again and pair with every device again. [y/N] '
+        q = ("Remove %s from your account? %s must log in again and pair with every device again. [y/N] "
              % (name, name))
     if not args.yes:
         if not stdin_tty():
@@ -3795,7 +3832,7 @@ def cmd_delete(cx, args):
         d["peers"].pop(x, None)
         d["pairs"].pop(x, None)
         d["my_allow"] = [i for i in d["my_allow"] if i != x]
-    note('Removed "%s".' % name)
+    note("Removed %s." % name)
     return EXIT_OK
 
 
