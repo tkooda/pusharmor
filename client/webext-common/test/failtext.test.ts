@@ -187,7 +187,7 @@ test("a Pair, Send again, or Reply that did not reach the device shows why", asy
   await refresh(a, b);
   const ra = new Rpc(a.e);
   const rb = new Rpc(b.e);
-  const first = /^Unable to pair with "[^"]+"\.\n/;
+  const first = /^Unable to pair with New (Chrome|Firefox) device\.\n/;
   const pairFails = async (rpc: Rpc, op: string, id: string, reason: string) => {
     const msg = await fails(rpc, op, { id });
     assert.match(msg, first, op);
@@ -262,7 +262,7 @@ test("Codes match that the relay server does not take says Unable to confirm", a
   await deliver(w, b);
   const nm = (await new Rpc(a.e).peers()).peers.find((v) => v.id === b.id)!.label;
   w.inject.push({ match: /POST \/v1\/approve\//, status: 500, body: {}, times: 9 });
-  assert.equal(await fails(new Rpc(a.e), "approve", { id: b.id }), 'Unable to confirm "' + nm + '".\n' + DOWN);
+  assert.equal(await fails(new Rpc(a.e), "approve", { id: b.id }), 'Unable to confirm ' + nm + '.\n' + DOWN);
 });
 
 test("send: a failed call, a too long text, and one device that did not get it", async () => {
@@ -338,13 +338,13 @@ test("Pair, Codes match, and Codes differ that cannot go on show the action line
   await refresh(c, d);
   const r2 = new Rpc(c.e);
   const nd = (await r2.peers()).peers.find((v) => v.id === d.id)!.label;
-  assert.equal(await fails(r2, "approve", { id: d.id }), 'Unable to confirm "' + nd + '".\nThe pairing with it has not reached the code check. Pair with it again.');
+  assert.equal(await fails(r2, "approve", { id: d.id }), 'Unable to confirm ' + nd + '.\nThe pairing with it has not reached the code check. Pair with it again.');
   await c.e.pairStart(d.id);
-  assert.equal(await fails(r2, "pair", { id: d.id }), 'Unable to pair with "' + nd + '".\nA pairing with it is already open. Cancel it first.');
+  assert.equal(await fails(r2, "pair", { id: d.id }), 'Unable to pair with ' + nd + '.\nA pairing with it is already open. Cancel it first.');
   await c.db.updatePeer(d.id, (p) => (p ? { ...p, removed: true } : null));
   await c.p.storageLocal.remove(["pair:" + d.id]);
-  assert.equal(await fails(r2, "pair", { id: d.id }), 'Unable to pair with "' + nd + '".\nIt is no longer on this account.');
-  assert.equal(await fails(rpc, "deny", { id: "gone" }), 'Unable to reject "A device".\nIt is no longer on this account.');
+  assert.equal(await fails(r2, "pair", { id: d.id }), 'Unable to pair with ' + nd + '.\nIt is no longer on this account.');
+  assert.equal(await fails(rpc, "deny", { id: "gone" }), 'Unable to reject A device.\nIt is no longer on this account.');
   void a;
 });
 

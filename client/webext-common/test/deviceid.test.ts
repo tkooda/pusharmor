@@ -62,10 +62,15 @@ test("a device row shows ID and Added lines under the platform, before the statu
   assert.deepEqual(info.kids.slice(0, 3).map((n) => n.textContent), ["Android", "ID: 009-804-535", "Added: " + localDay(added * 1000)]);
 });
 
-test("a pair request card shows ID and Added lines under the platform", async () => {
-  const r = await draw([paired, peer({ id: realId, label: "Pixel 8", platform: "android", fingerprint: "YSWH", actions: ["approve", "deny"], created: added })]);
+test("a pair request card shows ID and Added lines under its title; after Codes match only the ID", async () => {
+  const r = await draw([paired, peer({ id: realId, label: "New Firefox device", platform: "firefox", fingerprint: "YSWH", actions: ["approve", "deny"], created: added })]);
   const txt = byClass(byClass(r, "pair-head"), "txt");
-  assert.deepEqual(txt.kids.map((n) => n.textContent), ['Pair with new device: "Pixel 8"', "Android", "ID: 009-804-535", "Added: " + localDay(added * 1000)]);
+  assert.deepEqual(txt.kids.map((n) => n.textContent), ["Pair with new Firefox device", "ID: 009-804-535", "Added: " + localDay(added * 1000)]);
+  const r2 = await draw([paired, peer({ id: realId, label: "New Firefox device", platform: "firefox", fingerprint: "YSWH", actions: ["cancel"], awaiting: true, created: added })]);
+  const txt2 = byClass(byClass(r2, "pair-head"), "txt");
+  assert.deepEqual(txt2.kids.map((n) => n.textContent), ["Awaiting Firefox device's response", "ID: 009-804-535"]);
+  const r3 = await draw([paired, peer({ id: realId, label: "Pixel 8", platform: "android", fingerprint: "YSWH", actions: ["approve", "deny"], created: added })]);
+  assert.equal(byClass(byClass(r3, "pair-head"), "txt").kids[0]!.textContent, 'Pair with "Pixel 8"');
 });
 
 test("no Added line while the added time is unknown", async () => {

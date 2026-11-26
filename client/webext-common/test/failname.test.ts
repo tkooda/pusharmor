@@ -17,7 +17,7 @@ test("a failed action on a device with no name uses the row label in line 1", as
   (a.e as unknown as Record<string, unknown>).pairStart = async () => {
     throw new DOMException("quota", "QuotaExceededError");
   };
-  const label = "Firefox, added " + new Date(row.created * 1000).toISOString().slice(0, 10);
+  const label = "New Firefox device";
   const r = await new Rpc(a.e).handle({ op: "pair", args: { id: b.id } });
-  assert.equal(r.error, 'Unable to pair with "' + label + '".\nStorage is full. Free some space and try again.');
+  assert.equal(r.error, "Unable to pair with " + label + ".\nStorage is full. Free some space and try again.");
 });

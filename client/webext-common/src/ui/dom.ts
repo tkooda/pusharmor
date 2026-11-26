@@ -1,6 +1,6 @@
 // Tiny DOM helpers for the vanilla TypeScript UI (no framework).
 import type { PeerView, Reply, Req } from "../core/rpc.ts";
-import { T } from "../core/texts.ts";
+import { T, platformLabel } from "../core/texts.ts";
 import type { ThemeStore } from "./theme.ts";
 import { b64urlDecode } from "../crypto/b64url.ts";
 import { deviceId } from "../crypto/labels.ts";
@@ -241,10 +241,7 @@ export function openHref(type: string, content: string): string {
   return type === "tel" && !c.startsWith("tel:") ? "tel:" + c : c;
 }
 
-const PLATFORM_LABEL: Record<string, string> = { android: "Android", ios: "iOS", chrome: "Chrome", firefox: "Firefox", cli: "Command line" };
-export function platformLabel(platform: string): string {
-  return PLATFORM_LABEL[platform] ?? platform;
-}
+export { platformLabel };
 
 /** Short History time: clock time today, "Yesterday", else month and day. */
 export function shortTime(ts: number, now: number): string {

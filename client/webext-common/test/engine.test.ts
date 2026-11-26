@@ -3,8 +3,8 @@ import { test } from "node:test";
 import { failText } from "../src/core/failtext.ts";
 import { PushNotStarted, PushRefused } from "../src/platform.ts";
 import { b64urlDecode, b64urlEncode } from "../src/crypto/b64url.ts";
-import { pairingKey } from "../src/crypto/labels.ts";
-import { T } from "../src/core/texts.ts";
+import { deviceId, pairingKey } from "../src/crypto/labels.ts";
+import { T, quoted } from "../src/core/texts.ts";
 import { Rpc } from "../src/core/rpc.ts";
 import { ALLOW_SET, allEntries, getAllowSet, getEntry } from "../src/core/state.ts";
 import { encodeInner } from "../src/model/message.ts";
@@ -15,7 +15,7 @@ import { AUTH_PENDING, Login } from "../src/core/login.ts";
 import { AUTH_CHANGED, AUTH_RESULT, type AuthResult, readAuthResult } from "../src/model/signin.ts";
 
 /** The device name a pairing text shows for id on d (its name, else its platform and date). */
-const named = async (d: { e: unknown }, id: string) => '"' + (await (d.e as { halfName(i: string): Promise<string> }).halfName(id)) + '"';
+const named = async (d: { e: unknown }, id: string) => quoted(await (d.e as { halfName(i: string): Promise<string> }).halfName(id));
 
 const DAY = 86400_000;
 
@@ -47,7 +47,8 @@ test("happy path: commit, automatic reply, open, same fingerprint, approve both,
   assert.equal(eb.role, "X");
   assert.equal(eb.state, "replied"); // automatic reply, no user action
   const pk = await pairingKey(b64urlDecode(a.id), b64urlDecode(b.id));
-  assert.equal(b.p.notes.get("p:" + pk)!.body, T.pairCommit);
+  // a device with no name yet: the title says a new device wants to pair, the body its platform and ID
+  assert.deepEqual(b.p.notes.get("p:" + pk), { title: "A new device wants to pair", body: "Chrome device with ID " + deviceId(b64urlDecode(a.id)) });
   await deliver(w, a);
   assert.equal((await getEntry(a.p.storageLocal, b.id))!.state, "shown");
   assert.equal(a.p.notes.size, 0); // Chrome N shows no reply notice
@@ -1051,7 +1052,7 @@ test("N-side hint: approves_me true while committed reads still holds an earlier
   const v = (await a.e.pairRowView(b.id))!;
   // the row text names the device as the row title does
   const label = (await new Rpc(a.e).peers()).peers.find((p) => p.id === b.id)!.label;
-  assert.match(label, /^Chrome, added \d{4}-\d{2}-\d{2}$/);
+  assert.equal(label, "New Chrome device");
   assert.ok(v.lines.includes(T.stillHolds(label)));
   await a.db.put("peers", { ...(await a.db.peer(b.id))!, approves_me: false });
   assert.deepEqual((await a.e.pairRowView(b.id))!.lines, T.noReplyFrom(label).split("\n")); // the 3-day hint gave way to No reply
@@ -1823,7 +1824,7 @@ test("a peer list with an impossible created time still shows the device list", 
   w.rows.get(b.id)!.created = 1e20;
   await a.e.fetchPeersNow();
   const row = (await new Rpc(a.e).peers()).peers.find((v) => v.id === b.id)!;
-  assert.match(row.label, /^Chrome, added /);
+  assert.equal(row.label, "New Chrome device");
   const stored = (await a.db.peer(b.id))!;
   assert.equal(stored.created, 0);
   await a.db.put("peers", { ...stored, created: 1e20 });

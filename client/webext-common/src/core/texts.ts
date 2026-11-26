@@ -3,8 +3,10 @@
 import type { PeerRow } from "../store/db.ts";
 
 const A_DEVICE = "A device";
-/** A device name in a text, in straight double quotes; a device with no name stays "A device" unquoted. */
-export const quoted = (x: string): string => (x === A_DEVICE ? x : '"' + x + '"');
+/** True for the label of a device with no name yet (New Firefox device). */
+export const isNewDeviceLabel = (x: string): boolean => /^New (Android|iOS|Chrome|Firefox|CLI) device$/.test(x);
+/** A device name in a text, in straight double quotes; a device with no name ("A device", "New Firefox device") stays unquoted. */
+export const quoted = (x: string): string => (x === A_DEVICE || isNewDeviceLabel(x) ? x : '"' + x + '"');
 
 /** "Tap" on Firefox for Android (an Android user agent), "Click" on desktop. */
 export const clickWord = (ua: string): string => (/Android/i.test(ua) ? "Tap" : "Click");
@@ -16,6 +18,8 @@ export const T = {
   unknownType: "Unknown message type, please update",
   newerVersion: "A device uses a newer version. Update PushArmor",
   pairCommit: "A new device wants to pair. Open PushArmor.",
+  pairNewTitle: "A new device wants to pair",
+  pairNewBody: (platform: string, id: string) => platformLabel(platform) + " device with ID " + id,
   pairReply: "Pairing code ready. Open PushArmor.",
   pairOpen: (fp: string) => "New device: compare " + fp + ".",
   pairHalf: (x: string) => quoted(x) + " wants to pair again. " + CLICK + " Pair again on its row.",
@@ -153,15 +157,20 @@ export function peerLabel(name: string | null): string {
   return name ?? T.aPeer;
 }
 
-function created(p: PeerRow): string {
-  const d = new Date(p.created * 1000);
-  const plat = p.platform === "cli" ? "Command line" : p.platform.charAt(0).toUpperCase() + p.platform.slice(1);
-  return Number.isFinite(d.getTime()) ? plat + ", added " + d.toISOString().slice(0, 10) : plat;
+const PLATFORM_LABEL: Record<string, string> = { android: "Android", ios: "iOS", chrome: "Chrome", firefox: "Firefox", cli: "CLI" };
+/** The platform as users read it: iOS, CLI, Android, Chrome, Firefox. */
+export function platformLabel(platform: string): string {
+  return PLATFORM_LABEL[platform] ?? platform;
+}
+
+/** The label of a device whose name is not known yet: New Firefox device. */
+export function newDeviceLabel(platform: string): string {
+  return "New " + platformLabel(platform) + " device";
 }
 
 /** The device name its row in the list shows. */
 export function rowLabel(p: PeerRow): string {
-  return p.name ?? created(p);
+  return p.name ?? newDeviceLabel(p.platform);
 }
 
 // Error texts, same words as Android and iOS: line 1 says what could not be done,
@@ -192,7 +201,7 @@ export type ActionId =
 
 /** Line 1: the action that did not complete. */
 export function actionLine(a: ActionId, x = ""): string {
-  const q = '"' + x + '"';
+  const q = quoted(x);
   switch (a) {
     case "send": return "Unable to send.";
     case "refresh": return "Unable to refresh the device list.";

@@ -21,7 +21,7 @@ test("peer status line by priority, replaced by pairing and note lines", () => {
   assert.equal(peerStatus(peer({ fingerprint: "K7QD" })), null);
   assert.equal(platformLabel("ios"), "iOS");
   assert.equal(platformLabel("firefox"), "Firefox");
-  assert.equal(platformLabel("cli"), "Command line");
+  assert.equal(platformLabel("cli"), "CLI");
 });
 
 test("middle ellipsis keeps head and tail with exactly one ...", () => {

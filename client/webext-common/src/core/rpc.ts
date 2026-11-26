@@ -47,6 +47,8 @@ export interface PeerView {
   created?: number;
   /** Devices section: Waiting to pair, Pairing, or Paired devices (rejected rows go under Rejected devices) */
   section?: "waiting" | "pairing" | "paired";
+  /** Codes match done here: waiting for the other device's response */
+  awaiting?: boolean;
 }
 
 export interface StateView {
@@ -356,6 +358,7 @@ export class Rpc {
         v.actions = pv.actions;
         v.countdown = pv.countdown;
         v.fingerprint = pv.fingerprint;
+        v.awaiting = pv.awaiting;
         const ent = entries.get(p.id)!;
         v.pk = ent.pk;
         if (ent.last_send && t - ent.last_send < 60_000) v.actions = v.actions.filter((x) => x !== "send_again");

@@ -31,7 +31,7 @@ test("no reply: N committed is plain waiting at 1:59, the error at 2:00, also af
   assert.ok(!v.actions.includes("try_again"));
   clock.t += 1000;
   v = await row(a, b.id);
-  assert.deepEqual(v.lines, ['No reply from "' + label + '"', "Check that notifications are on for PushArmor on both devices, then try again"]);
+  assert.deepEqual(v.lines, ["No reply from " + label, "Check that notifications are on for PushArmor on both devices, then try again"]);
   assert.ok(v.actions.includes("try_again") && !v.actions.includes("send_again"));
   const a2 = await restart(a, clock);
   assert.deepEqual((await row(a2, b.id)).lines, v.lines);
@@ -48,7 +48,7 @@ test("no reply: X replied shows the error at 2:00 after the automatic reply", as
   clock.t += 1000;
   const v = await row(b, a.id);
   assert.equal(v.lines.length, 2);
-  assert.match(v.lines[0]!, /^No reply from ".+"$/);
+  assert.match(v.lines[0]!, /^No reply from New Chrome device$/);
   assert.ok(v.actions.includes("try_again"));
 });
 

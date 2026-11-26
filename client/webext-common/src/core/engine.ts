@@ -14,6 +14,7 @@ import {
   KEYHASH_LEN,
   accountOf,
   commitHash,
+  deviceId,
   emailHash,
   keyhash,
   mailboxKey,
@@ -627,8 +628,8 @@ export class Engine {
 
   // ---------------------------------------------------------- pair receive
 
-  private async pairNotice(pk: string, text: string): Promise<void> {
-    this.p.notify("p:" + pk, T.appName, text);
+  private async pairNotice(pk: string, text: string, title: string = T.appName): Promise<void> {
+    this.p.notify("p:" + pk, title, text);
   }
 
   private async receivePair(m: string, self: SelfKeys, src: Src): Promise<void> {
@@ -681,8 +682,11 @@ export class Engine {
     const pkX = await pairingKey(b64urlDecode(from), b64urlDecode(self.id)); // sender is N
     const name = await this.halfName(from);
     // the device is named in the notice when it has a name; else the generic text
-    const known = (await this.db.peer(from))?.name;
+    const fromRow = await this.db.peer(from);
+    const known = fromRow?.name;
     const commitText = known ? T.wantsToPair(known) : T.pairCommit;
+    // a device with no name yet: "A new device wants to pair" over its platform and ID
+    const commitNotice = (pk: string) => (!known && fromRow ? this.pairNotice(pk, T.pairNewBody(fromRow.platform, deviceId(b64urlDecode(from))), T.pairNewTitle) : this.pairNotice(pk, commitText));
     switch (d.action) {
       case "fetch":
         // no GET /peers ran (a server wait or a failure): keep the commit for the next fetch, never drop it
@@ -712,10 +716,10 @@ export class Engine {
         }
         const e = await getEntry(this.p.storageLocal, from);
         if (e && e.state === "shown" && e.fingerprint) return this.pairNotice(e.pk, T.pairOpen(e.fingerprint));
-        return this.pairNotice(e?.pk ?? pkX, commitText);
+        return commitNotice(e?.pk ?? pkX);
       }
       case "resend": {
-        await this.pairNotice(pkX, commitText);
+        await commitNotice(pkX);
         await this.sendReply(from);
         return;
       }
@@ -741,7 +745,7 @@ export class Engine {
         await this.p.storageLocal.remove([PAIR_MSG_PREFIX + from]);
         await this.p.storageLocal.set(items);
         await this.clearDenied(from);
-        await this.pairNotice(pkX, commitText);
+        await commitNotice(pkX);
         if (d.action === "reply") await this.sendReply(from);
         return;
       }
@@ -780,12 +784,7 @@ export class Engine {
 
   private async halfName(id: string): Promise<string> {
     const p = await this.db.peer(id);
-    if (p?.name) return p.name;
-    if (!p) return T.aPeer;
-    const plat = p.platform.charAt(0).toUpperCase() + p.platform.slice(1);
-    const d = new Date(p.created * 1000);
-    const mon = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getUTCMonth()];
-    return plat + " device added " + mon + " " + d.getUTCDate();
+    return p ? rowLabel(p) : T.aPeer;
   }
 
   /** X: send (or re-send) the reply of an authorized entry, same r_X. */
@@ -2176,7 +2175,7 @@ export class Engine {
   // ------------------------------------------------------------- views
 
   /** Row text helpers for the Peers screen. */
-  async pairRowView(x: string): Promise<{ lines: string[]; actions: string[]; countdown: string | null; fingerprint: string | null } | null> {
+  async pairRowView(x: string): Promise<{ lines: string[]; actions: string[]; countdown: string | null; fingerprint: string | null; awaiting: boolean } | null> {
     const e = await getEntry(this.p.storageLocal, x);
     const peer = await this.db.peer(x);
     if (!e || !peer) return null;
@@ -2213,7 +2212,7 @@ export class Engine {
       actions.push("approve", "deny");
       if (e.role === "N") actions.push("send_again");
     }
-    return { lines, actions, countdown, fingerprint: e.fingerprint ?? null };
+    return { lines, actions, countdown, fingerprint: e.fingerprint ?? null, awaiting: !!e.approved && !peer.approve_verified };
   }
 
   // -------------------------------------------------------- registration

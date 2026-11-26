@@ -46,7 +46,7 @@ test("a Reject the relay server does not take shows why, and the device stays re
   w.inject.push({ match: /POST \/v1\/deny\//, status: 503, body: { error: "unavailable" }, times: 9 });
   const r = await new Rpc(b.e).handle({ op: "deny", args: { id: a.id } });
   assert.equal(r.ok, false);
-  assert.match((r as { error: string }).error, /^Unable to reject ".+"\.\n/);
+  assert.match((r as { error: string }).error, /^Unable to reject New Chrome device\.\n/);
   assert.equal((await b.db.peer(a.id))!.ruling, "denied");
 });
 

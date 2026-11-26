@@ -4,7 +4,7 @@ import { sortByLabel } from "../model/sendsel.ts";
 import { STEP } from "../model/busy.ts";
 import { b64urlTryDecode } from "../crypto/b64url.ts";
 import { ID_LEN, addedDate, deviceId } from "../crypto/labels.ts";
-import { T, clickWord, confirmResultText } from "../core/texts.ts";
+import { T, clickWord, confirmResultText, isNewDeviceLabel } from "../core/texts.ts";
 import { type UiEnv, add, busyBar, clear, pairCommandLine, disableFor, greyFor, group, h, overflowMenu, peerStatus, platformLabel, rpc, sh, statusLine } from "./dom.ts";
 import { confirmDialog, toast } from "./dialog.ts";
 import { devicesArt, icon, platformIcon, shield } from "./icons.ts";
@@ -299,7 +299,8 @@ function peerRow(env: UiEnv, p: PeerView, redraw: Redraw, globalAllow = true, se
   const head = h("div", { class: "t1 name" }, p.label);
   if (p.greyed) head.addEventListener("click", () => void rpc(env, "greyedTap"));
   const sub = h("div", { class: "sub" });
-  const info = h("div", { class: "info" }, h("div", { class: "t2" }, platformLabel(p.platform)), ...idLines(p));
+  // the platform line only on paired devices; elsewhere the name or New Firefox device says it
+  const info = h("div", { class: "info" }, ...(p.section === "paired" || (!p.section && p.paired) ? [h("div", { class: "t2" }, platformLabel(p.platform))] : []), ...idLines(p));
   const s = peerStatus(p);
   if (s) info.append(h("div", { class: "t2" }, statusLine(s.kind, s.word)));
   else if (p.greyed) info.append(h("div", { class: "t2 line" }, p.greyed));
@@ -323,6 +324,14 @@ function peerRow(env: UiEnv, p: PeerView, redraw: Redraw, globalAllow = true, se
   return row;
 }
 
+/** Pairing card title: Pair with new Firefox device, or Awaiting Firefox device's response after Codes match here. */
+function pairTitle(p: PeerView): string {
+  const named = !isNewDeviceLabel(p.label);
+  const who = named ? '"' + p.label + '"' : p.label.replace(/^New /, "");
+  if (p.awaiting) return "Awaiting " + who + "'s response";
+  return named ? "Pair with " + who : "Pair with new " + who;
+}
+
 /** Pairing card with the fingerprint plate (rendered before This device). */
 function pairCard(env: UiEnv, p: PeerView, redraw: Redraw): HTMLElement {
   const card = h("div", { class: "pair", id: "peer-" + p.id, tabindex: "-1" });
@@ -331,9 +340,10 @@ function pairCard(env: UiEnv, p: PeerView, redraw: Redraw): HTMLElement {
     "div",
     { class: "pair-head" },
     h("div", { class: "av" }, platformIcon(p.platform)),
-    h("div", { class: "txt" }, h("div", { class: "pair-title" }, 'Pair with new device: "' + p.label + '"'), h("div", { class: "t2" }, platformLabel(p.platform)), ...idLines(p)),
+    h("div", { class: "txt" }, h("div", { class: "pair-title" }, pairTitle(p)), ...(p.awaiting ? idLines(p).slice(0, 1) : idLines(p))),
   );
-  const more = menuFor(env, p, redraw);
+  // no more menu while waiting for the other device: Cancel pairing request is on the card
+  const more = p.awaiting ? null : menuFor(env, p, redraw);
   if (more) head.append(more);
   card.append(
     head,
@@ -342,11 +352,12 @@ function pairCard(env: UiEnv, p: PeerView, redraw: Redraw): HTMLElement {
       { class: "plate" },
       h("div", { class: "plate-label", "aria-hidden": "true" }, shield(13), T.fingerprint("").trim()),
       h("div", { class: "cells", role: "img", "aria-label": T.fingerprint(chars.join(", ")) }, ...chars.map((c) => h("span", { class: "cell", "aria-hidden": "true" }, c))),
-      h("p", {}, 'Verify that "' + p.label + '" shows this same code.'),
+      h("p", {}, "Confirm the other device shows this code."),
     ),
   );
   if (p.pk) void rpc(env, "fingerprintShown", { pk: p.pk }).catch(() => undefined);
-  for (const l of p.lines) if (!l.startsWith(T.fingerprint("").trim())) card.append(h("div", { class: "t2 line" }, l));
+  // waiting for the other device: the title says so, no second line
+  if (!p.awaiting) for (const l of p.lines) if (!l.startsWith(T.fingerprint("").trim())) card.append(h("div", { class: "t2 line" }, l));
   const main = [...p.actions].filter((a) => !MENU.has(a) && a !== "cancel").sort((x, y) => rank(x) - rank(y));
   // Codes differ left, Codes match right, equal width.
   const order = main.includes("deny") ? ["deny", ...main.filter((a) => a !== "deny")] : main;
