@@ -663,7 +663,7 @@ test("user text says URL for a web address; the sign-in email's login link stays
   const { R } = await import("../src/core/texts.ts");
   assert.match(R.badLink, /login link/);
   for (const f of ["../../chrome/manifest.json", "../../firefox/manifest.json"]) {
-    assert.match(JSON.parse(readFileSync(new URL(f, import.meta.url), "utf8")).description, /^Send URLs and text /);
+    assert.match(JSON.parse(readFileSync(new URL(f, import.meta.url), "utf8")).description, /^Send URLs, text, and small files /);
   }
   assert.match(readFileSync(new URL("../src/shots/shots.ts", import.meta.url), "utf8"), /"Send URLs or text to your devices/);
 });

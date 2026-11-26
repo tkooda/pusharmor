@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "PushArmor",
   "version": "0.0.0",
-  "description": "Send URLs and text between your own devices, always end-to-end encrypted.",
+  "description": "Send URLs, text, and small files between your own devices, always end-to-end encrypted, for free, with no ads.",
   "minimum_chrome_version": "121",
   "background": { "service_worker": "sw.js", "type": "module" },
   "action": { "default_popup": "popup.html", "default_icon": { "16": "icons/icon-16.png", "32": "icons/icon-32.png" } },
