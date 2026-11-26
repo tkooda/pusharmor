@@ -119,6 +119,8 @@ struct SettingsView: View {
                         .font(.caption).foregroundColor(.secondaryText)
                 }
 
+                FileSettingsSection()
+
                 Section("History") {
                     Picker("Delete messages older than", selection: Binding(
                         get: { model.historyDays },
@@ -130,8 +132,6 @@ struct SettingsView: View {
                     Text("Manually deleting on this device will also delete on your other devices.")
                         .font(.caption).foregroundColor(.secondaryText)
                 }
-
-                FileSettingsSection()
 
                 if model.phase == .main {
                     Section("Account") {
