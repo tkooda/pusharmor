@@ -28,9 +28,9 @@ distribution:
 ## Commands
 
 - `pusharmor login` - log in this device (open the URL it shows, then paste the code).
-- `pusharmor pair` - list your devices; `pusharmor pair ID` pairs with one: compare the
+- `pusharmor devices` - list your devices and their pairing status.
+- `pusharmor pair ID` - pair with a device (ID from `pusharmor devices`): compare the
   fingerprint on both devices, then confirm or reject.
-- `pusharmor devices` - list your devices and their pairing status (as `pusharmor pair` does).
 - `pusharmor send TEXT` - send a URL or text to all paired devices; `-d ID` for one,
   `--text` to send a URL as plain text. With `-` or piped input it reads stdin.
 - `pusharmor send --file PATH` (`-f`) - send a small file to all paired devices (`-d ID` for one). It is

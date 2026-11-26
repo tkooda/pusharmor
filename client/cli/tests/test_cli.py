@@ -105,7 +105,7 @@ def pair_two(monkeypatch, net, a, b, ids=None):
 # ---- parsing ----
 
 def test_command_table_is_frozen():
-    assert list(pa.COMMANDS) == ["login", "logout", "pair", "devices", "listen", "send", "rename", "delete"]
+    assert list(pa.COMMANDS) == ["login", "logout", "devices", "pair", "send", "listen", "rename", "delete"]
 
 
 @pytest.mark.parametrize("argv", [["frob"], ["rename"], ["delete"], ["send", "--bogus"], ["pair", "a", "b"],
@@ -118,17 +118,62 @@ def test_bad_usage_exits_2(argv, capsys):
     assert err.startswith("error: ") and err.count("\n") == 1
 
 
-@pytest.mark.parametrize("name", list(pa.COMMANDS))
+@pytest.mark.parametrize("name", list(pa.COMMANDS) + ["help"])
 def test_help_for_every_command(name, capsys):
     with pytest.raises(SystemExit) as e:
         pa.main([name, "--help"])
-    assert e.value.code == 0 and "usage: pusharmor " + name in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert e.value.code == 0 and out.startswith("usage: pusharmor " + name)
+    assert "[-h]" not in out and "and exit" not in out and "exit codes:" not in out
+    assert "  -h, --help" in out and "show this help\n" in out
+    others = [n for n in pa.COMMANDS if n != name]
+    assert not any("usage: pusharmor " + n in out for n in others)
 
 
-def test_send_help_shows_d_and_to(capsys):
+def test_help_command_and_no_arguments_print_the_same_as_help_option(capsys, monkeypatch):
     with pytest.raises(SystemExit):
-        pa.main(["send", "--help"])
-    assert re.search(r"-d( ID)?, --to ID", capsys.readouterr().out)  # Python 3.13 writes the metavar once
+        pa.main(["--help"])
+    help_text = capsys.readouterr().out
+    assert help_text.startswith("usage: pusharmor [--version] [--config DIR] COMMAND ...\n")
+    assert help_text.index("--version") < help_text.index("--config DIR  ")
+    assert "show the version\n" in help_text and "and exit" not in help_text
+    words = [l.split()[0] for l in help_text.split("  COMMAND\n")[1].split("\n\n")[0].splitlines()]
+    assert words == ["login", "logout", "devices", "pair", "send", "listen", "rename", "delete", "help"]
+    for argv in (["help"], []):
+        assert pa.main(argv) == 0
+        assert capsys.readouterr() == (help_text, "")
+    monkeypatch.setattr(sys, "argv", ["pusharmor"])
+    assert pa.main() == 0
+    assert capsys.readouterr() == (help_text, "")
+
+
+def test_command_help_texts(capsys, monkeypatch):
+    monkeypatch.setenv("COLUMNS", "200")
+    def help_of(name):
+        with pytest.raises(SystemExit):
+            pa.main([name, "--help"])
+        return capsys.readouterr().out
+    out = help_of("send")
+    assert out.startswith("usage: pusharmor send [-f PATH] [-d ID] [--text] [MESSAGE")
+    assert "Send a URL, text, or a file to a paired device.\n" in out and "--to" not in out
+    assert re.search(r"-d( ID)?, --id ID +device ID \(NNN-NNN-NNN\) from pusharmor devices\n", out)
+    assert "send this file (up to 100 MB)\n" in out
+    assert "--text  " in out and "force sending as plain text, not as any detected URL or phone number\n" in out
+    out = help_of("pair")
+    assert out.startswith("usage: pusharmor pair ID\n")
+    assert re.search(r"\n  ID +device ID \(NNN-NNN-NNN\) from pusharmor devices\n", out)
+    assert help_of("listen").startswith("usage: pusharmor listen [--json | --tsv | --exec PROG] [--files DIR]\n")
+    assert "Change the name shown on your other devices for this device.\n" in help_of("rename")
+    out = help_of("delete")
+    assert "Remove a device from your account.\n" in out and "this device too" not in out
+
+
+def test_pair_without_an_id_is_a_usage_error(net, tmp_path, monkeypatch, capsys):
+    login(monkeypatch, tmp_path)
+    capsys.readouterr()
+    assert run(tmp_path, "pair") == 2
+    assert capsys.readouterr() == (
+        "", "error: Unable to pair. No device ID was given. Run `pusharmor devices` to see device IDs.\n")
 
 
 def test_device_id_must_match_exactly():
@@ -149,8 +194,10 @@ def test_device_id_must_match_exactly():
 
 def test_parse_args_per_command():
     p = pa.build_parser()
-    a = p.parse_args(["--config", "/x", "send", "-d", "abcdef", "--to", "123456", "--text", "hi", "there"])
-    assert (a.config, a.command, a.to, a.text, a.message) == ("/x", "send", ["abcdef", "123456"], True, ["hi", "there"])
+    a = p.parse_args(["--config", "/x", "send", "-d", "abcdef", "--to", "123456", "--id", "7", "-d", "8", "--text", "hi",
+                      "there"])
+    assert (a.config, a.command, a.to, a.text, a.message) == ("/x", "send", ["abcdef", "123456", "7", "8"], True,
+                                                              ["hi", "there"])
     assert p.parse_args(["pair"]).id is None and p.parse_args(["pair", "abcdef"]).id == "abcdef"
     a = p.parse_args(["listen", "--exec", "notify"])
     assert (a.exec, a.json, a.tsv) == ("notify", False, False)
@@ -522,7 +569,7 @@ def test_pair_send_listen(net, tmp_path, monkeypatch, capsys):
     assert len(re.findall(r"(?:^|(?<=\n))\nCompare pairing code: [0-9A-Z]{4}\n(?=\n)", out)) == 2
     assert out.count("Paired with ") == 2
 
-    assert run(a, "pair") == 0
+    assert run(a, "devices") == 0
     listing = capsys.readouterr().out
     assert "this device" in listing and "paired" in listing and pa.device_id(idb) in listing
 
@@ -712,7 +759,7 @@ def test_rejected_device_is_listed_as_rejected_until_it_asks_again_or_pair_id_ru
     assert pair_with_b_answer(monkeypatch, net, a, b, ida, idb, "n") == pa.EXIT_ERR
     assert state(b)["peers"][ida]["ruling"] == "denied"
     capsys.readouterr()
-    assert run(b, "pair") == 0
+    assert run(b, "devices") == 0
     out = capsys.readouterr().out
     row = [l for l in out.splitlines() if pa.device_id(ida) in l]
     assert len(row) == 1 and row[0].endswith("  rejected") and "this device" in out
@@ -726,7 +773,7 @@ def test_rejected_device_is_listed_as_rejected_until_it_asks_again_or_pair_id_ru
     assert run(b, "pair", pa.device_id(ida)) == 1
     assert state(b)["peers"][ida]["ruling"] == "none"
     capsys.readouterr()
-    assert run(b, "pair") == 0
+    assert run(b, "devices") == 0
     assert pa.device_id(ida) in capsys.readouterr().out
 
 
@@ -739,13 +786,13 @@ def test_incoming_request_shows_a_rejected_device_again(net, tmp_path, monkeypat
     with cx.store.state() as d:
         d["peers"][ida]["ruling"] = "denied"
     capsys.readouterr()
-    assert run(b, "pair") == 0
+    assert run(b, "devices") == 0
     out = capsys.readouterr().out
     assert any(pa.device_id(ida) in l and l.endswith("  rejected") for l in out.splitlines())
     pa.on_commit(cx, ida, b"d" * 32, "yes")
     assert state(b)["peers"][ida]["ruling"] == "none"
     capsys.readouterr()
-    assert run(b, "pair") == 0
+    assert run(b, "devices") == 0
     out = capsys.readouterr().out
     assert pa.device_id(ida) in out and "rejected" not in out
 
@@ -774,7 +821,7 @@ def test_peer_list_opens_stored_remove_messages(net, tmp_path, monkeypatch, caps
     pair_two(monkeypatch, net, b, c, (idb, idc))
     assert state(b)["peers"][idc]["ruling"] == "approved"
     # a removes c; the relay server keeps the remove for b, and b reads it from the peer list, not the push
-    assert run(a, "pair") == 0  # a lists c
+    assert run(a, "devices") == 0  # a lists c
     answers(monkeypatch, "y")
     assert run(a, "delete", pa.device_id(idc)) == 0
     m = net.peers[idb]["rm"].pop(idc)
@@ -782,13 +829,13 @@ def test_peer_list_opens_stored_remove_messages(net, tmp_path, monkeypatch, caps
     capsys.readouterr()
     # quiet drops: unreadable, and a remove that names another device; c stays, marked missing
     net.peers[idb]["rm"] = {idc: "x" * 50, ida: m}
-    assert run(b, "pair") == 0
+    assert run(b, "devices") == 0
     assert state(b)["peers"][idc]["missing"] and net.peers[idb]["rm"] == {}
     err = capsys.readouterr().err
     assert "nvalid" not in err and "read" not in err
     # a fresh, valid remove(c) from a pinned peer applies
     net.peers[idb]["rm"] = {idc: m}
-    assert run(b, "pair") == 0
+    assert run(b, "devices") == 0
     assert idc not in state(b)["peers"] and ida in state(b)["peers"]
     assert "\" was removed from your account.\n" in capsys.readouterr().err
 
@@ -916,7 +963,7 @@ def test_device_list_shows_a_device_that_wants_to_pair(net, tmp_path, monkeypatc
     monkeypatch.setattr(pa, "PAIR_WAIT_S", 0.5)
     assert run(a, "pair", pa.device_id(idb)) == 1  # a's commit waits in b's push cache
     capsys.readouterr()
-    for cmd in ("devices", "pair"):
+    for cmd in ("devices",):
         assert run(b, cmd) == 0
         row = [x for x in capsys.readouterr().out.splitlines() if x.startswith(pa.device_id(ida))]
         assert len(row) == 1 and row[0].endswith("  wants to pair"), row
@@ -1372,7 +1419,7 @@ def test_damaged_state_shape_is_one_line_exit_1(change, monkeypatch, tmp_path, n
     change(d)
     path.write_text(pa.toml_dumps(d))
     capsys.readouterr()
-    for argv, action in ((["send", "hi"], "Unable to send."), (["pair"], "Unable to refresh the device list."),
+    for argv, action in ((["send", "hi"], "Unable to send."), (["devices"], "Unable to refresh the device list."),
                          (["listen"], "Unable to turn on notifications."), (["rename", "zz"], "Unable to rename this device."),
                          (["logout"], "Unable to log out.")):
         assert run(cfg, *argv) == 1
@@ -1431,18 +1478,6 @@ def test_help_lists_every_exit_code(capsys):
         assert "  %-3d %s" % (code, text) in out
 
 
-def test_no_arguments_prints_the_full_help_on_stderr(capsys, monkeypatch):
-    with pytest.raises(SystemExit):
-        pa.main(["--help"])
-    help_text = capsys.readouterr().out
-    assert pa.main([]) == 2
-    out, err = capsys.readouterr()
-    assert out == "" and err == help_text
-    monkeypatch.setattr(sys, "argv", ["pusharmor"])
-    assert pa.main() == 2
-    assert capsys.readouterr().err == help_text
-
-
 # ---- crashes: every error is one line on stderr and a listed exit code ----
 
 class BrokenOut:
@@ -1492,7 +1527,7 @@ def test_closed_output_exits_quietly(monkeypatch, tmp_path, net, capsys):
     cfg = _logged_in(monkeypatch, tmp_path, net)
     capsys.readouterr()
     monkeypatch.setattr(sys, "stdout", BrokenOut())
-    assert run(cfg, "pair") == 1
+    assert run(cfg, "devices") == 1
     assert capsys.readouterr().err == ""
 
 
@@ -1716,7 +1751,7 @@ def test_odd_peer_list_from_the_relay_server(allow, net, tmp_path, monkeypatch, 
     body = json.dumps({"my_allow": allow, "peers": peers}).encode()
     net.hooks[("GET", "peers")] = lambda *a: (200, {}, body)
     capsys.readouterr()
-    assert run(tmp_path, "pair") == 0
+    assert run(tmp_path, "devices") == 0
     assert "iPhone device added Jan 1" in capsys.readouterr().out
     assert pa.gmtime(-10 ** 18).tm_year == 1970
 
@@ -1741,7 +1776,7 @@ def test_non_string_peer_id_from_the_relay_server(net, tmp_path, monkeypatch, ca
     body = json.dumps({"my_allow": [], "peers": [{"id": []}, {"id": 5}]}).encode()
     net.hooks[("GET", "peers")] = lambda *a: (200, {}, body)
     capsys.readouterr()
-    assert run(tmp_path, "pair") == 0
+    assert run(tmp_path, "devices") == 0
 
 
 def test_odd_strings_from_the_relay_server_are_dropped(net, tmp_path, monkeypatch, capsys):
@@ -1752,7 +1787,7 @@ def test_odd_strings_from_the_relay_server_are_dropped(net, tmp_path, monkeypatc
     body = json.dumps({"my_allow": ["a b", "\ud800", 5, "/../x", pid, pid], "peers": peers}).encode()
     net.hooks[("GET", "peers")] = lambda *a: (200, {}, body)
     capsys.readouterr()
-    assert run(tmp_path, "pair") == 0
+    assert run(tmp_path, "devices") == 0
     assert "Traceback" not in capsys.readouterr().err
     assert pa._ids(["a b", "\ud800", 5, pid, pid]) == [pid]
     assert (tmp_path / "devices.toml").exists()
@@ -1982,7 +2017,7 @@ def test_error_is_one_line_reason(reply, code, reason, net, tmp_path, monkeypatc
     monkeypatch.setattr(pa.time, "sleep", lambda s: None)
     net.hooks[("GET", "peers")] = reply if callable(reply) else lambda *a: net.reply(*reply)
     capsys.readouterr()
-    assert run(tmp_path, "pair") == code
+    assert run(tmp_path, "devices") == code
     assert capsys.readouterr().err.splitlines() == ["error: Unable to refresh the device list. " + reason]
 
 
@@ -2172,7 +2207,7 @@ def test_peers_list_with_my_relay_fault_is_accepted(net, tmp_path, monkeypatch, 
     real = net.list_body
     monkeypatch.setattr(net, "list_body", lambda me: dict(real(me), my_relay_fault=True))
     capsys.readouterr()
-    assert run(a, "pair") == 0
+    assert run(a, "devices") == 0
     cap = capsys.readouterr()
     assert pa.device_id(idb) in cap.out and cap.err == ""
 
@@ -2711,7 +2746,7 @@ def test_reconcile_failure_is_reported(monkeypatch, capsys):
 def test_user_visible_text_says_url_not_link():
     src = open(pa.__file__, encoding="utf-8").read()
     for text in ("Open this URL in a browser and log in:", "Open the URL to get a new code:",
-                 "Send a URL or text to your paired devices", "not as a URL or phone number",
+                 "Send a URL, text, or a file to a paired device", "not as any detected URL or phone number",
                  "send URLs, text, and small files to your own"):
         assert text in src
     assert "Open this link" not in src and "Open the link" not in src

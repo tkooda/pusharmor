@@ -3345,7 +3345,7 @@ def drain_cache(cx):
         pair_receive(cx, pt, drain)
 
 
-def pair_list(cx, hint=False):
+def pair_list(cx):
     cx.refresh()
     resend_waiting(cx)
     drain_cache(cx)
@@ -3365,8 +3365,6 @@ def pair_list(cx, hint=False):
         print("  ".join(c.ljust(w[i]) for i, c in enumerate(r[:3])) + "  " + r[3])
     if len(rows) > 2:
         print("\nTo pair with a device: pusharmor pair ID")
-    elif hint:
-        print("\nNo other devices yet. Log in on another device, then run pusharmor pair.")
     return EXIT_OK
 
 
@@ -3376,9 +3374,10 @@ def cmd_devices(cx, args):
 
 
 def cmd_pair(cx, args):
-    cx.need()
     if not args.id:
-        return pair_list(cx, hint=True)
+        raise Fail("No device ID was given. Run `pusharmor devices` to see device IDs.", EXIT_USAGE,
+                   "Unable to pair.")
+    cx.need()
     if not stdin_tty():
         raise Fail("pusharmor pair needs a terminal to compare the pairing code. Run it in a terminal window.",
                    EXIT_USAGE)
@@ -3717,23 +3716,26 @@ def cmd_delete(cx, args):
 COMMANDS = {
     "login": (cmd_login, "Log in this device to your PushArmor account.", []),
     "logout": (cmd_logout, "Log out this device. Keys and paired devices stay on it.", []),
-    "pair": (cmd_pair, "List your devices, or pair with one (compare the code, then confirm or reject).",
-             [(("id",), {"nargs": "?", "metavar": "ID", "help": "device ID from the list (6 or more hex characters)"})]),
     "devices": (cmd_devices, "List your devices and their pairing status.", []),
+    "pair": (cmd_pair, "Pair with a device (compare the code, then confirm or reject).",
+             [(("id",), {"nargs": "?", "metavar": "ID", "help": "device ID (NNN-NNN-NNN) from pusharmor devices"})]),
+    "send": (cmd_send, "Send a URL, text, or a file to a paired device.",
+             [(("message",), {"nargs": "*", "metavar": "MESSAGE", "help": "text to send; - or none reads stdin"}),
+              (("-f", "--file"), {"metavar": "PATH", "help": "send this file (up to 100 MB)"}),
+              (("-d", "--id"), {"dest": "to", "action": "append", "metavar": "ID",
+                                "help": "device ID (NNN-NNN-NNN) from pusharmor devices"}),
+              (("--to",), {"dest": "to", "action": "append", "help": argparse.SUPPRESS}),
+              (("--text",), {"action": "store_true",
+                             "help": "force sending as plain text, not as any detected URL or phone number"})]),
     "listen": (cmd_listen, "Receive messages and print them as they arrive.",
                [(("--json",), {"action": "store_true", "help": "one JSON object per line"}),
                 (("--tsv",), {"action": "store_true", "help": "tab-separated lines"}),
                 (("--exec",), {"metavar": "PROG", "help": "run PROG ID NAME PLATFORM TYPE BODY per message; "
                                "a saved file's path is in $PUSHARMOR_FILE"}),
                 (("--files",), {"metavar": "DIR", "help": "download received files to DIR (never to the output)"})]),
-    "send": (cmd_send, "Send a URL or text to your paired devices (all, or -d ID).",
-             [(("message",), {"nargs": "*", "metavar": "MESSAGE", "help": "text to send; - or none reads stdin"}),
-              (("-f", "--file"), {"metavar": "PATH", "help": "send this file (up to 100,000,000 bytes)"}),
-              (("-d", "--to"), {"dest": "to", "action": "append", "metavar": "ID", "help": "send to this device only (repeatable)"}),
-              (("--text",), {"action": "store_true", "help": "send as plain text, not as a URL or phone number"})]),
-    "rename": (cmd_rename, "Change the name your other devices show for this device.",
+    "rename": (cmd_rename, "Change the name shown on your other devices for this device.",
                [(("name",), {"metavar": "NAME", "help": "1 to 32 plain ASCII characters, no double quote"})]),
-    "delete": (cmd_delete, "Remove a device from your account (this device too).",
+    "delete": (cmd_delete, "Remove a device from your account.",
                [(("id",), {"metavar": "ID", "help": "device ID from pusharmor pair"}),
                 (("--yes",), {"action": "store_true", "help": "do not ask for confirmation (needed without a terminal)"})]),
 }
@@ -3745,8 +3747,24 @@ ACTIONS = {"login": "Unable to log in.", "logout": "Unable to log out.", "pair":
            "send": "Unable to send.", "rename": "Unable to rename this device."}
 
 
+# Usage lines that argparse cannot write by itself.
+USAGES = {"pair": "%(prog)s ID", "listen": "%(prog)s [--json | --tsv | --exec PROG] [--files DIR]"}
+
+
+class Formatter(argparse.RawDescriptionHelpFormatter):
+    """Usage lines without [-h]."""
+
+    def add_usage(self, usage, actions, groups, prefix=None):
+        super().add_usage(usage, [a for a in actions if not isinstance(a, argparse._HelpAction)], groups, prefix)
+
+
 class Parser(argparse.ArgumentParser):
     """A usage error is one "error: " line on stderr and exit code 2, like every other error."""
+
+    def __init__(self, *args, **kw):
+        kw.update(add_help=False, formatter_class=Formatter)
+        super().__init__(*args, **kw)
+        self.add_argument("-h", "--help", action="help", help="show this help")
 
     def error(self, message):
         log("error", message)
@@ -3756,19 +3774,19 @@ class Parser(argparse.ArgumentParser):
 def build_parser():
     p = Parser(prog="pusharmor", description="PushArmor: send URLs, text, and small files to your own "
                                 "devices, end-to-end encrypted. See https://pusharmor.com",
-                                epilog="exit codes:\n" + "\n".join("  %-3d %s" % c for c in EXIT_CODES),
-                                formatter_class=argparse.RawDescriptionHelpFormatter)
+                                epilog="exit codes:\n" + "\n".join("  %-3d %s" % c for c in EXIT_CODES))
+    p.add_argument("--version", action="version", version="pusharmor " + VERSION, help="show the version")
     p.add_argument("--config", metavar="DIR", help="config dir (default: %%PUSHARMOR_CONFIG%%, else "
                    "%%APPDATA%%\\PushArmor)" if windows() else "config dir (default: $PUSHARMOR_CONFIG, else "
                    "$XDG_CONFIG_HOME/pusharmor, else ~/.config/pusharmor)")
-    p.add_argument("--version", action="version", version="pusharmor " + VERSION)
-    sub = p.add_subparsers(dest="command", metavar="COMMAND", required=True)
+    sub = p.add_subparsers(dest="command", metavar="COMMAND")
     for name, (fn, text, arguments) in COMMANDS.items():
-        sp = sub.add_parser(name, help=text, description=text)
+        sp = sub.add_parser(name, help=text, description=text, usage=USAGES.get(name))
         for flags, kw in arguments:
             sp.add_argument(*flags, **kw)
         if name == "listen":
             sp.set_defaults(_check=lambda a: sum([a.json, a.tsv, bool(a.exec)]) <= 1)
+    sub.add_parser("help", help="Show this help.", description="Show this help.")
     return p
 
 
@@ -3830,10 +3848,10 @@ def _main(argv):
                 f.reconfigure(encoding="utf-8", newline="\n")
     set_action("")
     parser = build_parser()
-    if not (sys.argv[1:] if argv is None else argv):  # no arguments: the full help, as a usage error
-        parser.print_help(sys.stderr)
-        return EXIT_USAGE
     args = parser.parse_args(argv)
+    if args.command in (None, "help"):  # no arguments, or help: the same as --help
+        parser.print_help()
+        return EXIT_OK
     if not getattr(args, "_check", lambda a: True)(args):
         parser.error("Use only one of --json, --tsv, and --exec.")
     set_action(ACTIONS[args.command] if args.command not in ("pair", "delete") or not args.id
