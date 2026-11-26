@@ -109,7 +109,7 @@ internal fun softGreenText(dark: Boolean) = if (dark) Color(0xFFC4F2D9) else Col
 
 /** Light green tonal button (no icon): the pairing Approve. Contrast >= 7:1 in light and dark. */
 @Composable
-fun TonalGreenButton(onClick: () -> Unit, text: String, modifier: Modifier = Modifier, enabled: Boolean = true) {
+fun TonalGreenButton(onClick: () -> Unit, text: String, modifier: Modifier = Modifier, enabled: Boolean = true, style: TextStyle? = null) {
     val dark = LocalPaExtra.current.dark
     FilledTonalButton(
         onClick, modifier.heightIn(min = 48.dp), enabled = enabled,
@@ -118,7 +118,7 @@ fun TonalGreenButton(onClick: () -> Unit, text: String, modifier: Modifier = Mod
             contentColor = softGreenText(dark),
         ),
         border = BorderStroke(1.5.dp, BrandGreen),
-    ) { Text(text, style = MaterialTheme.typography.labelLarge) }
+    ) { Text(text, style = style ?: MaterialTheme.typography.labelLarge) }
 }
 
 /** Rounded-square tile behind a leading row icon. */
@@ -192,6 +192,11 @@ fun StatusMark(kind: UiText.Mark, color: Color) {
             UiText.Mark.OFF -> {
                 drawCircle(color, r - w / 2, style = Stroke(w))
                 drawLine(color, Offset(size.width * 0.24f, center.y), Offset(size.width * 0.76f, center.y), w)
+            }
+            // A circle with a slash: not paired.
+            UiText.Mark.NOT_PAIRED -> {
+                drawCircle(color, r - w / 2, style = Stroke(w))
+                drawLine(color, Offset(size.width * 0.8f, size.height * 0.2f), Offset(size.width * 0.2f, size.height * 0.8f), w)
             }
         }
     }

@@ -108,7 +108,7 @@ class UiTextTest {
         assertEquals(Mark.WAIT to "Unconfirmed", UiText.status(pinned.copy(approveVerified = false)))
         // A device that logged in but is not paired here yet (Pair and Reject row).
         val fresh = pinned.copy(signPub = null, encPub = null, pairingId = null, approved = false, approveVerified = false)
-        assertEquals(Mark.WAIT to "Ready to pair", UiText.status(fresh))
+        assertEquals(Mark.NOT_PAIRED to "Not paired", UiText.status(fresh))
         assertEquals(Mark.OFF to "Logged out", UiText.status(fresh.copy(loggedOut = true)))
     }
 

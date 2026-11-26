@@ -205,6 +205,12 @@ internal fun devicesShown(others: List<Peer>, pairing: Set<String>): List<Peer> 
 /** The Rejected devices section: the rejected devices the Devices list leaves out; Pair on one ends the rejection. */
 internal fun devicesRejected(others: List<Peer>, pairing: Set<String>): List<Peer> = others.filter { rejectedHidden(it, pairing) }
 
+/** Waiting to pair: a device not paired here, or one whose pairing is only half done (the other side has not confirmed or rejected it). */
+internal fun waitingToPair(p: Peer): Boolean = !p.pinned || p.waiting || p.notPairedOnPeer || p.declined
+
+/** The Rejected devices section header, with its count. */
+internal fun rejectedHeader(n: Int): String = "Rejected devices ($n)"
+
 internal fun platformIcon(platform: String): ImageVector = when (platform) {
     "chrome" -> PaIcons.Laptop
     "cli" -> PaIcons.Terminal
@@ -249,7 +255,9 @@ fun PeersScreen(vm: AppViewModel, onChoosePush: () -> Unit = {}) {
     val list = devicesShown(others(peers, me?.id), pairingIds)
     // Each section is in alphabetical order of the shown name.
     val pairing = UiText.sortedByName(list.filter { p -> rows.any { it.peerId == p.id } }, ::label)
-    val plain = UiText.sortedByName(list.filter { p -> rows.none { it.peerId == p.id } }, ::label)
+    val plain = list.filter { p -> rows.none { it.peerId == p.id } }
+    val waiting = UiText.sortedByName(plain.filter(::waitingToPair), ::label)
+    val paired = UiText.sortedByName(plain.filterNot(::waitingToPair), ::label)
     val rejected = UiText.sortedByName(devicesRejected(others(peers, me?.id), pairingIds), ::label)
     val lastRefresh = prefs?.get(Settings.K.LAST_REFRESH) ?: 0
     val canRefresh = now - lastRefresh >= Session.REFRESH_GREY_MS
@@ -262,13 +270,17 @@ fun PeersScreen(vm: AppViewModel, onChoosePush: () -> Unit = {}) {
     // The highlight scrolls once per visit; leaving the screen clears it.
     var aimed by remember { mutableStateOf<String?>(null) }
     DisposableEffect(Unit) { onDispose { vm.highlight.value = null } }
-    // Item order: banners, [steps], [pairing header, cards], [peers header, peers].
+    // Item order: banners, [steps], [waiting header, rows], [pairing header, cards], [paired header, rows].
     LaunchedEffect(highlight, list.size) {
         highlight?.takeIf { it != aimed }?.let { h ->
-            val pi = pairing.indexOfFirst { it.id == h }
-            val st = if (firstDevice) 1 else 0
-            val base = if (pairing.isEmpty()) 1 + st else 2 + st + pairing.size
-            val idx = if (pi >= 0) 2 + st + pi else plain.indexOfFirst { it.id == h }.takeIf { it >= 0 }?.let { base + 1 + it }
+            var base = 1 + (if (firstDevice) 1 else 0)
+            var idx: Int? = null
+            for (section in listOf(waiting, pairing, paired)) {
+                if (section.isEmpty()) continue
+                val i = section.indexOfFirst { it.id == h }
+                if (i >= 0) { idx = base + 1 + i; break }
+                base += 1 + section.size
+            }
             idx?.let { state.animateScrollToItem(it); aimed = h }
         }
     }
@@ -308,17 +320,11 @@ fun PeersScreen(vm: AppViewModel, onChoosePush: () -> Unit = {}) {
                 if (firstDevice) item(key = "steps") {
                     Column { SectionHeader(UiText.FIRST_DEVICE_TITLE); FirstDeviceSteps() }
                 }
-                if (pairing.isNotEmpty()) {
-                    item(key = "pairing-header") { SectionHeader("Pairing") }
-                    itemsIndexed(pairing, key = { _, p -> "pair-" + p.id }) { i, p ->
-                        val row = rows.first { it.peerId == p.id }
-                        PairingCard(vm, p, row, now, Modifier.padding(top = if (i > 0) 12.dp else 0.dp))
-                    }
-                }
-                if (plain.isNotEmpty()) {
-                    item(key = "peers-header") { SectionHeader(if (firstDevice) "Waiting to pair" else "Other devices") }
-                    itemsIndexed(plain, key = { _, p -> p.id }) { i, p ->
-                        PeerRow(vm, p, now, p.id == highlight, me?.id, Modifier.padding(top = if (i > 0) 2.dp else 0.dp).groupItem(i, plain.size), onDelete = { confirmDelete = p.id }) { confirmRemove = p.id }
+                // Sections in order, each only when it has a device: Waiting to pair, Pairing, Paired devices, then Rejected devices.
+                if (waiting.isNotEmpty()) {
+                    item(key = "waiting-header") { SectionHeader("Waiting to pair") }
+                    itemsIndexed(waiting, key = { _, p -> p.id }) { i, p ->
+                        PeerRow(vm, p, now, p.id == highlight, me?.id, Modifier.padding(top = if (i > 0) 2.dp else 0.dp).groupItem(i, waiting.size), onDelete = { confirmDelete = p.id }) { confirmRemove = p.id }
                     }
                 } else if (pairing.isEmpty() && firstDevice) {
                     item(key = "waiting-header") { SectionHeader("Waiting to pair") }
@@ -328,12 +334,25 @@ fun PeersScreen(vm: AppViewModel, onChoosePush: () -> Unit = {}) {
                             headlineContent = { Text(UiText.FIRST_DEVICE_WAITING, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant) })
                     }
                 }
+                if (pairing.isNotEmpty()) {
+                    item(key = "pairing-header") { SectionHeader("Pairing") }
+                    itemsIndexed(pairing, key = { _, p -> "pair-" + p.id }) { i, p ->
+                        val row = rows.first { it.peerId == p.id }
+                        PairingCard(vm, p, row, now, Modifier.padding(top = if (i > 0) 12.dp else 0.dp))
+                    }
+                }
+                if (paired.isNotEmpty()) {
+                    item(key = "peers-header") { SectionHeader("Paired devices") }
+                    itemsIndexed(paired, key = { _, p -> p.id }) { i, p ->
+                        PeerRow(vm, p, now, p.id == highlight, me?.id, Modifier.padding(top = if (i > 0) 2.dp else 0.dp).groupItem(i, paired.size), onDelete = { confirmDelete = p.id }) { confirmRemove = p.id }
+                    }
+                }
                 // Collapsed at the bottom; Pair on a row ends the rejection and starts pairing.
                 if (rejected.isNotEmpty()) {
                     item(key = "rejected-header") {
                         Row(Modifier.fillMaxWidth().clickable(role = Role.Button) { rejectedOpen = !rejectedOpen }
                             .semantics { stateDescription = if (rejectedOpen) "Expanded" else "Collapsed" }, verticalAlignment = Alignment.CenterVertically) {
-                            SectionHeader("Rejected devices", Modifier.weight(1f))
+                            SectionHeader(rejectedHeader(rejected.size), Modifier.weight(1f))
                             Icon(if (rejectedOpen) PaIcons.ExpandLess else PaIcons.ExpandMore, null, Modifier.padding(end = 16.dp, top = 12.dp), tint = MaterialTheme.colorScheme.primary)
                         }
                     }
@@ -731,11 +750,12 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
             Text(UiText.pairCommandLine(x, selfId), inset.padding(bottom = 8.dp), style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant)
         }
         when {
-            !p.pinned -> Row(inset.padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            // Reject and Pair share the row width, in the larger label size iOS uses.
+            !p.pinned -> Row(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 // A rejected device (Rejected devices section) offers only Pair.
-                if (!rejected) OutlinedButton(onClick = { vm.deny(p.id) }, Modifier.heightIn(min = 48.dp), enabled = "deny:${p.id}" !in running, colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error)) { Text("Reject") }
-                TonalGreenButton(onClick = { vm.pair(p.id) }, text = "Pair", enabled = "pair:${p.id}" !in running)
+                if (!rejected) OutlinedButton(onClick = { vm.deny(p.id) }, Modifier.weight(1f).heightIn(min = 48.dp), enabled = "deny:${p.id}" !in running, colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error)) { Text("Reject", style = WIDE_BUTTON_TEXT) }
+                TonalGreenButton(onClick = { vm.pair(p.id) }, text = "Pair", modifier = Modifier.weight(1f), enabled = "pair:${p.id}" !in running, style = WIDE_BUTTON_TEXT)
             }
             p.notPairedOnPeer -> Row(inset.padding(bottom = 8.dp)) {
                 if (p.offersPairAgain) OutlinedButton(onClick = { vm.pairAgain(p.id) }, Modifier.heightIn(min = 48.dp), enabled = p.id !in pairingAgain) { Text("Pair again") }
@@ -818,6 +838,9 @@ internal fun ButtonRow(modifier: Modifier = Modifier, end: Boolean = false, cont
     }
 }
 
+/** Label size of the full-width Reject and Pair buttons on device rows: 17 sp Medium, as on iOS. */
+internal val WIDE_BUTTON_TEXT = androidx.compose.ui.text.TextStyle(fontSize = 17.sp, fontWeight = FontWeight.Medium)
+
 /** "Send again" while waiting for the peer's approve, after a failed send. */
 @Composable
 private fun WaitingSendAgain(vm: AppViewModel, p: Peer, now: Long) {
@@ -858,7 +881,7 @@ private fun PairingCard(vm: AppViewModel, p: Peer, row: PairingRow, now: Long, m
     Column(modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(shape).background(ex.tile).border(1.dp, ex.pairBorder, shape)
         // Bottom padding as wide as the gap above the footer, so Cancel pairing request does not sit on the border.
         .padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 12.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             IconTile(platformIcon(p.platform))
             Column {
                 Text(if (shown || prompted) "Pair with new device: \"$x\"" else x, style = MaterialTheme.typography.titleMedium)

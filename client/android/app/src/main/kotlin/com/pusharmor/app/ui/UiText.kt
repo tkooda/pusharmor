@@ -18,7 +18,7 @@ import com.pusharmor.protocol.ContentType
 
 /** Pure text rules of the screens (unit tested without a device). */
 object UiText {
-    enum class Mark { OK, WAIT, OFF }
+    enum class Mark { OK, WAIT, OFF, NOT_PAIRED }
 
     /** Same words as iOS: Delete account asks first and says what follows. */
     const val COPY_VERSION = "Copy version"
@@ -182,13 +182,13 @@ object UiText {
     const val APPLE_RELAY_HINT = "To log in on another device, use this address. Find it on an iPhone in Settings, under your name, in Sign in with Apple. " +
         "You can also find it at appleid.apple.com, in Hide My Email."
 
-    /** Peer status line by priority: missing, signed out, send only, unreachable, ready to pair (not paired here), approves, has not approved. */
+    /** Peer status line by priority: missing, signed out, send only, unreachable, not paired here, approves, has not approved. */
     fun status(p: Peer): Pair<Mark, String> = when {
         p.missing -> Mark.OFF to "(missing)"
         p.loggedOut -> Mark.OFF to "Logged out"
         !p.listening -> Mark.OFF to "Not listening"
         !p.reachable -> Mark.OFF to "Unreachable"
-        !p.pinned -> Mark.WAIT to "Ready to pair" // a Pair and Reject row, same word as the extensions
+        !p.pinned -> Mark.NOT_PAIRED to "Not paired" // a Pair and Reject row, same word as the extensions
         p.approvesMe -> Mark.OK to "Paired"
         else -> Mark.WAIT to "Unconfirmed"
     }

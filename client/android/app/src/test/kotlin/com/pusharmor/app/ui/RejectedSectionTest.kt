@@ -92,9 +92,9 @@ class RejectedSectionTest {
         val a = c.get()
         idle()
         var all = nodes(a.window.decorView)
-        val header = all.first { text(it) == "Rejected devices" }
+        val header = all.first { text(it) == "Rejected devices (1)" }
         assertTrue(all.none { text(it) == "Old tablet" })
-        assertEquals(listOf("Other devices", "Rejected devices"), all.map { text(it) }.filter { it == "Other devices" || it == "Rejected devices" })
+        assertEquals(listOf("Paired devices", "Rejected devices (1)"), all.map { text(it) }.filter { it == "Paired devices" || it == "Rejected devices (1)" })
         shot(a.window.decorView, "android-collapsed.png")
         var n: SemanticsNode? = header
         while (n != null && n.config.getOrNull(SemanticsActions.OnClick) == null) n = n.parent
@@ -106,7 +106,7 @@ class RejectedSectionTest {
         val texts = all.map { text(it) }
         assertTrue(texts.toString(), "Old tablet" in texts)
         // The rejected row offers Pair, and no Reject.
-        assertTrue(texts.toString(), texts.indexOf("Old tablet") > texts.indexOf("Rejected devices") && texts.lastIndexOf("Pair") > texts.indexOf("Old tablet"))
+        assertTrue(texts.toString(), texts.indexOf("Old tablet") > texts.indexOf("Rejected devices (1)") && texts.lastIndexOf("Pair") > texts.indexOf("Old tablet"))
         assertTrue(texts.toString(), "Reject" !in texts)
         shot(b.window.decorView, "android-open.png")
         c.pause().stop().destroy(); idle()

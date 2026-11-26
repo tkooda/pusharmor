@@ -31,4 +31,13 @@ class RejectedDevicesTest {
         val p = paired.copy(deniedByMe = true)
         assertEquals(listOf("c"), devicesShown(listOf(p), emptySet()).map { it.id })
     }
+
+    @Test fun halfDoneRowsWaitToPair() {
+        assertEquals(true, waitingToPair(ready))
+        assertEquals(false, waitingToPair(paired.copy(approved = true, approveVerified = true)))
+        assertEquals(true, waitingToPair(paired.copy(approved = true)))
+        assertEquals(true, waitingToPair(paired.copy(approved = true, approveVerified = true, listAfterVerify = true)))
+        assertEquals(true, waitingToPair(paired.copy(declined = true)))
+        assertEquals("Rejected devices (2)", rejectedHeader(2))
+    }
 }
