@@ -765,7 +765,8 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
                             CheckItem("Send messages to watch", e.watch && Policy.peerSwitchEnabled(gs.watch), Policy.peerSwitchEnabled(gs.watch)) { vm.setPeerSwitch(p.id, watch = !e.watch) }
                         }
                         HorizontalDivider()
-                        if (p.missing) DropdownMenuItem(text = { Text("Delete") }, onClick = { menu = false; onDelete() })
+                        // A line always sits directly above Remove.
+                        if (p.missing) { DropdownMenuItem(text = { Text("Delete") }, onClick = { menu = false; onDelete() }); HorizontalDivider() }
                         DropdownMenuItem(text = { Text("Remove device from account") }, onClick = { menu = false; onRemove() })
                     }
                 }

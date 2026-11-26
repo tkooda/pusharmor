@@ -68,9 +68,20 @@ class DeviceMenuTest {
             icons.split("; ").map { it.substringBeforeLast(' ') })
     }
 
-    private fun withMenu(declined: Boolean, inspect: ((View, android.app.Activity) -> Unit)? = null) {
+    /** A missing device's menu: a line above Delete and another directly above Remove. */
+    @Config(qualifiers = "w412dp-h900dp-420dpi")
+    @Test fun missingDeviceMenuHasALineDirectlyAboveRemove() = withMenu(declined = false, missing = true) { popup, _ ->
+        val order = listOf("Send messages to watch", "Delete", "Remove device from account")
+        val items = nodes(popup).filter { text(it) in order }.sortedBy { it.boundsInRoot.top }
+        org.junit.Assert.assertEquals(order, items.map(::text))
+        val rows = items.map { n -> generateSequence(n) { it.parent }.first { it.config.getOrNull(SemanticsActions.OnClick) != null }.boundsInRoot }
+        val gaps = rows.zipWithNext { x, y -> y.top - x.bottom }
+        assertTrue("$gaps", gaps.all { it >= 0.5f })
+    }
+
+    private fun withMenu(declined: Boolean, missing: Boolean = false, inspect: ((View, android.app.Activity) -> Unit)? = null) {
         val c = Robolectric.buildActivity(UiHostActivity::class.java)
-        try { check(c, declined, inspect) } finally {
+        try { check(c, declined, inspect, missing) } finally {
             // Close the menu and the activity, so no popup keeps posting into the next test.
             windows().filter { (it.layoutParams as android.view.WindowManager.LayoutParams).type >= 1000 }.forEach { v ->
                 v.dispatchKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_BACK))
@@ -81,7 +92,7 @@ class DeviceMenuTest {
         }
     }
 
-    private fun check(c: org.robolectric.android.controller.ActivityController<UiHostActivity>, declined: Boolean, inspect: ((View, android.app.Activity) -> Unit)?) {
+    private fun check(c: org.robolectric.android.controller.ActivityController<UiHostActivity>, declined: Boolean, inspect: ((View, android.app.Activity) -> Unit)?, missing: Boolean = false) {
         unstickFrames()
         val app = ApplicationProvider.getApplicationContext<PaApp>()
         val t = Thread {
@@ -90,7 +101,7 @@ class DeviceMenuTest {
                 id = "a".repeat(40), platform = "android", created = 1, listSignPub = null, listEncPub = null,
                 signPub = "B".repeat(87), encPub = "C".repeat(87), pairingId = ByteArray(16), approved = true, deniedByMe = false,
                 approveVerified = true, listApprovesMe = true, listDeniesMe = false, listAfterVerify = true, declined = declined,
-                reachable = true, loggedOut = false, logoutN = 0, hidden = false, name = "Galaxy S23", nameN = 1, removed = false, missing = false,
+                reachable = true, loggedOut = false, logoutN = 0, hidden = false, name = "Galaxy S23", nameN = 1, removed = false, missing = missing,
                 lastN = 0, channelId = null, storedApprove = null, storedApproveName = null, lastApproveResult = null, lastSendAt = 0, note = null,
             ))
         }
