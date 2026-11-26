@@ -445,7 +445,8 @@ struct ComposeView: View {
                                 }
                                 .labelStyle(.iconOnly)
                                 Button { picking = true } label: { Label(FileUi.chooseFile, systemImage: "paperclip") }
-                                    .buttonStyle(.bordered)
+                                    .buttonStyle(.borderless)
+                                    .controlSize(.small)
                             }
                         }
                         .font(.footnote)

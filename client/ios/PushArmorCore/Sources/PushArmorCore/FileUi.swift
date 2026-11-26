@@ -11,7 +11,7 @@ public enum FileUi {
     public static let storageHelper = "When full, the oldest files are removed from this device"
     public static let removed = "Removed from this device"
     public static let previewNA = "Preview not available"
-    public static let chooseFile = "Choose file..."
+    public static let chooseFile = "Or choose a file..."
     public static let removeFile = "Remove file"
     public static let willSendFile = "Will be sent as file"
     public static let expired = "Expired"
