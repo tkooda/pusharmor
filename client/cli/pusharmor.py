@@ -2043,14 +2043,12 @@ def peer_label(p):
 
 def said(d, pid, p=None):
     """A device's name in a message, in double quotes. When another device shows the same name (ignoring
-    case), its Device ID follows: "Pixel 8" (907-331-064)."""
+    case), its Device ID follows: "Pixel 8" (907-331-064). This device's own name does not count."""
     p = p or d["peers"].get(pid)
     name = peer_label(p)
     if not p or not p["name"]:
         return '"%s"' % name
     others = [name_display(q["name"]) for i, q in d["peers"].items() if i != pid and q["name"]]
-    if d.get("name"):
-        others.append(name_display(d["name"]))
     if any(o.lower() == name.lower() for o in others):
         return '"%s" (%s)' % (name, device_id(pid))
     return '"%s"' % name

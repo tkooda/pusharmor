@@ -2419,7 +2419,11 @@ def test_device_names_that_clash_show_the_device_id(net, tmp_path, monkeypatch, 
         d["peers"][idb]["name"] = "PIXEL"
         assert pa.said(d, idb) == '"PIXEL"'
         d["name"] = "pixel"
+        assert pa.said(d, idb) == '"PIXEL"'
+        d["peers"]["other-peer-id"] = dict(d["peers"][idb], name="pixel")
         assert pa.said(d, idb) == '"PIXEL" (%s)' % pa.device_id(idb)
+        del d["peers"]["other-peer-id"]
+        d["peers"]["other-peer-id"] = dict(d["peers"][idb], name="pixel")
     net.hooks[("POST", "send")] = lambda *x: net.reply(200, {"r": {idb: "gone"}})
     capsys.readouterr()
     assert run(a, "send", "hi") == pa.EXIT_SEND
