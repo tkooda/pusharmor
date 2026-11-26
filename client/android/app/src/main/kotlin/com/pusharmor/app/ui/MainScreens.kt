@@ -1467,9 +1467,12 @@ internal fun allChipOn(eff: HistoryFilter.Chip, dirs: List<String>): Boolean = e
 /** Computes [HistoryView] once per change of rows, devices, or filters (the screen remembers it). */
 internal fun historyView(rows: List<com.pusharmor.store.HistoryEntity>, chip: HistoryFilter.Chip, dirs: List<String>, nameOf: (String) -> String): HistoryView {
     val frows = rows.map { HistoryFilter.Row(it.peerId, it.direction == "RECEIVED") }
-    val eff = HistoryFilter.effective(frows, chip)
+    // The chosen chip stays in effect even when no row matches it: History then says "No matching messages".
+    // A device chip is the one shown now, with the device's current name.
+    val chips = HistoryFilter.chips(frows, chip, nameOf)
+    val eff = (chip as? HistoryFilter.Chip.PeerChip)?.let { c -> chips.firstOrNull { it is HistoryFilter.Chip.PeerChip && it.peerId == c.peerId } } ?: chip
     val shown = rows.filter { HistoryFilter.matches(HistoryFilter.Row(it.peerId, it.direction == "RECEIVED"), eff) && (dirs.isEmpty() || it.direction in dirs) }
-    return HistoryView(eff, HistoryFilter.chips(frows, nameOf), shown, shown.map { it.id }.toSet(), shown.groupBy { UiText.day(it.at) })
+    return HistoryView(eff, chips, shown, shown.map { it.id }.toSet(), shown.groupBy { UiText.day(it.at) })
 }
 
 /** Tapping the open History row closes it; tapping another opens that one. */

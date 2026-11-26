@@ -45,12 +45,15 @@ object HistoryFilter {
 
     data class Row(val peerId: String?, val received: Boolean)
 
-    /** All; one chip per verified peer sorted by name (hidden while rows come from one peer only); Unknown while a received Unknown row exists. */
-    fun chips(rows: List<Row>, nameOf: (String) -> String): List<Chip> {
-        val peers = rows.mapNotNull { it.peerId }.distinct()
+    /**
+     * All; one chip per verified peer sorted by name (hidden while rows come from one peer only); Unknown while a received
+     * Unknown row exists. The [active] chip always stays, even with no rows left, so a filter never drops to All by itself.
+     */
+    fun chips(rows: List<Row>, active: Chip = Chip.All, nameOf: (String) -> String): List<Chip> {
+        val peers = (rows.mapNotNull { it.peerId } + listOfNotNull((active as? Chip.PeerChip)?.peerId)).distinct()
         val out = mutableListOf<Chip>(Chip.All)
-        if (peers.size > 1) com.pusharmor.app.ui.UiText.sortedByName(peers.map { Chip.PeerChip(it, nameOf(it)) }, { it.name }).forEach { out += it }
-        if (rows.any { it.received && it.peerId == null }) out += Chip.Unknown // sent rows carry no peer id
+        if (peers.size > 1 || active is Chip.PeerChip) com.pusharmor.app.ui.UiText.sortedByName(peers.map { Chip.PeerChip(it, nameOf(it)) }, { it.name }).forEach { out += it }
+        if (active == Chip.Unknown || rows.any { it.received && it.peerId == null }) out += Chip.Unknown // sent rows carry no peer id
         return out
     }
 
@@ -60,6 +63,4 @@ object HistoryFilter {
         Chip.Unknown -> row.received && row.peerId == null
     }
 
-    /** The filter resets to All when it has no rows left. */
-    fun effective(rows: List<Row>, chip: Chip): Chip = if (chip != Chip.All && rows.none { matches(it, chip) }) Chip.All else chip
 }

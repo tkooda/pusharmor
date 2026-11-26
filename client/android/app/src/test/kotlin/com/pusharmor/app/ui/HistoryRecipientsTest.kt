@@ -26,6 +26,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.first
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assert.assertFalse
@@ -179,6 +180,25 @@ class HistoryRecipientsTest {
         tap(v, nodes(v).first { text(it) == "hello one" })
         assertEquals("Expanded", state(v, "hello one"))
         assertFalse(nodes(v).any { text(it) == "Recipients" })
+        close(c)
+    }
+
+    /** A device chip whose rows are all deleted while it is on stays on, and nothing else shows. */
+    @Test fun deviceFilterWithItsRowsDeletedSaysNoMatch() {
+        fun received(body: String, from: String) = HistoryEntity(direction = "RECEIVED", peerId = from, type = "text", content = body, n = null,
+            pairingId = null, at = System.currentTimeMillis(), read = true, results = "", count = 1)
+        val (c, v) = show(listOf(received("from laptop", laptop), received("from phone", phone)), "from phone")
+        fun chip() = nodes(v).filter { text(it) == "Laptop" }.minBy { it.boundsInWindow.top }
+        tap(v, chip())
+        assertTrue(nodes(v).any { text(it) == "from laptop" })
+        assertFalse(nodes(v).any { text(it) == "from phone" })
+        runBlocking(Dispatchers.IO) { app.graph.dao.deleteHistory(app.graph.dao.historyFlow().first().filter { it.peerId == laptop }.map { it.id }) }
+        val end = System.currentTimeMillis() + 10_000
+        while (nodes(v).none { text(it) == "No matching messages" } && System.currentTimeMillis() < end) { Thread.sleep(20); frames(v) }
+        assertTrue(nodes(v).map(::text).toString(), nodes(v).any { text(it) == "No matching messages" })
+        assertFalse(nodes(v).any { text(it) == "from phone" })
+        val on = generateSequence(chip()) { it.parent }.firstNotNullOfOrNull { it.config.getOrNull(SemanticsProperties.Selected) }
+        assertEquals(true, on)
         close(c)
     }
 

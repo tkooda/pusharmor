@@ -346,8 +346,10 @@ class AppViewModelTest {
         assertEquals(listOf(3L, 2L), historyView(rows, com.pusharmor.app.notify.HistoryFilter.Chip.All, listOf("SENT")) { it }.days.values.map { g -> g.single().id })
         assertEquals(4, v.chips.size) // All, A, B, Unknown
         assertEquals(2, named)
-        // A chip with no rows falls back to All.
-        assertEquals(com.pusharmor.app.notify.HistoryFilter.Chip.All, historyView(rows, com.pusharmor.app.notify.HistoryFilter.Chip.PeerChip("z", "Z"), emptyList()) { it }.eff)
+        // A chip with no rows stays in effect and shows nothing ("No matching messages"); it never falls back to All.
+        val none = historyView(rows, com.pusharmor.app.notify.HistoryFilter.Chip.PeerChip("z", "z"), emptyList()) { it }
+        assertEquals(com.pusharmor.app.notify.HistoryFilter.Chip.PeerChip("z", "z"), none.eff)
+        assertTrue(none.shown.isEmpty())
     }
 
     /** A switch to another account drops what the screens held for the old one: a highlighted device, a History row, the limit picker. */

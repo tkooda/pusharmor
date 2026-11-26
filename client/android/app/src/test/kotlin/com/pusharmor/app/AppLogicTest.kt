@@ -73,6 +73,30 @@ class AppLogicTest {
         assertFalse(pairingScrollTop(0, 1, aiming = true)) // a highlight scroll is still due
     }
 
+    /** A filter that matches nothing keeps its chip: it never drops to All by itself. */
+    @Test fun historyFilterKeepsTheActiveChipWithNoRows() {
+        val rows = listOf(HistoryFilter.Row("a", true), HistoryFilter.Row("b", true))
+        // the active device has no rows left: its chip stays, with the others
+        assertEquals(listOf(Chip.All, Chip.PeerChip("a", "A"), Chip.PeerChip("b", "B"), Chip.PeerChip("c", "C")),
+            HistoryFilter.chips(rows, Chip.PeerChip("c", "C")) { it.uppercase() })
+        // only one device left: the active chip still shows, so it can be turned off
+        assertEquals(listOf(Chip.All, Chip.PeerChip("a", "A"), Chip.PeerChip("c", "C")),
+            HistoryFilter.chips(rows.take(1), Chip.PeerChip("c", "C")) { it.uppercase() })
+        assertEquals(listOf(Chip.All, Chip.PeerChip("a", "A")), HistoryFilter.chips(rows.take(1), Chip.PeerChip("a", "A")) { it.uppercase() })
+        assertEquals(listOf(Chip.All, Chip.Unknown), HistoryFilter.chips(rows.take(1), Chip.Unknown) { it })
+        // nothing shows for a filter that matches nothing
+        val h = com.pusharmor.store.HistoryEntity(direction = "RECEIVED", peerId = "a", type = "text", content = "x", n = null,
+            pairingId = null, at = 0, read = true, results = "", count = 1)
+        for (c in listOf(Chip.PeerChip("c", "C"), Chip.Unknown)) for (dirs in listOf(emptyList(), listOf("SENT"), listOf("RECEIVED"))) {
+            val v = com.pusharmor.app.ui.historyView(listOf(h), c, dirs) { it.uppercase() }
+            assertEquals(c, v.eff)
+            assertTrue(v.shown.isEmpty())
+            assertTrue(v.chips.contains(c))
+        }
+        // a device chip picks up the device's current name
+        assertEquals(Chip.PeerChip("a", "A"), com.pusharmor.app.ui.historyView(listOf(h), Chip.PeerChip("a", "old"), emptyList()) { it.uppercase() }.eff)
+    }
+
     @Test fun historyFilterChips() {
         val one = listOf(HistoryFilter.Row("a", true), HistoryFilter.Row("a", false))
         assertEquals(listOf<Chip>(Chip.All), HistoryFilter.chips(one) { it }) // peer chips hidden with one peer
@@ -82,9 +106,9 @@ class AppLogicTest {
         // a peer chip shows received rows only
         assertEquals(1, rows.count { HistoryFilter.matches(it, Chip.PeerChip("a", "A")) })
         assertEquals(1, rows.count { HistoryFilter.matches(it, Chip.Unknown) })
-        // Unknown only with an Unknown row; filter resets to All with no rows left
+        // Unknown only with an Unknown row, or while it is the active chip
         assertFalse(HistoryFilter.chips(rows.dropLast(1)) { it }.contains(Chip.Unknown))
-        assertEquals(Chip.All, HistoryFilter.effective(rows.dropLast(1), Chip.Unknown))
+        assertTrue(HistoryFilter.chips(rows.dropLast(1), Chip.Unknown) { it }.contains(Chip.Unknown))
         // a sent row has no peer id and is not Unknown
         val sent = HistoryFilter.Row(null, false)
         assertFalse(HistoryFilter.chips(listOf(HistoryFilter.Row("a", true), sent)) { it }.contains(Chip.Unknown))
