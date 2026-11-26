@@ -327,7 +327,13 @@ object UiText {
     fun encryptingFor(names: List<String>): String = "Encrypting for ${quotedList(names.map(::cutName), names)}"
     fun sendingTo(names: List<String>): String = "Sending to ${quotedList(names.map(::cutName), names)}"
 
-    private fun cutName(name: String) = if (name.length > SEND_NAME_MAX) name.take(SEND_NAME_MAX - 3).trimEnd() + "..." else name
+    /** [name] cut to [SEND_NAME_MAX] with "..."; a "Pixel 8 (907-331-064)" label cuts only its name, so the ID stays whole. */
+    private fun cutName(name: String): String {
+        val id = ID_ONLY.find(name)?.value
+        if (id != null) return cutName(name.dropLast(id.length)) + id
+        return if (name.length > SEND_NAME_MAX) name.take(SEND_NAME_MAX - 3).trimEnd() + "..." else name
+    }
+    private val ID_ONLY = Regex(" \\(\\d{3}-\\d{3}-\\d{3}\\)$")
 
     /**
      * History title of a sent row (F22): reached its one device reads Sent to "Laptop", cut like the Send button; a send
@@ -568,14 +574,14 @@ object UiText {
 
     /**
      * [label] cut to what [fits]: a "Pixel 8 (907-331-064)" label shortens only its name (see [middleEllipsis]),
-     * so the ID always shows whole; any other label comes back as is.
+     * so the ID always shows whole, also with a closing quote or " (removed)" after it; any other label comes back as is.
      */
     fun keepIdCut(label: String, fits: (String) -> Boolean): String {
         if (fits(label)) return label
         val id = ID_SUFFIX.find(label)?.value ?: return label
         return middleEllipsis(label.dropLast(id.length)) { fits(it + id) } + id
     }
-    private val ID_SUFFIX = Regex(" \\(\\d{3}-\\d{3}-\\d{3}\\)$")
+    private val ID_SUFFIX = Regex(" \\(\\d{3}-\\d{3}-\\d{3}\\)\"?( \\(removed\\))?$")
 
     /**
      * Longest "head...tail" form of [text] that [fits] (about two thirds head), or [text] itself

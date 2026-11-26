@@ -1563,9 +1563,7 @@ private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, e
                         style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
                 } else {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(who, Modifier.weight(1f),
-                            style = MaterialTheme.typography.bodyMedium, fontWeight = weight, color = cs.onSurfaceVariant,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        KeepIdText(who, MaterialTheme.typography.bodyMedium.copy(fontWeight = weight, color = cs.onSurfaceVariant), Modifier.weight(1f))
                         Text(time, Modifier.padding(start = 8.dp), style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
                     }
                     // A delete still pending on other devices: the text struck through, and where it is left.
@@ -1617,6 +1615,17 @@ private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, e
                 }
             }
         }
+    }
+}
+
+/** One line; a name with its ID that does not fit is cut in the name, so the ID shows whole; the screen reader gets the full text. */
+@Composable
+internal fun KeepIdText(text: String, style: androidx.compose.ui.text.TextStyle, modifier: Modifier = Modifier) {
+    val m = rememberTextMeasurer()
+    BoxWithConstraints(modifier) {
+        val max = constraints.maxWidth
+        val shown = remember(text, max, style) { UiText.keepIdCut(text) { s -> m.measure(s, style, maxLines = 1, softWrap = false).size.width <= max } }
+        Text(shown, Modifier.semantics { if (shown != text) contentDescription = text }, style = style, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 

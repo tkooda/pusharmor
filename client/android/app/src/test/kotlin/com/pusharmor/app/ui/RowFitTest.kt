@@ -136,6 +136,15 @@ class RowFitTest {
         assertTrue(box("Times out in 23 hours").top >= box("Cancel pairing request").bottom)
     }
 
+    /** A History row title too long for its line cuts the name and keeps the ID whole. */
+    @Test fun historyTitleKeepsTheWholeId() {
+        val title = "Kitchen tablet on the second floor (907-331-064) (removed)"
+        show(360, 1.0f) { Box(Modifier.width(160.dp)) { KeepIdText(title, androidx.compose.material3.MaterialTheme.typography.bodyMedium) } }
+        val n = nodes().first { it.config.getOrNull(SemanticsProperties.ContentDescription)?.contains(title) == true }
+        val shown = n.config[SemanticsProperties.Text].joinToString { it.text }
+        assertTrue(shown, shown.endsWith(" (907-331-064) (removed)") && shown.contains("..."))
+    }
+
     @Test fun settingValueSitsRightOfTheLabel() {
         show(411, 1.0f) { Box(Modifier.width(379.dp)) { SettingRow("Delete messages older than", modifier = Modifier, value = "30 days") {} } }
         assertTrue("${box("30 days")}", box("30 days").left >= box("Delete messages older than").right)
