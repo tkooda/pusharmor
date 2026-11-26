@@ -48,7 +48,14 @@ struct SettingsView: View {
                                 .lineLimit(1)
                                 .fixedSize()
                             } else {
-                                Text(model.me?.name ?? "This device")
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(model.me?.name ?? "This device")
+                                    if let id = model.me?.id {
+                                        Text("Device ID: " + Ids.deviceId(id.raw))
+                                            .font(.subheadline)
+                                            .foregroundColor(.secondaryText)
+                                    }
+                                }
                                 Spacer(minLength: 8)
                                 Button("Rename") {
                                     name = model.me?.name ?? ""

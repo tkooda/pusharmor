@@ -371,6 +371,16 @@ public enum PeerLabel {
         return s
     }
 
+    /// "Added" date on device cards: YYYY-MM-DD from created (seconds), in local time.
+    public static func addedDate(_ created: Int64, timeZone: TimeZone = .current) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.calendar = Calendar(identifier: .gregorian)
+        f.timeZone = timeZone
+        f.dateFormat = "yyyy-MM-dd"
+        return f.string(from: Date(timeIntervalSince1970: TimeInterval(created)))
+    }
+
     public static func label(_ p: Peer?) -> String {
         guard let p = p else { return S.aPeer }
         return p.name ?? unnamed(platform: p.platform, created: p.created)

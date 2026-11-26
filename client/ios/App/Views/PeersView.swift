@@ -264,6 +264,14 @@ struct PairingCardView: View {
                         Text(PeerLabel.platformName(p.platform))
                             .font(.subheadline)
                             .foregroundColor(.secondaryText)
+                        Text("ID: " + Ids.deviceId(p.id.raw))
+                            .font(.subheadline)
+                            .foregroundColor(.secondaryText)
+                        if let c = p.created {
+                            Text("Added: " + PeerLabel.addedDate(c))
+                                .font(.subheadline)
+                                .foregroundColor(.secondaryText)
+                        }
                     }
                 }
                 .accessibilityElement(children: .combine)
@@ -574,6 +582,14 @@ struct PeerRowView: View {
                         Text(PeerLabel.platformName(p.platform))
                             .font(.subheadline)
                             .foregroundColor(.secondaryText)
+                        Text("ID: " + Ids.deviceId(p.id.raw))
+                            .font(.subheadline)
+                            .foregroundColor(.secondaryText)
+                        if let c = p.created {
+                            Text("Added: " + PeerLabel.addedDate(c))
+                                .font(.subheadline)
+                                .foregroundColor(.secondaryText)
+                        }
                         StatusLine(kind: status.kind, text: status.text)
                     }
                     if icons {

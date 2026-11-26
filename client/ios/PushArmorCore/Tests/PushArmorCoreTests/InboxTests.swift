@@ -92,6 +92,14 @@ final class InboxTests: XCTestCase {
         XCTAssertEqual(PeerLabel.platformName("cli"), "Command line")
         XCTAssertEqual(PeerLabel.unnamed(platform: "cli", created: nil), "Command line device")
     }
+
+    func testAddedDate() {
+        let utc = TimeZone(identifier: "UTC")!
+        XCTAssertEqual(PeerLabel.addedDate(1759449600, timeZone: utc), "2025-10-03")
+        XCTAssertEqual(PeerLabel.addedDate(1759449599, timeZone: utc), "2025-10-02")
+        XCTAssertEqual(PeerLabel.addedDate(0, timeZone: utc), "1970-01-01")
+        XCTAssertEqual(PeerLabel.addedDate(1759449600, timeZone: TimeZone(identifier: "America/New_York")!), "2025-10-02")
+    }
 }
 
 final class NSEFlowTests: XCTestCase {
