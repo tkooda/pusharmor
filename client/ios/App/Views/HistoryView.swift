@@ -185,8 +185,10 @@ struct HistoryRowView: View {
     private var fileOpen: Bool { expanded && !selecting && isFile }
 
     /// A closed file row whose file is on this device has nothing under its name: no buttons.
+    /// A closed sent file row with no copy kept has nothing either: no expiry.
     private func fileDetailShows(_ f: FileRecord) -> Bool {
         if fileOpen { return true }
+        if outgoing && f.state == "sent" { return false }
         if case .ready = model.fileStatus(f) { return false }
         return true
     }
@@ -222,7 +224,7 @@ struct HistoryRowView: View {
         VStack(alignment: .leading, spacing: 12) {
             summary
             if isOpen { MessageDetailView(row: row, notDeletedOn: notDeletedOn) }
-            if let f = file, !selecting, fileDetailShows(f) { FileRowDetail(file: f, outgoing: outgoing).padding(.leading, textInset + 10) }
+            if let f = file, !selecting, fileDetailShows(f) { FileRowDetail(file: f, outgoing: outgoing, open: fileOpen).padding(.leading, textInset + 10) }
         }
     }
 
@@ -324,7 +326,7 @@ struct HistoryRowView: View {
         case "file":
             VStack(alignment: .leading, spacing: 2) {
                 Text(contentText).lineLimit(typeSize.isAccessibilitySize ? 3 : 1).truncationMode(.middle)
-                if let f = file {
+                if let f = file, fileOpen {
                     Text(FileUi.detail(f.name, size: f.size)).font(.caption).foregroundColor(.secondaryText)
                 }
             }

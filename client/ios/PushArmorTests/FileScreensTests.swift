@@ -44,9 +44,9 @@ final class FileScreensTests: XCTestCase {
     /// Expanded or Collapsed; decrypts run only while History shows.
     func testHistoryFileRows() throws {
         let row = try source("App/Views/HistoryView.swift")
-        XCTAssertTrue(row.contains("if let f = file, !selecting, fileDetailShows(f) { FileRowDetail(file: f, outgoing: outgoing).padding(.leading, textInset + 10) }"))
+        XCTAssertTrue(row.contains("if let f = file, !selecting, fileDetailShows(f) { FileRowDetail(file: f, outgoing: outgoing, open: fileOpen).padding(.leading, textInset + 10) }"))
         XCTAssertTrue(row.contains("private var fileOpen: Bool { expanded && !selecting && isFile }"))
-        XCTAssertTrue(row.contains("if fileOpen { return true }\n        if case .ready = model.fileStatus(f) { return false }"))
+        XCTAssertTrue(row.contains("if outgoing && f.state == \"sent\" { return false }\n        if case .ready = model.fileStatus(f) { return false }"))
         XCTAssertTrue(row.contains("if isUnknownType { return }\n        model.detailRow = HistoryExpand.tap("))
         XCTAssertFalse(row.contains("if isUnknownType || isFile { return }"))
         XCTAssertTrue(row.contains(".accessibilityValue(isEvent || isUnknownType || selecting ? \"\" : (isOpen || fileOpen ? \"Expanded\" : \"Collapsed\"))"))
@@ -70,6 +70,21 @@ final class FileScreensTests: XCTestCase {
         XCTAssertTrue(views.contains("model.toast = FileUi.copyFailed(file.name)"))
         XCTAssertTrue(views.contains("onDone(CocoaError(.userCancelled))"))
         XCTAssertTrue(model.contains("return !AppModel.historyShown.on"))
+    }
+
+    /// A closed History file row shows only the sender line and the file name: its size and
+    /// type, the sent file's expiry, and the expiry next to Download show only while open;
+    /// Download, Decrypt, the state lines, and the progress show either way.
+    func testClosedFileRowShowsNameOnly() throws {
+        let row = try source("App/Views/HistoryView.swift")
+        XCTAssertTrue(row.contains("if let f = file, fileOpen {\n                    Text(FileUi.detail(f.name, size: f.size))"))
+        XCTAssertTrue(row.contains("FileRowDetail(file: f, outgoing: outgoing, open: fileOpen)"))
+        XCTAssertTrue(row.contains("if fileOpen { return true }\n        if outgoing && f.state == \"sent\" { return false }"))
+        let views = try source("App/Views/FileViews.swift")
+        XCTAssertTrue(views.contains("if open, sentExpiry, let e = file.expires {"))
+        XCTAssertTrue(views.contains("if open, let e = exp {\n                Text(e)"))
+        XCTAssertTrue(views.contains("Button { model.downloadFile(file) } label: { Label(\"Download\""))
+        XCTAssertTrue(views.contains("Label(\"Downloading \\(p)%\""))
     }
 
     /// A deleted file row takes its file off this device at once (not only at the next launch).

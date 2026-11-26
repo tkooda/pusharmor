@@ -48,9 +48,12 @@ struct PastedImage: Transferable {
 /// The part of a file History row under its header: the state of the transfer and, once the
 /// file is on this device, its buttons. A sent file shows its expiry, then the state of its
 /// local copy as a received file does (a file sent with no copy kept: its expiry only).
+/// Closed, the row shows no expiry.
 struct FileRowDetail: View {
     let file: FileRecord
     let outgoing: Bool
+    /// The row is open: the expiry shows.
+    var open = false
     @EnvironmentObject var model: AppModel
     @State private var preview: URL?
     @State private var saving = false
@@ -61,7 +64,7 @@ struct FileRowDetail: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if sentExpiry, let e = file.expires {
+            if open, sentExpiry, let e = file.expires {
                 Text(FileUi.expiresText(e, nowSec: now)).font(.caption).foregroundColor(.secondaryText)
             }
             if !outgoing || file.state != "sent" {
@@ -144,7 +147,7 @@ struct FileRowDetail: View {
         HStack(spacing: 12) {
             Button { model.downloadFile(file) } label: { Label("Download", systemImage: "arrow.down.circle") }
                 .buttonStyle(.bordered)
-            if let e = exp {
+            if open, let e = exp {
                 Text(e).font(.caption).foregroundColor(.secondaryText)
             }
         }
