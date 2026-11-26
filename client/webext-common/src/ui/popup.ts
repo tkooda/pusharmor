@@ -1310,7 +1310,7 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload
     sh("History"),
     group(
       h("div", { class: "srow" }, h("span", {}, "Delete messages older than"), days),
-      h("label", { class: "srow" }, h("div", { class: "txt" }, h("div", {}, "Sync deletions"), h("div", { class: "t2" }, "Deleting on this device will also delete on your other devices.")), syncDeletions),
+      h("label", { class: "srow" }, h("div", { class: "txt" }, h("div", {}, "Sync deletions"), h("div", { class: "t2" }, "Manually deleting on this device will also delete on your other devices.")), syncDeletions),
     ),
     sh("Files"),
     h("p", { class: "t2 shelp" }, F.HELPER),
