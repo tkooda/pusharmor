@@ -19,13 +19,14 @@ enum RecipientMemory {
         UserDefaults.standard.set(ids.sorted(), forKey: defaultsKey)
     }
 
-    /// The Send button: sends, then remembers the selection only when the send went through, so
-    /// an abandoned or one-off selection is not restored (L7). True when sent, so the draft
-    /// clears only then.
+    /// The Send button: remembers the selection on send only, so an abandoned selection
+    /// is not restored (L7), then sends. A one-off pick from the Devices list (`held`) is
+    /// remembered only once its send went through. True when sent, so the draft clears only then.
     @MainActor
-    static func send(_ ids: Set<String>, _ run: () async -> Bool) async -> Bool {
+    static func send(_ ids: Set<String>, held: Bool = false, _ run: () async -> Bool) async -> Bool {
+        if !held { save(ids) }
         let sent = await run()
-        if sent { save(ids) }
+        if held && sent { save(ids) }
         return sent
     }
 }
@@ -279,6 +280,8 @@ struct ComposeView: View {
     @State private var toAll = false
     @State private var selected: Set<String> = []
     @State private var restored = false
+    /// The chips came from a device tapped in the Devices list: saved only once a send goes through.
+    @State private var oneOffPick = false
     #if DEBUG
     /// Screenshot mode fills the sample draft and selection once per launch, even over a draft the system restored.
     @State private var sampled = false
@@ -330,6 +333,7 @@ struct ComposeView: View {
         guard let id = model.sendTo else { return }
         model.sendTo = nil
         restored = true
+        oneOffPick = true
         toAll = false
         selected = [id]
     }
@@ -578,12 +582,14 @@ struct ComposeView: View {
                     let all = toAll && showAll
                     let ids = all ? [] : candidates.filter { selected.contains($0.id.text) && enabled($0) }.map { $0.id.text }
                     let sel = selected
+                    let held = oneOffPick
                     let chosenPeers = all ? model.allSet : candidates.filter { selected.contains($0.id.text) && enabled($0) }
                     sendNames = PeerLabel.sorted(chosenPeers).map { model.label($0) }
                     sendCaption = FileUi.sending(c.name, to: sendNames)
                     Task {
                         // the upload started: the file clears; the result comes as the toast
-                        if await RecipientMemory.send(sel, { await model.sendFile(c.url, name: c.name, scoped: c.scoped, toAll: all, peerIds: ids) }) {
+                        if await RecipientMemory.send(sel, held: held, { await model.sendFile(c.url, name: c.name, scoped: c.scoped, toAll: all, peerIds: ids) }) {
+                            if held { oneOffPick = false }
                             removeChosen()
                         }
                     }
@@ -595,13 +601,15 @@ struct ComposeView: View {
                 let all = toAll && showAll
                 let ids = all ? [] : candidates.filter { selected.contains($0.id.text) && enabled($0) }.map { $0.id.text }
                 let sel = selected
+                let held = oneOffPick
                 let chosen = all ? model.allSet : candidates.filter { selected.contains($0.id.text) && enabled($0) }
                 sendNames = PeerLabel.sorted(chosen).map { model.label($0) }
                 let kind = SendScreenRules.sendType(t, asURL: u, asText: a)
                 sendCaption = sendNames.count > 1 ? S.sendingHeader(kind) : S.sending(kind, to: sendNames)
                 Task {
                     // A failed send keeps the draft, so "Unable to send." can be retried.
-                    if await RecipientMemory.send(sel, { await model.send(t, asURL: u, asText: a, toAll: all, peerIds: ids) }) {
+                    if await RecipientMemory.send(sel, held: held, { await model.send(t, asURL: u, asText: a, toAll: all, peerIds: ids) }) {
+                        if held { oneOffPick = false }
                         text = ""
                         typeChoice = SendAsTextChoice()
                     }

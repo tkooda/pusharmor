@@ -207,7 +207,7 @@ final class SendScreenRulesTests: XCTestCase {
             .appendingPathComponent("App/Views/ComposeView.swift")
         let src = try String(contentsOf: url, encoding: .utf8)
         let guarded = try NSRegularExpression(
-            pattern: #"if await RecipientMemory\.send\(sel, \{[^\n]*\}\) \{\s*text = \"\""#)
+            pattern: #"if await RecipientMemory\.send\(sel, held: held, \{[^\n]*\}\) \{\s*if held \{ oneOffPick = false \}\s*text = \"\""#)
         XCTAssertEqual(guarded.numberOfMatches(in: src, range: NSRange(src.startIndex..., in: src)), 1)
         // The guarded clear is the only clear of the draft (the @State starts from the saved draft).
         XCTAssertEqual(src.components(separatedBy: "text = \"\"").count - 1, 1)

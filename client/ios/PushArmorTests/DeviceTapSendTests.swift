@@ -3,7 +3,8 @@ import PushArmorCore
 @testable import PushArmor
 
 /// A tap on a paired device in the Devices list opens the Send screen with only that device
-/// chosen. That one-off choice is not saved; only a send that goes through saves the choice.
+/// chosen. That one-off choice is saved only once a send goes through; a normal send saves the
+/// chips when Send runs.
 @MainActor
 final class DeviceTapSendTests: XCTestCase {
     override func tearDown() {
@@ -37,14 +38,34 @@ final class DeviceTapSendTests: XCTestCase {
         XCTAssertNil(UserDefaults.standard.stringArray(forKey: RecipientMemory.defaultsKey))
     }
 
-    func testOnlyASendThatWentThroughSavesTheChoice() async {
+    /// A one-off pick from the Devices list is saved only once its send went through.
+    func testOneOffPickIsSavedOnlyWhenSent() async {
         RecipientMemory.save(["a", "b"])
-        let failed = await RecipientMemory.send(["c"]) { false }
+        let failed = await RecipientMemory.send(["c"], held: true) { false }
         XCTAssertFalse(failed)
         XCTAssertEqual(RecipientMemory.load(), ["a", "b"])
-        let sent = await RecipientMemory.send(["c"]) { true }
+        let sent = await RecipientMemory.send(["c"], held: true) { true }
         XCTAssertTrue(sent)
         XCTAssertEqual(RecipientMemory.load(), ["c"])
+    }
+
+    /// A normal send saves the chips when Send runs, whatever its result.
+    func testNormalSendSavesWhateverTheResult() async {
+        RecipientMemory.save(["a", "b"])
+        var savedBeforeRun: [String] = []
+        let failed = await RecipientMemory.send(["c"]) { savedBeforeRun = RecipientMemory.load(); return false }
+        XCTAssertFalse(failed)
+        XCTAssertEqual(savedBeforeRun, ["c"])
+        XCTAssertEqual(RecipientMemory.load(), ["c"])
+    }
+
+    /// Both Send paths (text and file) pass the one-off flag; the pick sets it.
+    func testSendPathsHoldTheOneOffPick() throws {
+        let compose = try source("App/Views/ComposeView.swift")
+        XCTAssertEqual(compose.components(separatedBy: "RecipientMemory.send(sel, held: held, {").count - 1, 2)
+        XCTAssertEqual(compose.components(separatedBy: "let held = oneOffPick").count - 1, 2)
+        let pick = compose.components(separatedBy: "private func takePick()")[1].components(separatedBy: "private var hasRecipient")[0]
+        XCTAssertTrue(pick.contains("oneOffPick = true"))
     }
 
     func testTheTapOpensSendWithOnlyThatDevice() throws {
