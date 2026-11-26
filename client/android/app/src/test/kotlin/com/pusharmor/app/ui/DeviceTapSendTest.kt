@@ -189,6 +189,9 @@ class DeviceTapSendTest {
     @Test fun sendOfAOneOffPickThatReachesTheDeviceSavesIt() {
         answer(200)
         val (c, _) = sendOneOff()
+        // the choice is saved after the send result: wait for it, so no write is cut off when the screen closes
+        val end = System.currentTimeMillis() + 10_000
+        while (saved() != phone && System.currentTimeMillis() < end) { Thread.sleep(20); shadowOf(Looper.getMainLooper()).idle() }
         assertEquals(phone, saved())
         close(c)
     }
