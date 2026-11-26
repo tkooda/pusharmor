@@ -1508,7 +1508,7 @@ private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, e
     val weight = if (unread) FontWeight.Bold else FontWeight.Normal
     Column(modifier.combinedClickable(role = Role.Button, onLongClick = onSelect) { if (selecting) onSelect() else { onOpen(); vm.markRead(h.id) } }
         .semantics {
-            val st = listOfNotNull(if (unread) "Unread" else null, if (selecting) (if (checked) "Selected" else "Not selected") else h.content?.takeIf { !unknown && file == null }?.let { if (expanded) "Expanded" else "Collapsed" })
+            val st = listOfNotNull(if (unread) "Unread" else null, if (selecting) (if (checked) "Selected" else "Not selected") else h.content?.takeIf { !unknown }?.let { if (expanded) "Expanded" else "Collapsed" })
             if (st.isNotEmpty()) stateDescription = st.joinToString(", ")
         }) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -1562,7 +1562,7 @@ private fun HistoryRow(vm: AppViewModel, h: com.pusharmor.store.HistoryEntity, e
                 }
             }
         }
-        if (!selecting && fileRow?.status == com.pusharmor.app.files.FileUi.Status.Ready) FileActions(vm, fileRow)
+        if (expanded && !selecting && fileRow?.status == com.pusharmor.app.files.FileUi.Status.Ready) FileActions(vm, fileRow)
         val hc = h.content
         if (expanded && !selecting && hc != null && !unknown && file == null) {
             val kind = messageKind(h.type, hc)

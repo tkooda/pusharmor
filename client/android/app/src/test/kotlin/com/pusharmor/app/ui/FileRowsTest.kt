@@ -42,7 +42,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import java.time.Duration
 
-/** File rows (Download with the expiry, memory error with Decrypt, Expired, image and file actions) and the Files settings. */
+/** File rows (Download with the expiry, memory error with Decrypt, Expired, image and file actions on a tap) and the Files settings. */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], application = TestApp::class, qualifiers = "w411dp-h2400dp")
@@ -78,6 +78,19 @@ class FileRowsTest {
     private val png = android.util.Base64.decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", 0)
 
     private fun texts(v: android.view.View) = nodes(v).map { text(it) }
+
+    /** One finger tap on the node showing [label]: down, a small move, up, sent through the window like a real touch. */
+    private fun tap(v: View, label: String) {
+        val r = nodes(v).first { text(it) == label }.boundsInWindow
+        val x = (r.left + r.right) / 2; val y = (r.top + r.bottom) / 2
+        val t = SystemClock.uptimeMillis()
+        v.dispatchTouchEvent(MotionEvent.obtain(t, t, MotionEvent.ACTION_DOWN, x, y, 0))
+        frames(v, 5)
+        v.dispatchTouchEvent(MotionEvent.obtain(t, t + 80, MotionEvent.ACTION_MOVE, x + 1, y + 1, 0))
+        v.dispatchTouchEvent(MotionEvent.obtain(t, t + 80, MotionEvent.ACTION_UP, x + 1, y + 1, 0))
+        // Past the double-tap timeout, so a held-back tap would have run by now.
+        frames(v, 40)
+    }
 
     private fun show(content: @androidx.compose.runtime.Composable () -> Unit, until: (List<String>) -> Boolean): Pair<org.robolectric.android.controller.ActivityController<ComponentActivity>, android.view.View> {
         scope.launch { recomposer.runRecomposeAndApplyChanges() }
@@ -125,7 +138,15 @@ class FileRowsTest {
             row("report.pdf", 4, FileState(plain = "report.pdf"), byteArrayOf(37, 80, 68, 70))
         }
         val vm = AppViewModel(app)
-        val (c, v) = show({ HistoryScreen(vm) }) { t -> "View" in t && "Open" in t && "Decrypt" in t && "Download" in t }
+        val (c, v) = show({ HistoryScreen(vm) }) { t ->
+            "Decrypt" in t && "Download" in t && vm.files.rows.value.values.count { it.status == com.pusharmor.app.files.FileUi.Status.Ready } == 2 }
+        // file rows show collapsed: no actions until a tap opens the row
+        val collapsed = texts(v)
+        assertEquals(collapsed.toString(), listOf(0, 0, 0, 0, 0), listOf("View", "Copy", "Open", "Share", "Save").map { w -> collapsed.count { it == w } })
+        tap(v, "photo.png")
+        val photo = texts(v)
+        assertEquals(photo.toString(), listOf(1, 1, 0, 1, 1), listOf("View", "Copy", "Open", "Share", "Save").map { w -> photo.count { it == w } })
+        tap(v, "report.pdf")
         val t = texts(v)
         assertTrue(t.toString() + vm.files.rows.value, "Download" in t)
         assertTrue(t.toString(), "expires in 2 h" in t)
@@ -133,9 +154,13 @@ class FileRowsTest {
         assertTrue("Not enough memory to decrypt" in t)
         assertTrue("Decrypt" in t)
         assertTrue(t.toString(), "Expired" in t)
-        // an image: View, Copy, Share, Save; any other file: Open, Share, Save; no expiry once downloaded
-        assertEquals(listOf(1, 1, 1, 2, 2), listOf("View", "Copy", "Open", "Share", "Save").map { w -> t.count { it == w } })
+        // an image: View, Copy, Share, Save; any other file: Open, Share, Save; one row open at a time; no expiry once downloaded
+        assertEquals(t.toString(), listOf(0, 0, 1, 1, 1), listOf("View", "Copy", "Open", "Share", "Save").map { w -> t.count { it == w } })
         assertEquals(1, t.count { it.startsWith("expires in") })
+        // the open row again: it closes
+        tap(v, "report.pdf")
+        val closed = texts(v)
+        assertEquals(closed.toString(), listOf(0, 0, 0, 0, 0), listOf("View", "Copy", "Open", "Share", "Save").map { w -> closed.count { it == w } })
         vm.files.setShown(false)
         close(c)
     }
