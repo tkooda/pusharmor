@@ -2041,14 +2041,22 @@ def peer_label(p):
     return UNKNOWN_NAME
 
 
+def is_paired(p):
+    return bool(p["pinned"] and p["ruling"] == "approved" and p["approves_me"])
+
+
 def said(d, pid, p=None):
-    """A device's name in a message, in double quotes. When another device shows the same name (ignoring
-    case), its Device ID follows: "Pixel 8" (907-331-064). This device's own name does not count."""
+    """A device's name in a message, in double quotes. A paired device's Device ID follows only when
+    another paired device has the same name (ignoring case); a device that is not paired (rejected,
+    waiting, or removed) gets its ID when any other device has that name: "Pixel 8" (907-331-064).
+    This device's own name does not count."""
     p = p or d["peers"].get(pid)
     name = peer_label(p)
     if not p or not p["name"]:
         return '"%s"' % name
-    others = [name_display(q["name"]) for i, q in d["peers"].items() if i != pid and q["name"]]
+    mine = is_paired(p)
+    others = [name_display(q["name"]) for i, q in d["peers"].items()
+              if i != pid and q["name"] and (is_paired(q) or not mine)]
     if any(o.lower() == name.lower() for o in others):
         return '"%s" (%s)' % (name, device_id(pid))
     return '"%s"' % name

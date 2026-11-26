@@ -2420,10 +2420,28 @@ def test_device_names_that_clash_show_the_device_id(net, tmp_path, monkeypatch, 
         assert pa.said(d, idb) == '"PIXEL"'
         d["name"] = "pixel"
         assert pa.said(d, idb) == '"PIXEL"'
-        d["peers"]["other-peer-id"] = dict(d["peers"][idb], name="pixel")
+        paired = d["peers"][idb]
+        p2 = pa.b64e(bytes(range(30)))
+        # paired vs paired: both suffixed
+        d["peers"][p2] = dict(paired, name="pixel")
         assert pa.said(d, idb) == '"PIXEL" (%s)' % pa.device_id(idb)
-        del d["peers"]["other-peer-id"]
-        d["peers"]["other-peer-id"] = dict(d["peers"][idb], name="pixel")
+        assert pa.said(d, p2) == '"pixel" (%s)' % pa.device_id(p2)
+        # paired vs rejected, waiting, or removed: only the non-paired one is suffixed
+        for extra in (dict(ruling="denied"), dict(pinned=False, approves_me=False), dict(approves_me=False)):
+            d["peers"][p2] = dict(paired, name="pixel", **extra)
+            assert pa.said(d, idb) == '"PIXEL"'
+            assert pa.said(d, p2) == '"pixel" (%s)' % pa.device_id(p2)
+        # a removed device is no longer in the peers; its name still clashes with a paired device
+        gone = dict(paired, name="pixel", ruling="denied")
+        del d["peers"][p2]
+        assert pa.said(d, p2, gone) == '"pixel" (%s)' % pa.device_id(p2)
+        assert pa.said(d, idb) == '"PIXEL"'
+        # no clash
+        d["peers"][p2] = dict(paired, name="Other")
+        assert pa.said(d, idb) == '"PIXEL"'
+        assert pa.said(d, p2) == '"Other"'
+        del d["peers"][p2]
+        d["peers"]["other-peer-id"] = dict(paired, name="pixel")
     net.hooks[("POST", "send")] = lambda *x: net.reply(200, {"r": {idb: "gone"}})
     capsys.readouterr()
     assert run(a, "send", "hi") == pa.EXIT_SEND
