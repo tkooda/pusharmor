@@ -3042,15 +3042,20 @@ def _clean(s):
     return re.sub(CONTROL_CHARS, "?", s)
 
 
+def tsv_field(s):
+    """One --tsv field: backslash, tab, newline, and carriage return escaped with a backslash; other
+    control characters as backslash-u and 4 hex digits."""
+    return re.sub(CONTROL_CHARS, lambda m: "\\u%04x" % ord(m.group()),
+                  s.replace("\\", "\\\\").replace("\t", "\\t").replace("\n", "\\n").replace("\r", "\\r"))
+
+
 def format_record(rec, fmt):
     if fmt == "json":
         return json.dumps(dict({k: rec[k] for k in REC_KEYS}, **({"error": rec["error"]} if "error" in rec else {})),
                           ensure_ascii=True)
     if fmt == "tsv":
-        esc = lambda s: re.sub(CONTROL_CHARS, lambda m: "\\u%04x" % ord(m.group()),  # noqa: E731
-                               s.replace("\\", "\\\\").replace("\t", "\\t").replace("\n", "\\n").replace("\r", "\\r"))
         # six columns, as before files: a file's body is its saved path when saved, else its name
-        return "\t".join(esc(rec["file"] or rec["body"] if k == "body" and rec["type"] == "file" else rec[k])
+        return "\t".join(tsv_field(rec["file"] or rec["body"] if k == "body" and rec["type"] == "file" else rec[k])
                          for k in REC_KEYS[:6])
     t = datetime.datetime.strptime(rec["date"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc)
     body = _clean(rec["body"].replace("\r\n", "\n").replace("\r", "\n")).replace("\n", "\n ")
@@ -3346,16 +3351,24 @@ def resolve_peer(cx, text, with_self=False):
         return match_device(cx, d, text, list(d["peers"]) + ([cx.me] if with_self else []))
 
 
+# devices: status code (--json, --tsv) -> words in the table; compare_code adds the pairing code
+STATUS_TEXT = {"this_device": "this device", "paired": "paired", "logged_out": "paired, logged out",
+               "not_listening": "paired, not listening", "compare_code": "compare code:",
+               "awaiting_confirmation": "awaiting confirmation", "wants_to_pair": "wants to pair",
+               "pairing": "pairing", "not_paired": "not paired", "rejected": "rejected"}
+
+
 def peer_status(p, e):
+    """-> (status code, pairing code or "")."""
     if p["pinned"] and p["ruling"] == "approved" and p["approves_me"]:
-        return "paired" + (", logged out" if p["logged_out"] else ", not listening" if not p["listening"] else "")
+        return ("logged_out" if p["logged_out"] else "not_listening" if not p["listening"] else "paired"), ""
     if e and e["state"] == "shown" and not e["approved"]:
-        return "compare code: " + e["fingerprint"]
+        return "compare_code", e["fingerprint"]
     if p["pinned"] and p["ruling"] == "approved":
-        return "awaiting confirmation"
+        return "awaiting_confirmation", ""
     if e:
-        return "wants to pair" if e["role"] == "X" else "pairing"  # X: the other device started it
-    return "not paired"
+        return ("wants_to_pair" if e["role"] == "X" else "pairing"), ""  # X: the other device started it
+    return "not_paired", ""
 
 
 def resend_waiting(cx, skip=None):
@@ -3393,32 +3406,44 @@ def drain_cache(cx):
         pair_receive(cx, pt, drain)
 
 
-def pair_list(cx):
+def pair_list(cx, fmt="table"):
     cx.refresh()
     resend_waiting(cx)
     drain_cache(cx)
     with cx.store.state(write=False) as d:
-        rows = [("ID", "ADDED", "PLATFORM", "STATUS", "NAME"),
-                (device_id(cx.me), local_date(d.get("created", 0)), platform_label("cli"), "this device",
-                 name_display(d["name"]))]
+        # id, added, platform key, status code, pairing code, name (None: unknown)
+        rows = [(device_id(cx.me), local_date(d.get("created", 0)), "cli", "this_device", "", name_display(d["name"]))]
         rejected = []
         for pid, p in sorted(d["peers"].items(), key=lambda kv: kv[1]["created"]):
-            row = (device_id(pid), local_date(p["created"]), platform_label(p["platform"]))
+            row = (device_id(pid), local_date(p["created"]), p["platform"])
+            name = name_display(p["name"]) if p["name"] else None
             if p["ruling"] == "denied" and pid not in d["pairs"]:
                 # rejected: listed last until it asks again or pair ID is run
-                rejected.append(row + ("rejected", peer_label(p)))
+                rejected.append(row + ("rejected", "", name))
                 continue
-            rows.append(row + (peer_status(p, d["pairs"].get(pid)), peer_label(p)))
+            rows.append(row + peer_status(p, d["pairs"].get(pid)) + (name,))
         rows += rejected
-    w = [max(len(r[i]) for r in rows) for i in range(4)]
-    for r in rows:
+    if fmt == "json":
+        for r in rows:
+            print(json.dumps(dict({"id": r[0], "added": r[1], "platform": r[2], "status": r[3]},
+                                  **({"code": r[4]} if r[4] else {}), name=r[5]), ensure_ascii=True))
+        return EXIT_OK
+    if fmt == "tsv":
+        for r in rows:
+            print("\t".join(tsv_field(c) for c in r[:5] + (UNKNOWN_NAME if r[5] is None else r[5],)))
+        return EXIT_OK
+    table = [("ID", "ADDED", "PLATFORM", "STATUS", "NAME")] + [
+        (r[0], r[1], platform_label(r[2]), STATUS_TEXT[r[3]] + (" " + r[4] if r[4] else ""),
+         UNKNOWN_NAME if r[5] is None else r[5]) for r in rows]
+    w = [max(len(r[i]) for r in table) for i in range(4)]
+    for r in table:
         print("  ".join(c.ljust(w[i]) for i, c in enumerate(r[:4])) + "  " + r[4])
     return EXIT_OK
 
 
 def cmd_devices(cx, args):
     cx.need()
-    return pair_list(cx)
+    return pair_list(cx, "json" if args.json else "tsv" if args.tsv else "table")
 
 
 def cmd_pair(cx, args):
@@ -3765,7 +3790,9 @@ def cmd_delete(cx, args):
 COMMANDS = {
     "login": (cmd_login, "Log in this device to your PushArmor account.", []),
     "logout": (cmd_logout, "Log out this device. Keys and paired devices stay on it.", []),
-    "devices": (cmd_devices, "List your devices and their pairing status.", []),
+    "devices": (cmd_devices, "List your devices and their pairing status.",
+                [(("--json",), {"action": "store_true", "help": "one JSON object per line"}),
+                 (("--tsv",), {"action": "store_true", "help": "tab-separated lines"})]),
     "pair": (cmd_pair, "Pair with a device (compare the code, then confirm or reject).",
              [(("id",), {"nargs": "?", "metavar": "ID", "help": "device ID (NNN-NNN-NNN) from pusharmor devices"})]),
     "send": (cmd_send, "Send a URL, text, or a file to a paired device.",
@@ -3798,7 +3825,7 @@ ACTIONS = {"login": "Unable to log in.", "logout": "Unable to log out.", "pair":
 
 
 # Usage lines that argparse cannot write by itself.
-USAGES = {"pair": "%(prog)s ID", "listen": "%(prog)s [--json | --tsv | --exec PROG] [--files DIR]"}
+USAGES = {"devices": "%(prog)s [--json | --tsv]", "pair": "%(prog)s ID", "listen": "%(prog)s [--json | --tsv | --exec PROG] [--files DIR]"}
 
 
 class Formatter(argparse.RawDescriptionHelpFormatter):
@@ -3835,7 +3862,10 @@ def build_parser():
         for flags, kw in arguments:
             sp.add_argument(*flags, **kw)
         if name == "listen":
-            sp.set_defaults(_check=lambda a: sum([a.json, a.tsv, bool(a.exec)]) <= 1)
+            sp.set_defaults(_check=lambda a: sum([a.json, a.tsv, bool(a.exec)]) <= 1,
+                            _only="Use only one of --json, --tsv, and --exec.")
+        if name == "devices":
+            sp.set_defaults(_check=lambda a: not (a.json and a.tsv), _only="Use only one of --json and --tsv.")
     sub.add_parser("help", help="Show this help.", description="Show this help.")
     return p
 
@@ -3903,7 +3933,7 @@ def _main(argv):
         parser.print_help()
         return EXIT_OK
     if not getattr(args, "_check", lambda a: True)(args):
-        parser.error("Use only one of --json, --tsv, and --exec.")
+        parser.error(args._only)
     set_action(ACTIONS[args.command] if args.command not in ("pair", "delete") or not args.id
                else ('Unable to pair with "%s".' if args.command == "pair" else 'Unable to remove "%s".') % args.id)
     cx = Ctx(config_dir(args.config))

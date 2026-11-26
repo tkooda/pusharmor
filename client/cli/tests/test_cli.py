@@ -984,10 +984,33 @@ def test_peer_status_words():
     p = pa.new_peer({"sign_pub": "", "enc_pub": ""})
     e = pa.new_entry("N", "shown", b"", b"")
     e["fingerprint"] = "YSWH"
-    assert pa.peer_status(p, e) == "compare code: YSWH"
+    assert pa.peer_status(p, e) == ("compare_code", "YSWH")
     p.update(pinned=True, ruling="approved")
-    assert pa.peer_status(p, None) == "awaiting confirmation"
+    assert pa.peer_status(p, None) == ("awaiting_confirmation", "")
+    assert pa.STATUS_TEXT["compare_code"] == "compare code:"
     assert [pa.platform_label(k) for k in ("ios", "cli")] == ["iOS", "CLI"]
+
+
+def test_device_list_json_and_tsv(net, tmp_path, monkeypatch, capsys):
+    a, b = tmp_path / "a", tmp_path / "b"
+    ida, idb = login(monkeypatch, a), login(monkeypatch, b)
+    with pa.Store(a).state() as d:
+        d["name"] = "Desk\\top"
+    today = time.strftime("%Y-%m-%d")
+    capsys.readouterr()
+    assert run(a, "devices", "--json") == 0
+    assert [json.loads(l) for l in capsys.readouterr().out.splitlines()] == [
+        {"id": pa.device_id(ida), "added": today, "platform": "cli", "status": "this_device", "name": "Desk?top"},
+        {"id": pa.device_id(idb), "added": today, "platform": "cli", "status": "not_paired", "name": None}]
+    assert run(a, "devices", "--tsv") == 0
+    assert capsys.readouterr().out.splitlines() == [
+        "\t".join([pa.device_id(ida), today, "cli", "this_device", "", "Desk?top"]),
+        "\t".join([pa.device_id(idb), today, "cli", "not_paired", "", "{UNKNOWN}"])]
+    with pytest.raises(SystemExit) as e:
+        run(a, "devices", "--json", "--tsv")
+    assert e.value.code == 2
+    assert capsys.readouterr().err == "error: Use only one of --json and --tsv.\n"
+    assert pa.tsv_field("a\tb\\c\x01") == "a\\tb\\\\c\\u0001"
 
 
 def test_device_list_shows_a_device_that_wants_to_pair(net, tmp_path, monkeypatch, capsys):

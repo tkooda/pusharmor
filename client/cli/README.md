@@ -28,7 +28,12 @@ distribution:
 ## Commands
 
 - `pusharmor login` - log in this device (open the URL it shows, then paste the code).
-- `pusharmor devices` - list your devices and their pairing status.
+- `pusharmor devices` - list your devices and their pairing status. `--json` (one object
+  per line) or `--tsv` (id, added, platform, status, code, name; no header) is for scripts.
+  The status is one of `this_device`, `paired`, `logged_out`, `not_listening`,
+  `compare_code` (with the pairing code), `awaiting_confirmation`, `wants_to_pair`,
+  `pairing`, `not_paired`, or `rejected`. A name not known yet is `null` in `--json` and
+  `{UNKNOWN}` elsewhere.
 - `pusharmor pair ID` - pair with a device (ID from `pusharmor devices`): compare the
   fingerprint on both devices, then confirm or reject.
 - `pusharmor send TEXT` - send a URL or text to all paired devices; `-d ID` for one,
