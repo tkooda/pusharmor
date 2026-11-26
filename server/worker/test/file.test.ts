@@ -364,10 +364,14 @@ describe("check 9: quota", () => {
   it("a retry 20 min after the first attempt is not charged", async () => {
     const a = await approvedSender();
     const sid = sendId();
+    // pin the clock to 12:00 UTC so the retry cannot cross a UTC day boundary
+    const noon = Math.floor(Date.now() / 86_400_000) * 86_400_000 + 43_200_000;
+    const clock = vi.spyOn(Date, "now").mockReturnValue(noon);
     store.next = "throw";
     expect((await upload({ peer: a, sid })).status).toBe(502);
     const stub = baseEnv.FILE_QUOTA.get(baseEnv.FILE_QUOTA.idFromName(a.acct));
-    const r = await stub.charge(a.id, sid, 20, 100, Math.floor(Date.now() / 1000) + 1200);
+    const r = await stub.charge(a.id, sid, 20, 100, Math.floor(noon / 1000) + 1200);
+    clock.mockRestore();
     expect(r).toMatchObject({ ok: true, charged: false });
     expect(await quotaRow(a.acct)).toMatchObject({ day_count: 1, sends: { [a.id]: { send_id: sid, attempts: 2 } } });
   });
