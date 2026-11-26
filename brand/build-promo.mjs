@@ -14,7 +14,7 @@ mkdirSync(dir, { recursive: true });
 
 const INK = "#06351F";
 const FONT = "'Inter', 'Helvetica Neue', Arial, sans-serif";
-const TAG = ["Send URLs and text between", "your own devices"];
+const TAG = ["Send URLs, text, and small files", "between your own devices"];
 const shield = readFileSync(join(here, "pusharmor-mark.svg"), "utf8").match(/<path[\s\S]*<\/path>|<path[^>]*\/>/g).join("");
 
 // Store icon: the app icon artwork as a 96 px rounded square inside 128 px of clear padding.
