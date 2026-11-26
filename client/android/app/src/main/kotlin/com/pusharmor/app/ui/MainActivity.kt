@@ -407,7 +407,7 @@ internal fun App(vm: AppViewModel) {
             androidx.compose.runtime.CompositionLocalProvider(LocalSnackbar provides snack) {
             CannotReceiveHost(vm, topInset = false) {
             TabHost(nav) {
-                composable("peers") { PeersScreen(vm, onChoosePush = { vm.openPushMethod.value = true; tab("settings") }) }
+                composable("peers") { PeersScreen(vm, onChoosePush = { vm.openPushMethod.value = true; tab("settings") }, onSend = { tab("send") }) }
                 composable("send") { SendScreen(vm, title = "Send", onPair = pair) }
                 composable("history") { HistoryScreen(vm, onPair = pair, onSend = { tab("send") }) }
                 composable("settings") { SettingsScreen(vm, onDeleteAccount = { vm.message.value = null; deleting = true }, onSignedOut = {}) }

@@ -72,6 +72,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Peer limit picker state (409 "peer limit"). */
     val limit = MutableStateFlow<WorkerClient.PeerLimit?>(null)
     val highlight = MutableStateFlow<String?>(null)
+    /** A paired device tapped in Devices: the Send screen picks only it, once; the saved choice is not changed. */
+    val sendOneOff = MutableStateFlow<String?>(null)
 
     companion object {
         /** Runs a Direct Share send to its end, whether or not its dialog is still open. */

@@ -249,7 +249,7 @@ internal suspend fun devicesScreenOpen(vm: AppViewModel, tick: suspend (Long) ->
 /** Peers screen (section 8): banners, pairing cards, This device, the peer group. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PeersScreen(vm: AppViewModel, onChoosePush: () -> Unit = {}) {
+fun PeersScreen(vm: AppViewModel, onChoosePush: () -> Unit = {}, onSend: () -> Unit = {}) {
     val peers by vm.peers.collectAsState()
     val rows by vm.pairings.collectAsState()
     val highlight by vm.highlight.collectAsState()
@@ -358,7 +358,7 @@ fun PeersScreen(vm: AppViewModel, onChoosePush: () -> Unit = {}) {
                 if (paired.isNotEmpty()) {
                     item(key = "peers-header") { SectionHeader("Paired devices") }
                     itemsIndexed(paired, key = { _, p -> p.id }) { i, p ->
-                        PeerRow(vm, p, now, p.id == highlight, me?.id, Modifier.padding(top = if (i > 0) 2.dp else 0.dp).groupItem(i, paired.size), onDelete = { confirmDelete = p.id }) { confirmRemove = p.id }
+                        PeerRow(vm, p, now, p.id == highlight, me?.id, Modifier.padding(top = if (i > 0) 2.dp else 0.dp).groupItem(i, paired.size), onSend = onSend, onDelete = { confirmDelete = p.id }) { confirmRemove = p.id }
                     }
                 }
                 // Collapsed at the bottom; Pair on a row ends the rejection and starts pairing.
@@ -682,7 +682,8 @@ private fun BannerRow(text: String, action: String, fault: Boolean, icon: ImageV
 
 /** One peer in the Peers group: icon tile, name, platform, status line, overflow menu; the menu holds the per-device options. */
 @Composable
-private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, selfId: String?, modifier: Modifier, rejected: Boolean = false, onDelete: () -> Unit, onRemove: () -> Unit) {
+private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, selfId: String?, modifier: Modifier, rejected: Boolean = false,
+                    onSend: (() -> Unit)? = null, onDelete: () -> Unit, onRemove: () -> Unit) {
     val x = label(p)
     var menu by remember { mutableStateOf(false) }
     val pairingAgain by vm.pairingAgain.collectAsState()
@@ -707,7 +708,10 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
     val lines = listOfNotNull(note, stateText)
     Column(modifier.then(if (highlighted) Modifier.background(cs.secondaryContainer) else Modifier)) {
         ListItem(
-            modifier = Modifier.clickable(enabled = grey, role = Role.Button) { vm.tapGreyed() },
+            // A paired device that can receive opens Send with only it picked; a greyed one explains why.
+            modifier = Modifier.clickable(enabled = grey || (onSend != null && p.inAll), role = Role.Button) {
+                if (grey) vm.tapGreyed() else { vm.sendOneOff.value = p.id; onSend?.invoke() }
+            },
             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
             leadingContent = { IconTile(platformIcon(p.platform), dim = grey) },
             headlineContent = {
@@ -1069,11 +1073,23 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
     // Only devices that can receive now are sent to and counted: a chosen device that turns logged out,
     // unapproved or leaves All drops out, and so does a preselect that cannot receive.
     val sendTo = UiText.sendable(picked, canReceive)
+    // A device tapped in Devices: only it is picked, this once; the saved choice stays until a send.
+    val oneOff by vm.sendOneOff.collectAsState()
+    var tookOneOff by remember { mutableStateOf(false) }
+    LaunchedEffect(oneOff) {
+        val id = oneOff ?: return@LaunchedEffect
+        vm.sendOneOff.value = null
+        tookOneOff = true
+        restored = true
+        picked.clear()
+        picked.add(id)
+    }
     LaunchedEffect(canReceive) {
         if (!restored && canReceive.isNotEmpty()) {
             restored = true
             // Suspends, never blocks the main thread. A chip tapped meanwhile is not added twice.
             val last = vm.g.settings.lastSendTo()
+            if (tookOneOff) return@LaunchedEffect
             picked.addAll(UiText.rememberedSelection(last, canReceive).filter { it !in picked })
             if (picked.isEmpty() && canReceive.size == 1) picked.add(canReceive[0])
         }
