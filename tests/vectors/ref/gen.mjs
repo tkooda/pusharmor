@@ -4,7 +4,7 @@ import { writeFileSync } from 'node:fs';
 import { deflateRawSync } from 'node:zlib';
 import { b64d, b64e, cat, hexe, sha256 } from './bytes.mjs';
 import { isValidPriv, pubFromPriv, sign } from './p256.mjs';
-import { accountId, cliCode, emailHash, keyhash, mailboxKey, myPushSha256, normalizeEmail, oauthNonce, peerId } from './ids.mjs';
+import { accountId, cliCode, deviceId, emailHash, keyhash, mailboxKey, myPushSha256, normalizeEmail, oauthNonce, peerId } from './ids.mjs';
 import {
   commitBody, commitHash, crockford20, fingerprintHash, keysBody, pairDecide, pairHint, pairKey,
   pairingId, pairTimeout, sealPair,
@@ -218,6 +218,25 @@ function idOrderSection() {
       'Lower id for the crossing tie-break: unsigned lexicographic compare of the decoded 30 raw id bytes, ' +
       'each byte 0..255. lower names the lower side ("a" or "b"). Every leg asserts every case.',
     cases: cases.map((c) => ({ ...c, lower: Buffer.compare(b64d(c.a), b64d(c.b)) < 0 ? 'a' : 'b' })),
+  };
+}
+
+function deviceIdSection() {
+  const id = (kh5) => cat(ACCT_A, kh5, Buffer.alloc(30 - 9 - 5, 0x11));
+  const cases = [
+    { name: 'peer_N', id: N.id },
+    { name: 'peer_X', id: X.id },
+    { name: 'peer_Z', id: Z.id },
+    { name: 'keyhash_zero', id: id(Buffer.alloc(5, 0x00)) },
+    { name: 'keyhash_multiple_of_1e9', id: id(Buffer.from([0xe8, 0xd4, 0xa5, 0x10, 0x00])) },
+    { name: 'keyhash_max', id: id(Buffer.alloc(5, 0xff)) },
+  ];
+  return {
+    description:
+      'Device ID shown to users: raw id bytes 9..14 (the first 5 keyhash bytes) as a big-endian unsigned integer, ' +
+      'mod 1000000000, zero-padded to 9 decimal digits, written "NNN-NNN-NNN". Never uses the account bytes 0..9. ' +
+      'Assert device_id for each case.',
+    cases: cases.map((c) => ({ name: c.name, id: b64e(c.id), device_id: deviceId(c.id) })),
   };
 }
 
@@ -993,6 +1012,7 @@ export function buildGolden() {
     email_hash: emailSection(),
     mailbox: mailboxSection(),
     id_order: idOrderSection(),
+    device_id: deviceIdSection(),
     oauth_nonce: nonceSection(),
     cli_code: cliCodeSection(),
     my_push_sha256: pushSection(),

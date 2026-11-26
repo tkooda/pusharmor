@@ -58,6 +58,17 @@ export function idMatches(idRaw, myAccount, signPub, encPub) {
   );
 }
 
+// Device ID shown to users: the first 5 keyhash bytes (raw id bytes 9..14) as a
+// big-endian unsigned integer, mod 10^9, zero-padded to 9 digits, "NNN-NNN-NNN".
+// Never the account bytes (0..9): they are the same on every device.
+export function deviceId(idRaw) {
+  if (idRaw.length !== 30) throw new Error('device id: id must be 30 bytes');
+  let v = 0;
+  for (let i = 9; i < 14; i++) v = v * 256 + idRaw[i];
+  const d = String(v % 1000000000).padStart(9, '0');
+  return d.slice(0, 3) + '-' + d.slice(3, 6) + '-' + d.slice(6);
+}
+
 // Unsigned lexicographic compare of the decoded 30 raw id bytes.
 export function compareIds(a, b) {
   return Buffer.compare(b64d(a), b64d(b));

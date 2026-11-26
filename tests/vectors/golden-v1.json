@@ -189,6 +189,41 @@
     "description": "Size cap: 2048 UTF-8 bytes of the raw url / text / tel string. ok = utf8_bytes <= 2048. truncated = the \"send the first 2048 bytes\" text cut on a UTF-8 code point boundary (equal to input when ok)."
   },
   "description": "PushArmor golden cross-platform vectors v1 (normative; catalog r10). Binary values are strict b64url (RFC 4648 URL alphabet, no padding) unless a field says otherwise: b64url.cases[].hex and rfc9180 use hex. Ids are 40-char b64url; raw id bytes are their decoded 30 bytes. Times are unix seconds. Peers are named N, X, O, Z, S (see keys). Randomized primitives (ECDSA, HPKE seal) are checked in the verify/open direction; generator signatures use RFC 6979 and HPKE ephemeral keys use DeriveKeyPair(ikmE) only to make this file reproducible.",
+  "device_id": {
+    "cases": [
+      {
+        "device_id": "009-804-535",
+        "id": "CuVpna7--EmbFH3LCvfiANtnCurGpyStSXIO6AUz",
+        "name": "peer_N"
+      },
+      {
+        "device_id": "045-555-057",
+        "id": "CuVpna7--EmbwbnHnXELNLEqO59jjlhbwgppFu5n",
+        "name": "peer_X"
+      },
+      {
+        "device_id": "461-658-826",
+        "id": "xtAaMDnIAWc45PriAMp5SPL2agId7V8wDFRJPYdV",
+        "name": "peer_Z"
+      },
+      {
+        "device_id": "000-000-000",
+        "id": "CuVpna7--EmbAAAAAAARERERERERERERERERERER",
+        "name": "keyhash_zero"
+      },
+      {
+        "device_id": "000-000-000",
+        "id": "CuVpna7--Emb6NSlEAARERERERERERERERERERER",
+        "name": "keyhash_multiple_of_1e9"
+      },
+      {
+        "device_id": "511-627-775",
+        "id": "CuVpna7--Emb______8RERERERERERERERERERER",
+        "name": "keyhash_max"
+      }
+    ],
+    "description": "Device ID shown to users: raw id bytes 9..14 (the first 5 keyhash bytes) as a big-endian unsigned integer, mod 1000000000, zero-padded to 9 decimal digits, written \"NNN-NNN-NNN\". Never uses the account bytes 0..9. Assert device_id for each case."
+  },
   "email_hash": {
     "cases": [
       {

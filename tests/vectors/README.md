@@ -53,6 +53,14 @@ deflate stream is correct) unless the change is intended.
 
 Each section's `"description"` says what it holds and what each leg asserts.
 
+### device_id
+
+`device_id` maps a peer id to the Device ID shown to users: raw id bytes
+9..14 (the first 5 keyhash bytes) as a big-endian unsigned integer, mod
+1000000000, zero-padded to 9 digits, written `NNN-NNN-NNN`. The account bytes
+(0..9) are never used; they are the same on every device. Cases: peers `N`,
+`X`, `Z`, two that pad to `000-000-000`, and all-0xff keyhash bytes.
+
 ### Receiver state in message cases
 
 `messages`, `padded_messages` and `must_fail` cases of kind `message` carry

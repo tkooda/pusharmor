@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { b64d, b64e, hexd, hexe, sha256 } from './bytes.mjs';
 import { isValidPub, pubFromPriv, sign, verify } from './p256.mjs';
-import { accountId, cliCode, compareIds, emailHash, idMatches, keyhash, mailboxKey, myPushSha256, normalizeEmail, oauthNonce, peerId } from './ids.mjs';
+import { accountId, cliCode, compareIds, deviceId, emailHash, idMatches, keyhash, mailboxKey, myPushSha256, normalizeEmail, oauthNonce, peerId } from './ids.mjs';
 import {
   commitHash, crockford20, fingerprintHash, openMatchesCommit, openPair, pairDecide, pairHint, pairKey, pairingId, pairTimeout,
 } from './pairing.mjs';
@@ -87,6 +87,11 @@ test('email_hash', () => {
 
 test('id_order', () => {
   for (const c of G.id_order.cases) assert.equal(compareIds(c.a, c.b) < 0 ? 'a' : 'b', c.lower, c.name);
+});
+
+test('device_id', () => {
+  for (const c of G.device_id.cases) assert.equal(deviceId(b64d(c.id)), c.device_id, c.name);
+  assert.throws(() => deviceId(Buffer.alloc(29)));
 });
 
 test('oauth_nonce', () => {
