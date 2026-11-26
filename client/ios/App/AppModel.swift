@@ -38,7 +38,9 @@ final class AppModel: ObservableObject {
     @Published var me: Me?
     @Published var peers: [Peer] = []
     @Published var pairings: [String: PairingEntry] = [:]
-    @Published var history: [HistoryRow] = []
+    @Published var history: [HistoryRow] = [] { didSet { historyIds = Set(history.compactMap { $0.peerId }) } }
+    /// The devices with rows in History (their ids), set with history.
+    private(set) var historyIds: Set<String> = []
     /// The step of a running sign-in, log out, or account delete, under its indicator.
     @Published var caption: String? { didSet { if caption == nil { stepDone = nil } } }
     /// A counted sign-in or account delete running: its steps done of stepTotal, for its bar;
@@ -876,8 +878,12 @@ final class AppModel: ObservableObject {
 
     // MARK: peers and pairing
 
-    /// A device's name where no ID shows next to it: with its ID when another device shows the same name.
-    func label(_ p: Peer) -> String { PeerLabel.label(p, among: peers) }
+    /// A device's name where no ID shows next to it: with its ID when another device the
+    /// Devices screen lists shows the same name.
+    func label(_ p: Peer) -> String { PeerLabel.label(p, among: DeviceList.visible(peers, withHistory: historyIds)) }
+
+    /// A device's name in History rows: with its ID when another device in History shows the same name.
+    func historyLabel(_ p: Peer) -> String { PeerLabel.label(p, among: peers.filter { historyIds.contains($0.id.text) }) }
 
     func pair(_ p: Peer) async {
         guard let core = core else { return }

@@ -955,6 +955,37 @@ final class StateMachineTests: XCTestCase {
         XCTAssertEqual(DeviceList.rejected([removed, rejected]).map { $0.id.text }, [b.id.text])
     }
 
+    /// Notices and toasts: a same name adds the ID only when another device the Devices screen
+    /// lists shows it (a rejected device, or a removed one with no History rows, does not count).
+    func testShownNameClashOnlyAmongListedDevices() throws {
+        let n = try dev("Ndev")
+        let s = n.core.store
+        let a = TestPeer(), b = TestPeer(), c = TestPeer()
+        var pa = Peer(id: a.id); pa.name = "Xdev"; pa.state = .approved; try s.savePeer(pa)
+        var pb = Peer(id: b.id); pb.name = "xdev"; pb.state = .removed; try s.savePeer(pb)
+        var pc = Peer(id: c.id); pc.name = "XDEV"; pc.state = .denied; try s.savePeer(pc)
+        XCTAssertEqual(n.core.shownName(pa), "Xdev")
+        try s.addMessage(dir: .incoming, peer: b.id, type: "text", content: "1", n: 1, pairingId: nil, read: false, results: nil, now: 1)
+        XCTAssertEqual(n.core.shownName(pa), "Xdev (" + Ids.deviceId(a.id.raw) + ")")   // the removed one shows now
+    }
+
+    /// History filter: a same name adds the ID only when another device in History shows it.
+    func testHistoryFilterClashOnlyAmongHistoryDevices() throws {
+        let path = NSTemporaryDirectory() + "pa-hc-\(UUID().uuidString).sqlite"
+        let s = try Store(path: path)
+        let a = TestPeer(), b = TestPeer(), c = TestPeer()
+        var pa = Peer(id: a.id); pa.name = "Xdev"; try s.savePeer(pa)
+        var pb = Peer(id: b.id); pb.name = "Tablet"; try s.savePeer(pb)
+        var pc = Peer(id: c.id); pc.name = "xdev"; try s.savePeer(pc)
+        try s.addMessage(dir: .incoming, peer: a.id, type: "text", content: "1", n: 1, pairingId: nil, read: false, results: nil, now: 1)
+        try s.addMessage(dir: .incoming, peer: b.id, type: "text", content: "2", n: 1, pairingId: nil, read: false, results: nil, now: 2)
+        XCTAssertEqual(HistoryFilter.options(rows: try s.history(), peers: try s.peers()),
+                       [.all, .peer(b.id.text, "Tablet"), .peer(a.id.text, "Xdev")])
+        try s.addMessage(dir: .outgoing, peer: c.id, type: "text", content: "3", n: nil, pairingId: nil, read: true, results: "{}", now: 3)
+        XCTAssertEqual(HistoryFilter.options(rows: try s.history(), peers: try s.peers()),
+                       [.all, .peer(b.id.text, "Tablet"), .peer(a.id.text, "Xdev (" + Ids.deviceId(a.id.raw) + ")")])
+    }
+
     func testMessagesMissingWithdrawsThenRetriesOnce() async throws {
         let n = try dev("Ndev"), x = try dev("Xdev"), o = try dev("Odev")
         try await pairFully(n, x)

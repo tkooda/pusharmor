@@ -42,8 +42,12 @@ extension Core {
     }
 
     /// The 6.2 banner for a History message row.
-    /// A device's name in notices and toasts, with its ID when another device shows the same name.
-    public func shownName(_ p: Peer?) -> String { PeerLabel.label(p, among: (try? store.peers()) ?? []) }
+    /// A device's name in notices and toasts, with its ID when another device the Devices
+    /// screen lists shows the same name.
+    public func shownName(_ p: Peer?) -> String {
+        let shown = Set(HistoryFilter.listed((try? store.history()) ?? []).compactMap { $0.peerId })
+        return PeerLabel.label(p, among: DeviceList.visible((try? store.peers()) ?? [], withHistory: shown))
+    }
 
     public func banner(forRow row: HistoryRow) -> Banner {
         let pid = row.peerId.flatMap { PeerId(text: $0) }

@@ -161,7 +161,7 @@ struct HistoryRowView: View {
         if outgoing { return "Sent" }
         if unknown { return S.unknownSender }
         guard let p = peer else { return S.aPeer }
-        let l = model.label(p)
+        let l = model.historyLabel(p)
         return p.state == .removed ? l + " (removed)" : l
     }
 
@@ -176,7 +176,7 @@ struct HistoryRowView: View {
 
     /// A delete that did not reach every device: the names of those still to take it.
     private var notDeletedOn: [String] {
-        row.delPending.compactMap { id in model.peers.first { $0.id.text == id } }.map { model.label($0) }
+        row.delPending.compactMap { id in model.peers.first { $0.id.text == id } }.map { model.historyLabel($0) }
     }
 
     private var isOpen: Bool { expanded && !selecting && !isEvent && !isUnknownType && !isFile }
@@ -217,7 +217,7 @@ struct HistoryRowView: View {
         guard let obj = results, obj.count == 1, let only = obj.first, only.value == "sent",
               let p = model.peers.first(where: { $0.id.text == only.key })
         else { return nil }
-        return model.label(p)
+        return model.historyLabel(p)
     }
 
     var body: some View {

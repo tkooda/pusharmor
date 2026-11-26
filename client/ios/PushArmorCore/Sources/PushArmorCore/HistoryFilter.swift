@@ -21,8 +21,10 @@ public enum HistoryFilter: Hashable, Sendable {
         let ids = Set(rows.compactMap { $0.peerId })
         if ids.count > 1 {
             let received = Set(rows.filter { $0.dir == .incoming }.compactMap { $0.peerId })
+            // a name clash counts only among the devices in History
+            let inHistory = peers.filter { ids.contains($0.id.text) }
             let named = peers.filter { received.contains($0.id.text) }
-                .map { HistoryFilter.peer($0.id.text, PeerLabel.label($0, among: peers)) }
+                .map { HistoryFilter.peer($0.id.text, PeerLabel.label($0, among: inHistory)) }
             out += PeerLabel.sortedByName(named) { $0.label }
         }
         if rows.contains(where: { $0.peerId == nil }) { out.append(.unknown) }
