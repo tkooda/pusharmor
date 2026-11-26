@@ -25,6 +25,15 @@ class UiTextTest {
         assertEquals("Saved \"a.pdf\"", UiText.saved("a.pdf"))
         assertEquals("Unable to save \"a.pdf\"\nTry again", UiText.brief(com.pusharmor.net.ErrorText.text(UiText.unableSave("a.pdf"), com.pusharmor.net.ErrorText.TRY_AGAIN)))
         assertEquals("Unable to copy \"a.png\"", UiText.unableCopy("a.png"))
+        // a long name is cut in the middle to 24 characters, the start and the extension kept
+        val long = "my-very-long-vacation-photo-2026.jpg"
+        assertEquals("my-very-long-v...026.jpg", UiText.cutFile(long))
+        assertEquals(24, UiText.cutFile(long).length)
+        assertEquals("x".repeat(24), UiText.cutFile("x".repeat(24)))
+        assertEquals("Saved \"my-very-long-v...026.jpg\"", UiText.saved(long))
+        assertEquals("Unable to save \"my-very-long-v...026.jpg\"", UiText.unableSave(long))
+        assertEquals("Unable to copy \"my-very-long-v...026.jpg\"", UiText.unableCopy(long))
+        assertEquals("No app can open \"my-very-long-v...026.jpg\".", com.pusharmor.app.ui.noAppOpens(long))
     }
 
     @Test fun shareSheetToastTexts() {

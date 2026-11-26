@@ -79,6 +79,10 @@ class FileUiTest {
         assertEquals("expires in 40 min", FileUi.expiresText(2400, 0))
         assertEquals("Expired", FileUi.expiresText(10, 10))
         assertEquals("Not enough memory to decrypt \"a.jpg\"", FileUi.noMemoryToast("a.jpg"))
+        val long = "my-very-long-vacation-photo-2026.jpg"
+        assertEquals("Not enough memory to decrypt \"my-very-long-v...026.jpg\"", FileUi.noMemoryToast(long))
+        assertEquals("\"my-very-long-v...026.jpg\" is too large to send", FileUi.tooLarge(long))
+        assertEquals("Unable to read \"my-very-long-v...026.jpg\"", FileUi.unreadable(long))
     }
 
     @Test fun rowState() {

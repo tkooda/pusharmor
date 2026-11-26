@@ -85,7 +85,7 @@ internal fun fileIcon(name: String): ImageVector = when (FileUi.kind(name)) {
 internal fun fileMime(name: String): String =
     MimeTypeMap.getSingleton().getMimeTypeFromExtension(FileUi.ext(name))?.takeIf { it.isNotEmpty() } ?: "application/octet-stream"
 
-internal fun noAppOpens(name: String) = "No app can open \"$name\"."
+internal fun noAppOpens(name: String) = "No app can open \"${UiText.cutFile(name)}\"."
 
 /** "Or choose a file..." inside the message box, at its bottom right: a stock text button, secondary to Send. */
 @Composable

@@ -24,10 +24,11 @@ object FileUi {
     /** A pasted image while the message box holds text: one type per message. */
     const val PASTE_IMAGE_CLEAR = "Clear the message to add a file"
 
-    fun noMemoryToast(name: String) = "Not enough memory to decrypt \"$name\""
+    // A name in a toast or error is cut in the middle to fit (UiText.cutFile).
+    fun noMemoryToast(name: String) = "Not enough memory to decrypt \"${com.pusharmor.app.ui.UiText.cutFile(name)}\""
     fun decryptFailed(name: String) = "Unable to decrypt \"$name\"\nTry again"
-    fun tooLarge(name: String) = "\"$name\" is too large to send"
-    fun unreadable(name: String) = "Unable to read \"$name\""
+    fun tooLarge(name: String) = "\"${com.pusharmor.app.ui.UiText.cutFile(name)}\" is too large to send"
+    fun unreadable(name: String) = "Unable to read \"${com.pusharmor.app.ui.UiText.cutFile(name)}\""
 
     /** The send bar while the file is encrypted: from 0 to encrypted by the bytes read of [total]. */
     fun encryptStep(read: Long, total: Long): Int = bytePercent(read, total) * com.pusharmor.protocol.engine.SendFlow.Step.ENCRYPTED / 100

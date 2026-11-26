@@ -32,10 +32,17 @@ object UiText {
     /** Brief text after a copy, on every Android version (13 and later also show their own clipboard preview). */
     fun copyResult(ok: Boolean): String = if (ok) COPIED else com.pusharmor.net.ErrorText.text(UNABLE_COPY, COPY_BY_HAND)
 
-    /** Save and copy of a named file: the toast names it. */
-    fun saved(name: String) = "Saved \"$name\""
-    fun unableSave(name: String) = "Unable to save \"$name\""
-    fun unableCopy(name: String) = "Unable to copy \"$name\""
+    /** Save and copy of a named file: the toast names it, cut in the middle as [cutFile] does. */
+    fun saved(name: String) = "Saved \"${cutFile(name)}\""
+    fun unableSave(name: String) = "Unable to save \"${cutFile(name)}\""
+    fun unableCopy(name: String) = "Unable to copy \"${cutFile(name)}\""
+
+    /**
+     * Longest file name in a toast or error: a longer name is cut in the middle (start and extension kept), so
+     * "\"<name>\" is too large to send" fits in 2 toast lines on a 360 dp phone. The same on every client.
+     */
+    const val FILE_NAME_MAX = 24
+    fun cutFile(name: String): String = middleEllipsis(name) { it.length <= FILE_NAME_MAX }
 
     /** Toast and snackbar text: no line ends with a period. Inline text, dialogs, and notifications keep theirs; an ellipsis stays. */
     fun brief(text: String): String =
