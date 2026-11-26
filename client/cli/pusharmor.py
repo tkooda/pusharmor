@@ -192,7 +192,10 @@ def id_hex(id_b64):
 def device_id(id_b64):
     """Device ID shown to users: id bytes 9..14 (the first 5 keyhash bytes) as a big-endian integer,
     mod 1000000000, as 9 digits "NNN-NNN-NNN"."""
-    d = "%09d" % (int.from_bytes(b64d(id_b64)[9:14], "big") % 1000000000)
+    raw = b64d(id_b64)
+    if len(raw) != 30:
+        raise ValueError("device id: id must be 30 bytes")
+    d = "%09d" % (int.from_bytes(raw[9:14], "big") % 1000000000)
     return "%s-%s-%s" % (d[:3], d[3:6], d[6:])
 
 

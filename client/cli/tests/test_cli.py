@@ -192,6 +192,13 @@ def test_device_id_must_match_exactly():
     assert '"one" and "two"' in str(e.value) and pa.device_id(one) in str(e.value)
 
 
+def test_device_id_needs_30_id_bytes():
+    assert pa.device_id(pa.b64e(bytes(9) + bytes.fromhex("0000000001") + bytes(16))) == "000-000-001"
+    for n in (0, 29, 31):
+        with pytest.raises(ValueError):
+            pa.device_id(pa.b64e(bytes(n)))
+
+
 def test_parse_args_per_command():
     p = pa.build_parser()
     a = p.parse_args(["--config", "/x", "send", "-d", "abcdef", "--to", "123456", "--id", "7", "-d", "8", "--text", "hi",
