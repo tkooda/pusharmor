@@ -2230,8 +2230,11 @@ def test_command_texts_are_the_approved_sentences(net, tmp_path, monkeypatch, ca
     assert err_of(2, "send", "   ") == "error: Unable to send. The message is empty.\n"
     assert err_of(1, "send", "--to", "abcdef", "hi") == (
         'error: Unable to send. No device matches "abcdef". Run `pusharmor devices` to see device IDs.\n')
-    assert err_of(2, "rename", 'bad "name"') == (
-        "error: Unable to rename this device. The name must be 1 to 32 plain ASCII characters, with no double quote.\n")
+    assert err_of(2, "rename", 'bad "name"') == "error: Unable to rename this device. Invalid characters\n"
+    assert err_of(2, "rename", "--", "-x") == "error: Unable to rename this device. Invalid characters\n"
+    assert err_of(2, "rename", "a" * 33) == "error: Unable to rename this device. Invalid characters\n"
+    assert err_of(2, "rename", "") == "error: Unable to rename this device. Name too short\n"
+    assert err_of(2, "rename", "   ") == "error: Unable to rename this device. Name too short\n"
     assert err_of(1, "pair", pa.device_id(me)) == (
         'error: Unable to pair with "%s". This is the device you are using. Choose another device.\n' % pa.device_id(me))
     monkeypatch.setattr(pa, "ntfy_open", lambda url, timeout: (_ for _ in ()).throw(OSError("down")))
@@ -2289,6 +2292,22 @@ def test_login_link_too_old_says_the_code_expired(net, tmp_path, monkeypatch, ca
     assert run(tmp_path, "login") == 1
     out = capsys.readouterr().out
     assert "The code expired. Open the URL to get a new code:\n\n  %s/auth/cli#" % pa.SITE in out
+
+
+@pytest.mark.parametrize("host,name", [("my-host", "my-host"), ("-box", "?box"), ("caf\u00e9!", "caf??"),
+                                       ("Tom\u2019s " + "x" * 40, "Tom's " + "x" * 26), ("", "CLI"),
+                                       (" a  b ", "a b"), ("   ", "CLI")])
+def test_default_name_follows_the_name_rule(monkeypatch, host, name):
+    monkeypatch.setattr(pa.socket, "gethostname", lambda: host)
+    assert pa.default_name() == name
+
+
+def test_rename_saves_the_name_with_spaces_cleaned_up(net, tmp_path, monkeypatch, capsys):
+    login(monkeypatch, tmp_path)
+    capsys.readouterr()
+    assert run(tmp_path, "rename", "  Desk   top ") == 0
+    assert state(tmp_path)["name"] == "Desk top"
+    assert capsys.readouterr().out == 'This device is now named "Desk top".\n'
 
 
 def test_rename_to_the_same_name_makes_no_network_call(net, tmp_path, monkeypatch, capsys):

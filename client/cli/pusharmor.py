@@ -657,6 +657,41 @@ def collide(name, existing, ignore_case):
 # ---- name entries ----
 
 NAME_RE = re.compile(r"[\x20\x21\x23-\x7e]{1,32}")
+NAME_BAD = set('`\\"{}<>|!$;?')  # with the 1 to 32 length and no leading "-": the rule for a name this device sets
+
+
+def _name_char_ok(c):
+    return " " <= c <= "~" and c not in NAME_BAD
+
+
+def _squeeze(s):
+    """Leading and trailing spaces dropped, each run of spaces made one (the ASCII space only)."""
+    return re.sub(" +", " ", s).strip(" ")
+
+
+def name_check(name):
+    """A typed name (rename) -> (error text, None), or (None, the name to save: spaces cleaned up)."""
+    s = _squeeze(name)
+    if not s:
+        return "Name too short", None
+    if len(s) > 32 or s.startswith("-") or not all(_name_char_ok(c) for c in s):
+        return "Invalid characters", None
+    return None, s
+
+
+def name_default(raw):
+    """The system name as a default name: curly apostrophes become ', every other character outside the
+    rule becomes "?", spaces are cleaned up, a leading "-" becomes "?", then at most 32 characters.
+    Empty stays empty."""
+    s = _squeeze("".join("'" if c in "\u2018\u2019" else c if _name_char_ok(c) else "?" for c in raw))
+    return _squeeze(("?" + s[1:] if s.startswith("-") else s)[:32])
+
+
+def name_display(name):
+    """A stored or received name as shown: every character outside the rule becomes "?", spaces are
+    cleaned up, a leading "-" becomes "?", and an empty name shows as "?"."""
+    s = _squeeze("".join(c if _name_char_ok(c) else "?" for c in name))
+    return "?" + s[1:] if s.startswith("-") else s or "?"
 
 
 def name_signed_bytes(owner_id, recipient_id, pairing_id_b64, n, name_b64):
@@ -2006,14 +2041,13 @@ def peer_label(p):
     if not p:
         return "A device"
     if p["name"]:
-        return p["name"]
+        return name_display(p["name"])
     t = gmtime(p["created"])
     return "%s device added %s %d" % (platform_label(p["platform"]), MONTHS[t.tm_mon - 1], t.tm_mday)
 
 
 def default_name():
-    n = "".join(c for c in socket.gethostname() if NAME_RE.fullmatch(c))[:32].strip()
-    return n or "Command line"
+    return name_default(socket.gethostname()) or "CLI"
 
 
 def seal_msg(k, x, p, n, type_, value, approve=False):
@@ -2323,7 +2357,7 @@ def act(cx, d, r, p, notes):
     elif t == "rename":
         if n > p["name_n"]:
             p["name"], p["name_n"] = v["name"], n
-            notes.append(("info", '"%s" is now named "%s".' % (name, v["name"])))
+            notes.append(("info", '"%s" is now named "%s".' % (name, name_display(v["name"]))))
     elif t == "remove":
         if v == cx.me:
             return REMOVED, None
@@ -3128,7 +3162,7 @@ def cmd_login(cx, args):
             if e.status == 429 or not ask_yes("%s Retry? [Y/n] " % e, default=True):
                 raise Fail(str(e))
     with cx.store.state(write=False) as d:
-        name = d["name"]
+        name = name_display(d["name"])
     print('Logged in. This device is named "%s". Next: run pusharmor pair to see your devices.' % name)
     return EXIT_OK
 
@@ -3290,7 +3324,7 @@ def match_device(cx, d, text, ids):
     if not hits:
         raise Fail('No device matches "%s". Run `pusharmor devices` to see device IDs.' % text)
     if len(hits) > 1:
-        names = " and ".join('"%s"' % (d["name"] if i == cx.me else peer_label(d["peers"].get(i))) for i in hits)
+        names = " and ".join('"%s"' % (name_display(d["name"]) if i == cx.me else peer_label(d["peers"].get(i))) for i in hits)
         raise Fail("More than one device has the device ID %s: %s. Remove one of them, then try again."
                    % (text, names))
     return hits[0]
@@ -3662,24 +3696,25 @@ def device_reason(r):
 
 
 def cmd_rename(cx, args):
-    if not NAME_RE.fullmatch(args.name):
-        raise Fail("The name must be 1 to 32 plain ASCII characters, with no double quote.", EXIT_USAGE)
+    error, name = name_check(args.name)
+    if error:
+        raise Fail(error, EXIT_USAGE)
     cx.need()
     with cx.store.state(write=False) as d:
-        if d.get("name") == args.name:
-            print('This device is already named "%s".' % args.name)
+        if d.get("name") == name:
+            print('This device is already named "%s".' % name)
             return EXIT_OK
     k = cx.keys
 
     def content(pid, p, n, names):
-        e = make_name_entry(k["sign"], k["id"], pid, b64d(p["pairing_id"]), n, args.name)
+        e = make_name_entry(k["sign"], k["id"], pid, b64d(p["pairing_id"]), n, name)
         names[pid] = seal_name_entry(pid, b64d(p["enc_pub"]), e)
         return "rename", e
 
     allow_list_call(cx, "PATCH", "/v1/peers/" + cx.me, lambda m, names: {"name": names, "m": m}, content)
     with cx.store.state() as d:
-        d["name"] = args.name
-    print('This device is now named "%s".' % args.name)
+        d["name"] = name
+    print('This device is now named "%s".' % name)
     return EXIT_OK
 
 
@@ -3688,7 +3723,7 @@ def cmd_delete(cx, args):
     x = resolve_peer(cx, args.id, with_self=True)
     with cx.store.state(write=False) as d:
         reg, name = d.get("reg"), peer_label(d["peers"].get(x))
-        set_action('Unable to remove "%s".' % (d.get("name") or name if x == cx.me else name))
+        set_action('Unable to remove "%s".' % (name_display(d.get("name") or name) if x == cx.me else name))
     if reg != "registered" and (x != cx.me or reg != "logged_out"):
         raise Fail(LOGGED_OUT if reg == "logged_out" else NOT_LOGGED_IN, EXIT_LOGIN)
     if x == cx.me:
@@ -3737,7 +3772,8 @@ COMMANDS = {
                                "a saved file's path is in $PUSHARMOR_FILE"}),
                 (("--files",), {"metavar": "DIR", "help": "download received files to DIR (never to the output)"})]),
     "rename": (cmd_rename, "Change the name shown on your other devices for this device.",
-               [(("name",), {"metavar": "NAME", "help": "1 to 32 plain ASCII characters, no double quote"})]),
+               [(("name",), {"metavar": "NAME", "help": "1 to 32 ASCII characters, not starting with -, "
+                                                   "and none of ` \\ \" { } < > | ! $ ; ?"})]),
     "delete": (cmd_delete, "Remove a device from your account.",
                [(("id",), {"metavar": "ID", "help": "device ID from pusharmor pair"}),
                 (("--yes",), {"action": "store_true", "help": "do not ask for confirmation (needed without a terminal)"})]),

@@ -322,3 +322,10 @@ def must_fail_outcome(c):
 def test_must_fail(c):
     assert c["outcome"] in ("invalid", "unreadable")
     assert must_fail_outcome(c) == c["outcome"]
+
+
+def test_device_name_rule():
+    v = G["device_name"]
+    assert [pa.name_check(c["input"]) for c in v["input_cases"]] == [(c["error"], c["name"]) for c in v["input_cases"]]
+    assert [pa.name_default(c["input"]) for c in v["default_cases"]] == [c["name"] for c in v["default_cases"]]
+    assert [pa.name_display(c["input"]) for c in v["display_cases"]] == [c["shown"] for c in v["display_cases"]]
