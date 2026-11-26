@@ -84,3 +84,18 @@ test("the own Settings card shows the Device ID under the name and no platform l
   const txt = byClass(r, "txt");
   assert.deepEqual(txt.kids.map((n) => n.textContent), ["Work laptop", "Device ID: 009-804-535"]);
 });
+
+test("the Added line is smaller and dimmer than the ID line on device cards, pairing cards, and the device-limit picker", async () => {
+  const { readFileSync } = await import("node:fs");
+  const r = await draw([paired, peer({ id: realId, label: "Phone", platform: "android", paired: true, created: added }), peer({ id: "p9", label: "New Firefox device", platform: "firefox", fingerprint: "YSWH", actions: ["approve", "deny"], created: added })]);
+  const lines = all(r).filter((n) => n.tag === "div" && /^(ID|Added): /.test(n.textContent));
+  assert.ok(lines.filter((n) => n.textContent.startsWith("Added: ")).length >= 2);
+  for (const n of lines) assert.equal(n.attrs.class, n.textContent.startsWith("Added: ") ? "t2 added" : "t2", n.textContent);
+  const page = readFileSync(new URL("../src/ui/page.ts", import.meta.url), "utf8");
+  assert.match(page, /limitLines\(p\)\.map\(\(l\) => h\("div", \{ class: l\.startsWith\("Added: "\) \? "t2 added" : "t2" \}, l\)\)/);
+  const css = readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8");
+  const t2 = /\.dim, \.t2 \{ font-size: (\d+)px;/.exec(css)!;
+  const add = /\.t2\.added \{ font-size: (\d+)px; line-height: [\d.]+; opacity: ([\d.]+); \}/.exec(css)!;
+  assert.ok(Number(add[1]) < Number(t2[1]), "smaller");
+  assert.ok(Number(add[2]) < 1, "dimmer");
+});

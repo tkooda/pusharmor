@@ -562,7 +562,7 @@ function limitView(env: UiEnv, root: HTMLElement, body: Record<string, unknown>,
         "label",
         { class: "prow target" },
         h("div", { class: "av" }, platformIcon(p.platform)),
-        h("div", { class: "txt" }, h("div", { class: "t1" }, platformLabel(p.platform)), ...limitLines(p).map((l) => h("div", { class: "t2" }, l))),
+        h("div", { class: "txt" }, h("div", { class: "t1" }, platformLabel(p.platform)), ...limitLines(p).map((l) => h("div", { class: l.startsWith("Added: ") ? "t2 added" : "t2" }, l))),
         box,
       ),
     );

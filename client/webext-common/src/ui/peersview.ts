@@ -39,7 +39,7 @@ const idLines = (p: PeerView): HTMLElement[] => {
   const id = idText(p.id);
   return [
     ...(id ? [h("div", { class: "t2" }, "ID: " + id)] : []),
-    ...(p.created ? [h("div", { class: "t2" }, "Added: " + addedDate(p.created * 1000))] : []),
+    ...(p.created ? [h("div", { class: "t2 added" }, "Added: " + addedDate(p.created * 1000))] : []),
   ];
 };
 
