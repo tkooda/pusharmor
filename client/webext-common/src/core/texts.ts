@@ -160,18 +160,24 @@ export function greyedText(name: string, greyed: string): string {
 }
 
 /**
- * Places that show only a name (menus, Send chips, notifications, History): devices whose shown
- * names are equal ignoring case read "Name (NNN-NNN-NNN)"; the others keep their name.
+ * Places that show only a name (menus, Send chips, notifications, History): a device reads "Name (NNN-NNN-NNN)"
+ * on a clash of names equal ignoring case. A paired device clashes only with another paired device; a device
+ * not paired clashes with any other device given, so a paired device never gets the ID because of it.
  */
-export function clashLabels(devs: { id: string; label: string }[]): Map<string, string> {
+export function clashLabels(devs: { id: string; label: string; paired?: boolean }[]): Map<string, string> {
   const fold = (s: string) => s.replace(/[A-Z]/g, (c) => c.toLowerCase());
-  const count = new Map<string, number>();
-  for (const d of devs) count.set(fold(d.label), (count.get(fold(d.label)) ?? 0) + 1);
+  const all = new Map<string, number>();
+  const paired = new Map<string, number>();
+  for (const d of devs) {
+    all.set(fold(d.label), (all.get(fold(d.label)) ?? 0) + 1);
+    if (d.paired) paired.set(fold(d.label), (paired.get(fold(d.label)) ?? 0) + 1);
+  }
   return new Map(
     devs.map((d) => {
       const raw = b64urlTryDecode(d.id);
       const id = raw && raw.length === ID_LEN ? deviceId(raw) : null;
-      return [d.id, count.get(fold(d.label))! > 1 && id ? d.label + " (" + id + ")" : d.label];
+      const clash = (d.paired ? paired : all).get(fold(d.label))! > 1;
+      return [d.id, clash && id ? d.label + " (" + id + ")" : d.label];
     }),
   );
 }

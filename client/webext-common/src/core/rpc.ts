@@ -407,16 +407,24 @@ export class Rpc {
     const here = f ? await f.here().catch(() => new Set<string>()) : new Set<string>();
     // no device status rows: those an older version stored stay in the database, unlisted
     const rows = (await e.db.history()).filter((r) => !isStatusRow(r));
-    // a name gets its ID only when another device named in History shows the same name
+    // History names: every paired device, and the other devices History names (a removed one too)
+    const named = new Map<string, string>();
+    for (const r of rows) {
+      const id = r.peer ?? (r.dir === "out" && r.targets?.length === 1 ? r.targets[0]! : null);
+      const p = id ? peers.get(id) : undefined;
+      const raw = p?.name ?? (r.peer ? r.peer_name : null) ?? null;
+      if (id && !named.has(id) && (p || raw !== null)) named.set(id, raw !== null ? displayName(raw) : rowLabel(p!));
+    }
+    const devs = (await e.labelDevices()).filter((d) => d.paired || named.has(d.id));
     const self = await e.self();
-    const named = new Set(rows.map((r) => r.peer ?? (r.dir === "out" && r.targets?.length === 1 ? r.targets[0]! : null)));
-    const short = clashLabels([...peers.values()].filter((p) => named.has(p.id) && !p.removed && p.id !== self?.id).map((p) => ({ id: p.id, label: rowLabel(p) })));
+    for (const [id, label] of named) if (id !== self?.id && !devs.some((d) => d.id === id)) devs.push({ id, label, paired: false });
+    const short = clashLabels(devs);
     return rows.map((r) => {
       const p = r.peer ? peers.get(r.peer) : undefined;
       let sender: string = T.unknownSender;
       if (r.peer) {
         const raw = p?.name ?? r.peer_name ?? null;
-        const nm = p && short.has(p.id) ? short.get(p.id)! : raw === null ? null : displayName(raw);
+        const nm = short.get(r.peer) ?? (raw === null ? null : displayName(raw));
         sender = (nm ?? peerLabel(p)) + (!p || p.removed ? " (removed)" : "");
       } else if (r.dir === "out" && r.targets?.length === 1) {
         // A message to one device: History names it (Sent to "Laptop").

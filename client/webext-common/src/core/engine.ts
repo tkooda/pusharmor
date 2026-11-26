@@ -312,25 +312,17 @@ export class Engine {
     return uniqueDefault(platformLabel(this.p.platformName), others);
   }
 
-  /**
-   * The devices the Devices screen shows (as Rpc.peers lists them and renderPeers draws them): never this device or a
-   * removed one, none under Rejected devices; while no device is paired, only the shown devices waiting to pair or pairing.
-   */
-  async devicesShown(): Promise<PeerRow[]> {
+  /** Each other device not removed (the Devices screen lists it), and whether it is under Paired devices there. */
+  async labelDevices(): Promise<{ id: string; label: string; paired: boolean }[]> {
     const self = await this.self();
     const entries = await allEntries(this.p.storageLocal);
-    const rows = (await this.db.peers()).filter((p) => !p.removed && p.id !== self?.id);
-    const plain = (p: PeerRow) => !entries.has(p.id) && !p.missing;
-    const rejected = (p: PeerRow) => plain(p) && !p.pinned && p.ruling === "denied";
-    const paired = (p: PeerRow) => plain(p) && p.pinned && !p.denies_me && !(p.approve_verified && p.get_after_verify && !p.approves_me) && p.ruling === "approved" && p.approves_me;
-    const listed = rows.filter((p) => !rejected(p));
-    // no paired device: the first-pair screen lists no hidden device and no missing one (its section is Paired devices)
-    return rows.some(paired) ? listed : listed.filter((p) => !p.hidden && !(p.missing && !entries.has(p.id)));
+    const paired = (p: PeerRow) => !entries.has(p.id) && (!!p.missing || (p.pinned && !p.denies_me && !(p.approve_verified && p.get_after_verify && !p.approves_me) && p.ruling === "approved" && p.approves_me));
+    return (await this.db.peers()).filter((p) => !p.removed && p.id !== self?.id).map((p) => ({ id: p.id, label: rowLabel(p), paired: paired(p) }));
   }
 
-  /** Name-only places: each other device's name, with its ID when another device the Devices screen shows has the same name. */
+  /** Name-only places: each other device's name, with its ID on a clash (a paired device only with another paired device). */
   async nameOnlyLabels(): Promise<Map<string, string>> {
-    return clashLabels((await this.devicesShown()).map((p) => ({ id: p.id, label: rowLabel(p) })));
+    return clashLabels(await this.labelDevices());
   }
 
   /** A device's name in a notification or menu (with its ID on a clash). */
