@@ -14,7 +14,8 @@ import com.pusharmor.protocol.engine.PairNoticeKind
 class AppEffects(private val g: Graph, private val fcm: Boolean) : Effects {
     private val n get() = g.notifier
 
-    private fun nameOf(peerId: String): String? = g.dao.peer(peerId)?.name
+    /** The device's shown name ("New Android device" when it has none); null only when the device is not stored. */
+    private fun nameOf(peerId: String): String? = g.dao.peer(peerId)?.let { UiText.peerLabel(it.name, it.platform) }
 
     override fun schedulePairSend(peerId: String, replace: Boolean) = Work.pairSend(g.app, peerId, replace)
     override fun reconcileSoon() = Work.reconcile(g.app)
@@ -39,6 +40,7 @@ class AppEffects(private val g: Graph, private val fcm: Boolean) : Effects {
     }
 
     override fun cancelPairNotice(pk: String) = n.cancelPair(pk)
+    override fun pairNameUnreadable(peerId: String) { g.dao.peer(peerId)?.let { n.notice(UiText.nameUnreadable(it.platform)) } }
     override fun couldNotRead() { if (fcm) n.notice(Notifier.COULD_NOT_READ) }
     override fun invalidMessage() { if (fcm) n.notice(Notifier.INVALID) }
     override fun newerVersionSeen() = g.settings.set(com.pusharmor.app.data.Settings.K.NEWER_VERSION, true)
@@ -52,7 +54,7 @@ class AppEffects(private val g: Graph, private val fcm: Boolean) : Effects {
         }
         g.files.onArrived(historyId, file)
     }
-    override fun approvedNotice(peerId: String, name: String?) = n.peersNotice(UiText.approvedNotice(name), 3)
+    override fun approvedNotice(peerId: String, name: String?) = n.peersNotice(UiText.approvedNotice(name ?: nameOf(peerId)), 3)
     override fun renamedNotice(oldName: String?, newName: String) = n.peersNotice(UiText.renamedNotice(oldName, newName), 4)
     override fun peerListChanged() = n.peersNotice("Device list changed.", 5)
     override fun deniedNotice(peerId: String) { if (fcm) n.notice(UiText.rejectedNotice(nameOf(peerId))) }

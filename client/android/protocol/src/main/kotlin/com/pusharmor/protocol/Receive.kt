@@ -48,7 +48,8 @@ sealed class Effect {
 
 sealed class Inbound {
     /** "could not read": notice on FCM, History event; [peerId] only when the signature verified. */
-    data class Unreadable(val peerId: String?, val fetch: Boolean = false) : Inbound()
+    /** [badName]: an approve whose name entry did not verify (the pairing fails). */
+    data class Unreadable(val peerId: String?, val fetch: Boolean = false, val badName: Boolean = false) : Inbound()
 
     /** Replay: "Invalid message received" notice on FCM and History event. */
     data class Invalid(val peerId: String) : Inbound()
@@ -195,7 +196,7 @@ object ReceivePipeline {
             }
             is OpenResult.Ok -> {
                 val peer = peerOf(opened.fromId)!!
-                if (!Receive.nameEntryOk(opened, peer, ownId)) return Inbound.Unreadable(peer.id)
+                if (!Receive.nameEntryOk(opened, peer, ownId)) return Inbound.Unreadable(peer.id, badName = opened.body is MessageBody.Approve)
                 val window = windowOf(peer.id) ?: return Inbound.Unreadable(null)
                 // unknown type from a peer that is not approved: silent, and the replay window stays unchanged
                 val body = opened.body

@@ -314,10 +314,15 @@ class UiTextTest {
     @Test fun renameFieldError() {
         assertEquals(null, UiText.nameError("Phone"))
         assertEquals(null, UiText.nameError("x".repeat(32)))
-        assertEquals("Use 1 to 32 plain ASCII characters, with no double quote.", UiText.nameError(""))
-        assertEquals("Use 1 to 32 plain ASCII characters, with no double quote.", UiText.nameError("Caf\u00e9"))
-        assertEquals("Use 1 to 32 plain ASCII characters, with no double quote.", UiText.nameError("x".repeat(33)))
-        assertEquals("Use 1 to 32 plain ASCII characters, with no double quote.", UiText.nameError("My \"phone\""))
+        assertEquals("Name too short", UiText.nameError(""))
+        assertEquals("Invalid characters", UiText.nameError("Caf\u00e9"))
+        assertEquals("Invalid characters", UiText.nameError("x".repeat(33)))
+        assertEquals("Invalid characters", UiText.nameError("My \"phone\""))
+        assertEquals("Invalid characters", UiText.nameError("-phone"))
+        // Shown names: disallowed characters read as ?, with no padding.
+        assertEquals("Tom?s", UiText.peerLabel("Tom\u2019s", "android"))
+        assertEquals("\"a?b\" confirmed this device.", UiText.approvedNotice("a{b"))
+        assertEquals("Unable to pair with Firefox device\nIts name could not be read. Try pairing again", UiText.nameUnreadable("firefox"))
     }
 
     @Test fun middleEllipsisKeepsStartAndEnd() {

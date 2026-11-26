@@ -5,7 +5,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.withStyle
-import com.pusharmor.protocol.NameEntry
+import com.pusharmor.protocol.DeviceName
 import com.pusharmor.protocol.Peer
 import com.pusharmor.protocol.engine.PairStart
 import java.text.DateFormat
@@ -454,9 +454,8 @@ object UiText {
         }
     }
 
-    /** Rename field error: null when [name] is a valid peer name (same rule and text as Session.rename). */
-    const val NAME_RULE = "Use 1 to 32 plain ASCII characters, with no double quote."
-    fun nameError(name: String): String? = if (NameEntry.isValidName(name)) null else NAME_RULE
+    /** Rename field error: null when [name] is a valid device name, else "Name too short" or "Invalid characters" (same as Session.rename). */
+    fun nameError(name: String): String? = DeviceName.inputError(name)
 
     /** Why a Pair tap did not start a pairing; null when it did. Pairing is not live, so no "online". */
     fun pairRefused(r: PairStart, name: String): String? = when (r) {
@@ -468,13 +467,16 @@ object UiText {
     }
 
     /** A device as the app names it: its name, else "New Android device" (its name is not known until it pairs). */
-    fun peerLabel(name: String?, platform: String): String = name ?: "New ${com.pusharmor.app.notify.AppEffects.platformLabel(platform)} device"
+    fun peerLabel(name: String?, platform: String): String = name?.let(DeviceName::display) ?: "New ${com.pusharmor.app.notify.AppEffects.platformLabel(platform)} device"
     /** Pairing card title while the codes show. */
     fun pairWithNew(platform: String): String = "Pair with new ${com.pusharmor.app.notify.AppEffects.platformLabel(platform)} device"
     /** Pairing card title after Codes match here, until the other device confirms. */
     fun awaitingResponse(platform: String): String = "Awaiting ${com.pusharmor.app.notify.AppEffects.platformLabel(platform)} device's response"
     /** Text under the pairing code. */
     const val CONFIRM_CODE = "Confirm the other device shows this code."
+    /** A pairing that failed because the other device's name could not be read (two lines). */
+    fun nameUnreadable(platform: String): String =
+        "Unable to pair with ${com.pusharmor.app.notify.AppEffects.platformLabel(platform)} device\nIts name could not be read. Try pairing again"
     /** Notice title and text when a device with no known name asks to pair. */
     const val NEW_DEVICE_WANTS_TO_PAIR = "A new device wants to pair"
     fun newDeviceWithId(platform: String, deviceId: String): String = "${com.pusharmor.app.notify.AppEffects.platformLabel(platform)} device with ID $deviceId"
@@ -487,7 +489,7 @@ object UiText {
 
     // Device texts: the name is always in straight double quotes; no name reads "A device" / "a device".
     fun approvedNotice(name: String?): String = "${quoted(name, "A device")} confirmed this device."
-    fun renamedNotice(old: String?, new: String): String = "${quoted(old, "A device")} renamed to \"$new\""
+    fun renamedNotice(old: String?, new: String): String = "${quoted(old, "A device")} renamed to \"${DeviceName.display(new)}\""
     fun deletedNotice(count: Int, name: String?): String = (if (count == 1) "1 message" else "$count messages") + " deleted by " + quoted(name, "a device")
     fun rejectedNotice(name: String?): String = "Rejected by ${quoted(name, "a device")}."
     fun logoutNotice(name: String?, loggedOut: Boolean): String = quoted(name, "A device") + if (loggedOut) " logged out." else " logged in."
@@ -515,7 +517,7 @@ object UiText {
     fun chipLabel(name: String, status: String): String = "\"$name\": $status"
     /** The pairing row error when the other device has not answered (two lines). */
     fun noReplyFrom(x: String): String = "No reply from \"$x\"\nCheck that notifications are on for PushArmor on both devices, then try again"
-    private fun quoted(name: String?, none: String): String = if (name == null) none else "\"$name\""
+    private fun quoted(name: String?, none: String): String = if (name == null) none else "\"${DeviceName.display(name)}\""
 
     /** Screen reader state of the sign-in code field, which has no visible label: "Code, 2 of 6 entered". */
     fun codeState(n: Int): String = "Code, $n of 6 entered"

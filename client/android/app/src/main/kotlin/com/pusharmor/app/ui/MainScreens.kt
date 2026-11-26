@@ -176,6 +176,7 @@ import com.pusharmor.app.ui.theme.StatusLine
 import com.pusharmor.app.ui.theme.groupItem
 import com.pusharmor.protocol.ContentType
 import com.pusharmor.protocol.Countdown
+import com.pusharmor.protocol.DeviceName
 import com.pusharmor.protocol.PairDecide
 import com.pusharmor.protocol.PairRole
 import com.pusharmor.protocol.PairState
@@ -412,27 +413,26 @@ internal fun FirstDeviceSteps(modifier: Modifier = Modifier) {
 
 /**
  * This device's name, renamed in place: the pencil turns the name into a field with its text selected,
- * Cancel and Save beside it. Done saves, Back cancels; an invalid name shows why and Save is greyed.
+ * Cancel and Save beside it. Done saves, Back cancels; Save with an invalid name says why in a brief message and keeps the field open.
  */
 @Composable
-internal fun NameEditRow(current: String, modifier: Modifier = Modifier, sub: String? = null, onSave: (String) -> Unit) {
+internal fun NameEditRow(current: String, modifier: Modifier = Modifier, sub: String? = null, onError: (String) -> Unit = {}, onSave: (String) -> Unit) {
     val st = rememberSaveable(saver = NameEdit.Saver) { NameEdit() }
     val cs = MaterialTheme.colorScheme
     if (!st.editing) {
         SettingRow(current, sub, modifier, trailing = { Icon(PaIcons.Edit, null, tint = cs.onSurfaceVariant) }) { st.start(current) }
         return
     }
-    val error = st.error
     val focus = remember { FocusRequester() }
-    fun save() { st.save()?.let(onSave) }
+    // An invalid name says why in a brief message; the field stays open for a valid Save or Cancel.
+    fun save() { st.error?.let(onError) ?: st.save()?.let(onSave) }
     androidx.activity.compose.BackHandler { st.cancel() }
     LaunchedEffect(Unit) { focus.requestFocus() }
     Row(modifier.padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.Top) {
         OutlinedTextField(st.typed, { st.typed = it }, Modifier.weight(1f).focusRequester(focus), label = { Text("Device name") }, singleLine = true,
-            isError = error != null, supportingText = error?.let { { Text(it) } },
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { save() }))
         IconButton(onClick = { st.cancel() }, Modifier.padding(top = 4.dp)) { Icon(PaIcons.Close, "Cancel") }
-        IconButton(onClick = { save() }, Modifier.padding(top = 4.dp), enabled = error == null) { Icon(PaIcons.Check, "Save name") }
+        IconButton(onClick = { save() }, Modifier.padding(top = 4.dp)) { Icon(PaIcons.Check, "Save name") }
     }
 }
 
@@ -440,7 +440,7 @@ internal fun NameEditRow(current: String, modifier: Modifier = Modifier, sub: St
 internal class NameEdit(editing: Boolean = false, typed: TextFieldValue = TextFieldValue()) {
     var editing by mutableStateOf(editing)
     var typed by mutableStateOf(typed)
-    /** Empty, too long, or not plain ASCII: the reason, shown under the field; Save is greyed. */
+    /** Empty ("Name too short") or against the name rule ("Invalid characters"): shown in a brief message at Save. */
     val error: String? get() = UiText.nameError(typed.text)
     fun start(current: String) { typed = TextFieldValue(current, TextRange(0, current.length)); editing = true }
     fun cancel() { editing = false }
@@ -467,7 +467,7 @@ private fun Banners(vm: AppViewModel, prefs: androidx.datastore.preferences.core
     if (remember(tick, prefs) { prefs != null && UnifiedPushSupport.mustChoose(context, type, vm.g.push.hasPlayServices) }) {
         BannerRow(UiText.CHOOSE_PUSH_APP, "Choose", fault = true, PaIcons.NotificationsOff) { onChoosePush() }
     }
-    n.blockedChannelPeer(vm.peerEntities.collectAsState().value)?.let { BannerRow(UiText.blockedChannel(it.name), "Fix", fault = true, PaIcons.NotificationsOff) {
+    n.blockedChannelPeer(vm.peerEntities.collectAsState().value)?.let { BannerRow(UiText.blockedChannel(UiText.peerLabel(it.name, it.platform)), "Fix", fault = true, PaIcons.NotificationsOff) {
         safeStart(context, Intent(SysSettings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(SysSettings.EXTRA_APP_PACKAGE, context.packageName))
     } }
     val upAt = prefs?.get(Settings.K.UP_REGISTERED_AT)
@@ -688,7 +688,8 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
         p.declined -> UiText.rejectedBy(x)
         else -> null
     }
-    val lines = listOfNotNull(p.note, stateText)
+    val note = if (p.note == PairingEngine.NAME_UNREADABLE) UiText.nameUnreadable(p.platform) else p.note
+    val lines = listOfNotNull(note, stateText)
     Column(modifier.then(if (highlighted) Modifier.background(cs.secondaryContainer) else Modifier)) {
         ListItem(
             modifier = Modifier.clickable(enabled = grey, role = Role.Button) { vm.tapGreyed() },
@@ -1284,7 +1285,7 @@ fun HistoryScreen(vm: AppViewModel, onPair: () -> Unit = {}, onSend: () -> Unit 
     val historyPrefs by vm.prefs.collectAsState()
     androidx.activity.compose.BackHandler(enabled = picked.isNotEmpty()) { picked = emptyList() }
     DisposableEffect(Unit) { onDispose { picked = emptyList() } }
-    fun nameOf(id: String) = peers.firstOrNull { it.id == id }?.let { (it.name ?: label(it)) + if (it.removed) " (removed)" else "" } ?: "(removed)"
+    fun nameOf(id: String) = peers.firstOrNull { it.id == id }?.let { label(it) + if (it.removed) " (removed)" else "" } ?: "(removed)"
     val view = remember(rows, peers, chip, dirs) { historyView(rows, chip, dirs, ::nameOf) }
     // A delete still pending on other devices: the devices left; a row with none left (removed, logged out) goes.
     val targets = remember(peers) { peers.filter(com.pusharmor.protocol.engine.DeleteSync::isTarget).map { it.id }.toSet() }
@@ -1723,7 +1724,8 @@ fun SettingsScreen(vm: AppViewModel, onDeleteAccount: () -> Unit, onSignedOut: (
             if (signedIn) {
                 SectionHeader("Device name")
                 GroupedList(listOf<@Composable (Modifier) -> Unit> { m ->
-                    NameEditRow(me?.name ?: "", m, me?.let { "Device ID: ${UiText.shortDeviceId(it.id)}" }) { vm.rename(it) }
+                    NameEditRow(me?.name?.let(DeviceName::display) ?: "", m, me?.let { "Device ID: ${UiText.shortDeviceId(it.id)}" },
+                        onError = { vm.message.value = it }) { vm.rename(it) }
                 })
             }
             SectionHeader("Appearance")

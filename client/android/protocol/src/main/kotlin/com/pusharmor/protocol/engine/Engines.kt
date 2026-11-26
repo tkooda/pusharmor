@@ -354,8 +354,17 @@ class ReceiveEngine(
             val inbound = ReceivePipeline.run(wire, me.keys, me.id, me.account, store::peer, store::window, store::historyIdFor)
             when (inbound) {
                 is Inbound.Unreadable -> {
-                    store.insertHistory(HistoryRow(direction = Direction.RECEIVED, peerId = inbound.peerId, type = "unreadable", at = now, read = true))
-                    after = { if (inbound.fetch) effects.fetchPeersSoon(); effects.couldNotRead() }
+                    val id = inbound.peerId
+                    if (id != null && inbound.badName && store.peer(id)?.let { it.pinned && !it.approveVerified } == true) {
+                        // An approve whose name does not verify while the pairing is still open: the pairing fails here.
+                        store.pairing(id)?.let { it.r.fill(0); store.deletePairing(id) }
+                        PairingEngine.dropPin(store, id)
+                        store.peer(id)?.let { store.putPeer(it.copy(note = PairingEngine.NAME_UNREADABLE, pairAgain = false)) }
+                        after = { effects.peerChannelDelete(id); effects.reconcileSoon(); effects.pairNameUnreadable(id) }
+                    } else {
+                        store.insertHistory(HistoryRow(direction = Direction.RECEIVED, peerId = inbound.peerId, type = "unreadable", at = now, read = true))
+                        after = { if (inbound.fetch) effects.fetchPeersSoon(); effects.couldNotRead() }
+                    }
                 }
                 is Inbound.Invalid -> {
                     store.insertHistory(HistoryRow(direction = Direction.RECEIVED, peerId = inbound.peerId, type = "invalid", at = now, read = true))

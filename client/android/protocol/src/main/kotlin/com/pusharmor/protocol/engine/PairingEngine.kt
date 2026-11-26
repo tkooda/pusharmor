@@ -37,6 +37,8 @@ class PairingEngine(
     companion object {
         const val PAIRING_FAILED = "Pairing failed. Start again on the new device."
         const val TIMED_OUT = "Pairing timed out. Tap Pair to start again."
+        /** Row note after a pairing failed on an unreadable name; the app shows its own text for it. */
+        const val NAME_UNREADABLE = "name unreadable"
         const val SEND_AGAIN_MS = 60_000L
         /** Time the other device has to answer a commit or a reply before the row shows the no-reply error. */
         const val NO_REPLY_MS = 120_000L
@@ -49,6 +51,15 @@ class PairingEngine(
         fun noReply(row: PairingRow, now: Long): Boolean = waitsOnDevice(row) && now - (row.waitFrom ?: row.startedAt) >= NO_REPLY_MS
 
         /** The waiting hint from rows the caller already holds (the Peers screen, on the main thread). */
+        /** Drops the pin made by a pairing (Cancel pairing, timeout, abort, unreadable name). */
+        fun dropPin(store: LocalStore, peerId: String) {
+            val peer = store.peer(peerId) ?: return
+            store.putPeer(peer.copy(signPub = null, encPub = null, pairingId = null, lastN = 0, approved = false, approveVerified = false,
+                storedApprove = null, storedApproveName = null, listAfterVerify = false))
+            store.resetCounter(peerId)
+            store.deleteWindow(peerId)
+        }
+
         fun hint(row: PairingRow, peer: Peer?, now: Long): PairDecide.Hint? {
             if (row.role != PairRole.N || row.state != PairState.COMMITTED) return null
             return PairDecide.hint(peer?.takeIf { it.listSignPub != null }?.listApprovesMe, (now - row.startedAt) / 1000)
@@ -259,13 +270,7 @@ class PairingEngine(
     }
 
     /** Drops the pin made by a pairing (Cancel pairing, timeout, abort). */
-    private fun dropPairingPin(peerId: String) {
-        val peer = store.peer(peerId) ?: return
-        store.putPeer(peer.copy(signPub = null, encPub = null, pairingId = null, lastN = 0, approved = false, approveVerified = false,
-            storedApprove = null, storedApproveName = null, listAfterVerify = false))
-        store.resetCounter(peerId)
-        store.deleteWindow(peerId)
-    }
+    private fun dropPairingPin(peerId: String) = dropPin(store, peerId)
 
     /** [Reply] tap on a prompted X row: authorized, sent with REPLACE. */
     fun tapReply(peerId: String, now: Long): Boolean {

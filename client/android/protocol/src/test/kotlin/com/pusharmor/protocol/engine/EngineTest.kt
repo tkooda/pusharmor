@@ -725,6 +725,25 @@ class EngineTest {
         assertEquals(PairStart.NO_DEVICE, n.pairing.pairAgain("not-on-this-account", t0) {})
     }
 
+    @Test fun approveWithUnreadableNameFailsThePairing() {
+        pairShown()
+        n.approve.approve(x.id) // N waiting for X
+        // X's approve carries a name entry whose signature does not verify.
+        val xp = x.store.peer(n.id)!!
+        val c = x.store.reserveCounter(n.id)
+        val bad = com.pusharmor.protocol.NameEntryClear(com.pusharmor.crypto.B64url.encode("Laptop".toByteArray()), c, com.pusharmor.crypto.B64url.encode(ByteArray(64)))
+        val msg = com.pusharmor.protocol.InnerMessage.build(x.me.keys, x.me.idRaw, n.id, com.pusharmor.crypto.B64url.decode(xp.encPub!!), xp.pairingId!!, c,
+            com.pusharmor.protocol.MessageBody.Approve(bad))
+        n.receive.onMessage(msg, t0)
+        val p = n.store.peer(x.id)!!
+        assertFalse(p.pinned) // the pairing did not complete
+        assertNull(p.name)
+        assertNull(n.store.pairing(x.id))
+        assertEquals(PairingEngine.NAME_UNREADABLE, p.note)
+        assertTrue(n.effects.log.contains("nameUnreadable"))
+        assertFalse(n.effects.log.contains("couldNotRead"))
+    }
+
     @Test fun pairOnRowTheOtherDeviceRejectedStartsFreshPairing() {
         pairShown()
         n.approve.approve(x.id) // N waiting

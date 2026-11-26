@@ -133,6 +133,8 @@ interface Effects {
     /** Pairing notices under the notification id from pk. */
     fun pairNotice(peerId: String, pk: String, kind: PairNoticeKind, fingerprint: String? = null) {}
     fun cancelPairNotice(pk: String) {}
+    /** A pairing failed because the other device's name could not be read. */
+    fun pairNameUnreadable(peerId: String) {}
 
     /** Generic "could not read" (FCM only, the app decides). */
     fun couldNotRead() {}

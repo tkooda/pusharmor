@@ -25,7 +25,7 @@ import com.pusharmor.crypto.signInKeys
 import com.pusharmor.net.ErrorText
 import com.pusharmor.net.WorkerClient
 import com.pusharmor.protocol.MessageBody
-import com.pusharmor.protocol.NameEntry
+import com.pusharmor.protocol.DeviceName
 import com.pusharmor.protocol.Peer
 import com.pusharmor.protocol.allSet
 import com.pusharmor.protocol.engine.ApiResult
@@ -283,8 +283,7 @@ class Session(private val g: Graph) {
     }
 
     private fun defaultName(): String {
-        val n = SysSettings.Global.getString(g.app.contentResolver, SysSettings.Global.DEVICE_NAME).orEmpty()
-            .filter { it.code in 0x20..0x7e && it != '"' }.trim().take(32)
+        val n = DeviceName.setupDefault(SysSettings.Global.getString(g.app.contentResolver, SysSettings.Global.DEVICE_NAME).orEmpty())
         return n.ifEmpty { "Android" }
     }
 
@@ -511,8 +510,10 @@ class Session(private val g: Graph) {
     }
 
     /** Rename this device: PATCH name entries + rename messages for every pinned allow id. */
-    fun rename(newName: String): String? {
-        if (!NameEntry.isValidName(newName)) return UiText.NAME_RULE
+    fun rename(typed: String): String? {
+        // Spaces trimmed and collapsed; the cleaned name is the one saved and sent.
+        val checked = DeviceName.check(typed)
+        val newName = checked.name ?: return checked.error
         val me = g.identity() ?: return ErrorText.text(UiText.UNABLE_RENAME, ErrorText.LOGGED_OUT)
         val self = dao.self() ?: return ErrorText.text(UiText.UNABLE_RENAME, ErrorText.LOGGED_OUT)
         if (self.name == newName) return null // the same name: nothing to send, so no device shows a rename

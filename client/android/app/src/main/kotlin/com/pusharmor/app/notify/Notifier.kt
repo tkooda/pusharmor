@@ -284,7 +284,7 @@ class Notifier(private val context: Context, private val settings: Settings, pri
             .setGroup(GROUP_PREFIX + channel).setLocalOnly(policy.localOnly)
         val open = action(historyId, "item")
         if (policy.hideAll) {
-            b.setContentTitle(UiText.newMessageFrom(peer?.name)).setContentIntent(open)
+            b.setContentTitle(UiText.newMessageFrom(peer?.let { UiText.peerLabel(it.name, it.platform) })).setContentIntent(open)
         } else {
             b.setContentTitle(UiText.messageTitle(peer?.let { com.pusharmor.app.ui.label(it.toPeer()) }))
             fill(b, open)
