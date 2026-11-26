@@ -56,6 +56,13 @@ class Notifier(private val context: Context, private val settings: Settings, pri
         /** A device's name as the app shows it: its name, else "New Android device"; with its ID when another of [all] has the same name. */
         fun deviceName(p: PeerEntity, all: List<PeerEntity> = emptyList()): String = UiText.distinctLabel(p.toPeer(), all.map { it.toPeer() })
 
+        /** The rows of the devices the Devices list shows: a notification name gets its ID only when one of these has the same name. */
+        fun listed(dao: PaDao): List<PeerEntity> = listed(dao.peers(), dao.self()?.id, dao.pairings().map { it.peerId }.toSet())
+        fun listed(all: List<PeerEntity>, selfId: String?, pairing: Set<String>): List<PeerEntity> {
+            val ids = com.pusharmor.app.ui.listedPeers(all.map { it.toPeer() }, selfId, pairing).map { it.id }.toSet()
+            return all.filter { it.id in ids }
+        }
+
         /**
          * The system keeps the group a channel was made with, so a per-device channel outside [PEER_GROUP] is made again
          * under the new [id], with the importance, sound, vibration, and lights the user set on [old].
@@ -105,7 +112,7 @@ class Notifier(private val context: Context, private val settings: Settings, pri
     }
 
     private fun peerChannel(id: String, p: PeerEntity) =
-        NotificationChannel(id, deviceName(p, dao.peers()), NotificationManager.IMPORTANCE_HIGH).also { it.group = PEER_GROUP }
+        NotificationChannel(id, deviceName(p, listed(dao)), NotificationManager.IMPORTANCE_HIGH).also { it.group = PEER_GROUP }
 
     /**
      * Brings every existing per-device channel to its device's current name; on app start and when the device list changes, never on a timer.
@@ -118,7 +125,7 @@ class Notifier(private val context: Context, private val settings: Settings, pri
             val old = nm.getNotificationChannel(id)
             if (old == null || old.group == PEER_GROUP) { nm.createNotificationChannel(peerChannel(id, p)); continue }
             val new = randomChannelId()
-            nm.createNotificationChannel(regrouped(old, new, deviceName(p, dao.peers())))
+            nm.createNotificationChannel(regrouped(old, new, deviceName(p, listed(dao))))
             dao.setChannelId(p.id, new)
             nm.deleteNotificationChannel(id)
         }
@@ -284,9 +291,9 @@ class Notifier(private val context: Context, private val settings: Settings, pri
             .setGroup(GROUP_PREFIX + channel).setLocalOnly(policy.localOnly)
         val open = action(historyId, "item")
         if (policy.hideAll) {
-            b.setContentTitle(UiText.newMessageFrom(peer?.let { deviceName(it, dao.peers()) })).setContentIntent(open)
+            b.setContentTitle(UiText.newMessageFrom(peer?.let { deviceName(it, listed(dao)) })).setContentIntent(open)
         } else {
-            b.setContentTitle(UiText.messageTitle(peer?.let { deviceName(it, dao.peers()) }))
+            b.setContentTitle(UiText.messageTitle(peer?.let { deviceName(it, listed(dao)) }))
             fill(b, open)
             if (policy.privateOnLockScreen) {
                 b.setVisibility(NotificationCompat.VISIBILITY_PRIVATE)

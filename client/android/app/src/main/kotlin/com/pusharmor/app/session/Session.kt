@@ -33,6 +33,7 @@ import com.pusharmor.protocol.engine.ClockSkew
 import com.pusharmor.protocol.engine.Outbox
 import com.pusharmor.store.PaDatabase
 import com.pusharmor.store.SelfEntity
+import com.pusharmor.store.toPeer
 import com.pusharmor.store.Slots
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -645,10 +646,12 @@ class Session(private val g: Graph) {
         val peers = g.store.peers()
         val all = shareTargets(peers, s.shareOff)
         val ids = all.map { it.id }.toSet()
+        // A label gets its ID only when another device the Devices list shows has the same name.
+        val listed = com.pusharmor.app.notify.Notifier.listed(g.dao).map { it.toPeer() }
         val stale = ShortcutManagerCompat.getDynamicShortcuts(ctx).map { it.id }.filter { it !in ids }
         if (stale.isNotEmpty()) ShortcutManagerCompat.removeDynamicShortcuts(ctx, stale)
         for (p in all) {
-            val label = shortcutLabel(p, peers)
+            val label = shortcutLabel(p, listed)
             val sc = ShortcutInfoCompat.Builder(ctx, p.id).setShortLabel(label).setLongLived(true)
                 .setIcon(IconCompat.createWithResource(ctx, R.drawable.ic_notify))
                 .setCategories(setOf(SHARE_CATEGORY))

@@ -204,6 +204,15 @@ internal fun rejectedHidden(p: Peer, pairing: Set<String>): Boolean = p.deniedBy
 internal fun devicesShown(others: List<Peer>, pairing: Set<String>): List<Peer> =
     others.filter { !(it.removed && !it.pinned && it.id !in pairing) && !rejectedHidden(it, pairing) }
 
+/** The devices a shown name must differ from (send chips, share targets, notifications, shortcuts): the ones the Devices list shows. */
+internal fun listedPeers(peers: List<Peer>, selfId: String?, pairing: Set<String>): List<Peer> = devicesShown(others(peers, selfId), pairing)
+
+/** The devices History names (each row's sender, and the devices a sent row went to): a History name must differ only from these. */
+internal fun historyPeers(peers: List<Peer>, rows: List<com.pusharmor.store.HistoryEntity>): List<Peer> {
+    val ids = rows.flatMap { listOfNotNull(it.peerId) + it.toRow().results.keys }.toSet()
+    return peers.filter { it.id in ids }
+}
+
 /** The Rejected devices section: the rejected devices the Devices list leaves out; Pair on one ends the rejection. */
 internal fun devicesRejected(others: List<Peer>, pairing: Set<String>): List<Peer> = others.filter { rejectedHidden(it, pairing) }
 
@@ -468,7 +477,9 @@ private fun Banners(vm: AppViewModel, prefs: androidx.datastore.preferences.core
     if (remember(tick, prefs) { prefs != null && UnifiedPushSupport.mustChoose(context, type, vm.g.push.hasPlayServices) }) {
         BannerRow(UiText.CHOOSE_PUSH_APP, "Choose", fault = true, PaIcons.NotificationsOff) { onChoosePush() }
     }
-    vm.peerEntities.collectAsState().value.let { all -> n.blockedChannelPeer(all)?.let { BannerRow(UiText.blockedChannel(Notifier.deviceName(it, all)), "Fix", fault = true, PaIcons.NotificationsOff) {
+    val me by vm.self.collectAsState()
+    val pairingRows by vm.pairings.collectAsState()
+    vm.peerEntities.collectAsState().value.let { all -> n.blockedChannelPeer(all)?.let { BannerRow(UiText.blockedChannel(Notifier.deviceName(it, Notifier.listed(all, me?.id, pairingRows.map { r -> r.peerId }.toSet()))), "Fix", fault = true, PaIcons.NotificationsOff) {
         safeStart(context, Intent(SysSettings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(SysSettings.EXTRA_APP_PACKAGE, context.packageName))
     } } }
     val upAt = prefs?.get(Settings.K.UP_REGISTERED_AT)
@@ -1043,6 +1054,9 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
     var result by remember { mutableStateOf<Pair<Int, String>?>(null) }
     val peers by vm.peers.collectAsState()
     val me by vm.self.collectAsState()
+    val pairingRows by vm.pairings.collectAsState()
+    // A chip name gets its ID only when another device the Devices list shows has the same name.
+    val listed = listedPeers(peers, me?.id, pairingRows.map { it.peerId }.toSet())
     val all = vm.allPeers()
     // Saved, so the chosen devices stay chosen through a rotation.
     val picked = rememberSaveable(saver = listSaver({ it.toList() }, { it.toMutableStateList() })) {
@@ -1160,8 +1174,8 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
                         for (p in chips) {
                             val ok = p.inAll
                             if (!UiText.chipVisible(ok && p.id in picked, keyboardUp)) continue
-                            DeviceChip(platformIcon(p.platform), UiText.distinctLabel(p, peers), p.id in sendTo, ok, if (ok) null else UiText.status(p).second) {
-                                if (!ok) { vm.tapGreyed(); scope.launch { snack.showSnackbar(UiText.brief(UiText.greyedChip(UiText.distinctLabel(p, peers), UiText.status(p).second))) } }
+                            DeviceChip(platformIcon(p.platform), UiText.distinctLabel(p, listed), p.id in sendTo, ok, if (ok) null else UiText.status(p).second) {
+                                if (!ok) { vm.tapGreyed(); scope.launch { snack.showSnackbar(UiText.brief(UiText.greyedChip(UiText.distinctLabel(p, listed), UiText.status(p).second))) } }
                                 else if (p.id in picked) picked.remove(p.id) else picked.add(p.id)
                             }
                         }
@@ -1203,7 +1217,7 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
                     scope.launch { vm.g.settings.saveSendTo(sendTo) }
                     vm.sendStep = 0
                     vm.sendRetry = 0
-                    vm.sendNames = sendTo.mapNotNull { id -> peers.firstOrNull { it.id == id } }.map { UiText.distinctLabel(it, peers) }
+                    vm.sendNames = sendTo.mapNotNull { id -> peers.firstOrNull { it.id == id } }.map { UiText.distinctLabel(it, listed) }
                     val sendType = if (asText) ContentType.TEXT else com.pusharmor.protocol.Detect.type(text)
                     vm.sendCaption = when {
                         chosen != null && vm.sendNames.size > 1 -> UiText.directSendingFileList(chosen!!.name)
@@ -1213,7 +1227,7 @@ fun SendScreen(vm: AppViewModel, initial: String = "", preselect: String? = null
                     }
                     vm.sendFromScreen(sendTo, text, asText)
                 }
-            }, text = UiText.sendLabel(sendTo.size, sendTo.singleOrNull()?.let { id -> peers.firstOrNull { it.id == id } }?.let { UiText.distinctLabel(it, peers) }), icon = PaIcons.Send,
+            }, text = UiText.sendLabel(sendTo.size, sendTo.singleOrNull()?.let { id -> peers.firstOrNull { it.id == id } }?.let { UiText.distinctLabel(it, listed) }), icon = PaIcons.Send,
                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 16.dp).fillMaxWidth().heightIn(min = 56.dp),
                 enabled = sendTo.isNotEmpty() && (chosen != null || (text.isNotEmpty() && bytes <= SizeCap.MAX_CONTENT_BYTES)) && "send" !in running)
         }
@@ -1285,7 +1299,9 @@ fun HistoryScreen(vm: AppViewModel, onPair: () -> Unit = {}, onSend: () -> Unit 
     val historyPrefs by vm.prefs.collectAsState()
     androidx.activity.compose.BackHandler(enabled = picked.isNotEmpty()) { picked = emptyList() }
     DisposableEffect(Unit) { onDispose { picked = emptyList() } }
-    fun nameOf(id: String) = peers.firstOrNull { it.id == id }?.let { UiText.distinctLabel(it, peers) + if (it.removed) " (removed)" else "" } ?: "(removed)"
+    // A History name gets its ID only when another device History names has the same name.
+    val named = remember(peers, rows) { historyPeers(peers, rows) }
+    fun nameOf(id: String) = peers.firstOrNull { it.id == id }?.let { UiText.distinctLabel(it, named) + if (it.removed) " (removed)" else "" } ?: "(removed)"
     val view = remember(rows, peers, chip, dirs) { historyView(rows, chip, dirs, ::nameOf) }
     // A delete still pending on other devices: the devices left; a row with none left (removed, logged out) goes.
     val targets = remember(peers) { peers.filter(com.pusharmor.protocol.engine.DeleteSync::isTarget).map { it.id }.toSet() }

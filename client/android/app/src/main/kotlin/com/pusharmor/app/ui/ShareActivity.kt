@@ -34,6 +34,7 @@ import com.pusharmor.net.ErrorText
 import com.pusharmor.protocol.Detect
 import com.pusharmor.protocol.Peer
 import com.pusharmor.protocol.SizeCap
+import com.pusharmor.store.toPeer
 import com.pusharmor.protocol.engine.SendFlow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -43,7 +44,7 @@ import kotlinx.coroutines.withContext
 /** Share sheet entry (section 7): ACTION_SEND text/plain, or any file (EXTRA_STREAM) up to the file cap. */
 class ShareActivity : ComponentActivity() {
     private val vm: AppViewModel by viewModels()
-    /** Every device on this device, read with the share targets: the captions name a device as its shortcut does. */
+    /** The devices the Devices list shows, read with the share targets: the captions name a device as its shortcut does. */
     private var known: List<Peer> = emptyList()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -66,7 +67,7 @@ class ShareActivity : ComponentActivity() {
             val all = withContext(Dispatchers.IO) {
                 try {
                     if (!canShare(vm.g.identity() != null, vm.g.settings.flag(com.pusharmor.app.data.Settings.K.SIGNED_OUT, false))) { loggedOut = true; null }
-                    else vm.g.store.peers().also { known = it }.filter { it.inAll }
+                    else vm.g.store.peers().also { known = com.pusharmor.app.notify.Notifier.listed(vm.g.dao).map { p -> p.toPeer() } }.filter { it.inAll }
                 } catch (e: android.database.SQLException) { null }
             }
             // Logged out or not set up: a toast says why, and the app opens at log in, never a Send screen that cannot
