@@ -184,11 +184,6 @@ def compare_ids(a, b):
     return (x > y) - (x < y)
 
 
-def id_hex(id_b64):
-    """Display form: hex of keyhash || mac (the account part is the same on every device)."""
-    return b64d(id_b64)[9:].hex()
-
-
 def device_id(id_b64):
     """Device ID shown to users: id bytes 9..14 (the first 5 keyhash bytes) as a big-endian integer,
     mod 1000000000, as 9 digits "NNN-NNN-NNN"."""
@@ -2037,14 +2032,6 @@ def platform_label(platform):
     return PLATFORMS.get(platform) or re.sub(r"[^\x20-\x7e]", "", platform).capitalize() or "Unknown"
 
 
-def gmtime(t):
-    """time.gmtime; a time out of range (from the relay server) reads as 1970."""
-    try:
-        return time.gmtime(t)
-    except (OverflowError, OSError, ValueError):
-        return time.gmtime(0)
-
-
 UNKNOWN_NAME = "{UNKNOWN}"  # the name of a device that has not sent its name to this device
 
 
@@ -3230,7 +3217,7 @@ def cmd_login(cx, args):
                 raise Fail(str(e))
     with cx.store.state(write=False) as d:
         name = name_display(d["name"])
-    note('Logged in. This device is named "%s". Next: run pusharmor pair to see your devices.' % name)
+    note('Logged in. This device is named "%s". Next: run pusharmor devices to see your devices.' % name)
     return EXIT_OK
 
 
@@ -3317,8 +3304,8 @@ def choose_evict(peers):
     note("This account already has %d devices, the most it can have. To add this device, remove one or more."
           " A removed device must log in again and pair with every device again." % len(rows))
     for i, p in enumerate(rows, 1):
-        added = time.strftime("%Y-%m-%d", gmtime(p["created"] if type(p.get("created")) is int else 0))
-        note("  %d  %s  %s  added %s" % (i, id_hex(p["id"])[:6], platform_label(str(p.get("platform", ""))), added))
+        added = local_date(p["created"] if type(p.get("created")) is int else 0)
+        note("  %d  %s  %s  added %s" % (i, device_id(p["id"]), platform_label(str(p.get("platform", ""))), added))
     try:
         a = ask("Numbers to remove (for example: 1 3), or Enter to stop: ")
     except EOFError:
@@ -3743,7 +3730,7 @@ def seal_to_targets(cx, args, type_, value):
                     raise Fail(SEND_WHY[why], EXIT_SEND, "Unable to send to %s." % said(d, pid, p))
                 targets.append(pid)
         if not targets:
-            raise Fail("No device is paired yet. Run `pusharmor pair` to pair one.", EXIT_SEND)
+            raise Fail("No device is paired yet. Run `pusharmor devices` to see your devices.", EXIT_SEND)
         m, names = {}, {}
         for pid in dict.fromkeys(targets):
             p = d["peers"][pid]
@@ -3877,7 +3864,7 @@ COMMANDS = {
                [(("name",), {"metavar": "NAME", "help": "1 to 32 ASCII characters, not starting with -, "
                                                    "and none of ` \\ \" { } < > | ! $ ; ?"})]),
     "delete": (cmd_delete, "Remove a device from your account.",
-               [(("id",), {"metavar": "ID", "help": "device ID from pusharmor pair"}),
+               [(("id",), {"metavar": "ID", "help": "device ID (NNN-NNN-NNN) from pusharmor devices"}),
                 (("--yes",), {"action": "store_true", "help": "do not ask for confirmation (needed without a terminal)"})]),
 }
 

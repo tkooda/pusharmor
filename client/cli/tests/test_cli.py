@@ -186,7 +186,7 @@ def test_device_id_must_match_exactly():
     cx = type("Cx", (), {"me": other})()
     d = {"name": "laptop", "peers": {i: {"name": n} for i, n in ((one, "one"), (two, "two"), (other, "x"))}}
     assert pa.match_device(cx, d, pa.device_id(other), [one, other]) == other
-    for text in (pa.device_id(other).replace("-", ""), pa.id_hex(other)[:6], other, " " + pa.device_id(other)):
+    for text in (pa.device_id(other).replace("-", ""), pa.b64d(other)[9:].hex()[:6], other, " " + pa.device_id(other)):
         with pytest.raises(pa.Fail) as e:
             pa.match_device(cx, d, text, [one, other])
         assert str(e.value) == 'No device matches "%s". Run `pusharmor devices` to see device IDs.' % text
@@ -944,7 +944,7 @@ def test_send_reads_a_bounded_amount_of_stdin(net, tmp_path, monkeypatch, capsys
     assert big.buffer.tell() == pa.SEND_CAP * 4 + 1
     monkeypatch.setattr(sys, "stdin", Stdin(tty=False, data=b"y" * 100 + b"\n"))
     assert run(tmp_path, "send") == 4
-    assert "No device is paired yet. Run `pusharmor pair` to pair one." in capsys.readouterr().err
+    assert "No device is paired yet. Run `pusharmor devices` to see your devices." in capsys.readouterr().err
 
 
 def test_pair_timeouts_quote_the_device_name(net, tmp_path, monkeypatch, capsys):
@@ -1818,7 +1818,7 @@ def test_odd_peer_list_from_the_relay_server(allow, net, tmp_path, monkeypatch, 
     assert run(tmp_path, "devices") == 0
     row = capsys.readouterr().out.splitlines()[2]
     assert row.split()[1:4] + row.split()[-1:] == [pa.local_date(0), "iOS", "not", "{UNKNOWN}"]
-    assert pa.gmtime(-10 ** 18).tm_year == 1970
+    assert pa.local_date(-10 ** 18) == pa.local_date(0)
 
 
 def test_ntfy_line_over_the_cap_is_skipped(monkeypatch, capsys):
@@ -1873,6 +1873,8 @@ def test_choose_evict_lists_fewest_pairings_then_oldest(monkeypatch, capsys):
     rows = [row("A", 2, 1, 100), row("B", 0, 1, 300), row("C", 1, 0, 200), row("D", 0, 0, 400), row("E", 3, 0, 50)]
     monkeypatch.setattr(pa, "ask", lambda prompt="": "1 2 3 4 5")
     assert pa.choose_evict(rows) == [c * 40 for c in "DCBEA"]
+    lines = capsys.readouterr().err.splitlines()
+    assert lines[1] == "  1  %s  iOS  added %s" % (pa.device_id("D" * 40), pa.local_date(400))
 
 
 def test_choose_evict_ignores_unicode_digits(monkeypatch, capsys):

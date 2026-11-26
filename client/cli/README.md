@@ -57,7 +57,7 @@ distribution:
 - `pusharmor rename NAME` - change the name your other devices show.
 - `pusharmor logout` - log out; keys and paired devices stay on this device. On a device
   that is not logged in, it does nothing and exits with 0.
-- `pusharmor delete ID` - remove a device from your account (this device too). It asks
+- `pusharmor delete ID` - remove a device from your account. It asks
   first; without a terminal it needs `--yes`.
 
 Only `devices` and `listen` write to stdout, and only their data. Prompts, messages,
