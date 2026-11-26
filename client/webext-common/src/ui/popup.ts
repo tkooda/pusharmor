@@ -1337,16 +1337,16 @@ async function settingsView(env: UiEnv, root: HTMLElement, st: StateView, reload
     // received links on this device
     sh("Receiving"),
     group(h("label", { class: "srow" }, h("span", {}, "Open URLs automatically"), autoOpen), h("label", { class: "srow" }, h("span", {}, "Allow message content in notifications"), allowContent)),
-    sh("History"),
-    group(
-      h("div", { class: "srow" }, h("span", {}, "Delete messages older than"), days),
-      h("label", { class: "srow" }, h("div", { class: "txt" }, h("div", {}, "Sync deletions"), h("div", { class: "t2" }, "Manually deleting on this device will also delete on your other devices.")), syncDeletions),
-    ),
     sh("Files"),
     h("p", { class: "t2 shelp" }, F.HELPER),
     group(
       h("div", { class: "srow fpick" }, h("span", {}, F.AUTO_TITLE), fileAuto),
       h("div", { class: "srow fpick" }, h("div", { class: "txt" }, h("div", {}, F.STORAGE_TITLE), h("div", { class: "t2" }, F.STORAGE_HELPER)), fileStorage),
+    ),
+    sh("History"),
+    group(
+      h("div", { class: "srow" }, h("span", {}, "Delete messages older than"), days),
+      h("label", { class: "srow" }, h("div", { class: "txt" }, h("div", {}, "Sync deletions"), h("div", { class: "t2" }, "Manually deleting on this device will also delete on your other devices.")), syncDeletions),
     ),
     ...(loggedIn ? [sh("Account"), group(acctRow, h("div", { class: "srow acct-acts" }, btns)), outBar.el] : []),
     h("div", { class: "grow" }),
