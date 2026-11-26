@@ -134,8 +134,11 @@ struct MessageDetailView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         Group {
             if MessageActions.scrolls(row.content) {
-                ScrollView { box }
-                    .frame(height: UIFont.preferredFont(forTextStyle: .body).lineHeight * CGFloat(MessageActions.previewLines))
+                // the same text cut to previewLines sizes the box, so it holds whole lines only
+                box.lineLimit(MessageActions.previewLines)
+                    .hidden()
+                    .accessibilityHidden(true)
+                    .overlay { ScrollView { box } }
             } else {
                 box
             }
