@@ -269,6 +269,12 @@ class UiTextTest {
         assertEquals("2026-11-22", UiText.addedDate(1_795_392_000L, java.time.ZoneOffset.ofHours(-5)))
     }
 
+    @Test fun addedLineOnlyWhenTheDateIsKnown() {
+        val utc = java.time.ZoneOffset.UTC
+        assertEquals("Added: 2026-11-23", UiText.addedLine(1_795_392_000L, utc))
+        assertEquals(null, UiText.addedLine(0, utc))
+    }
+
     @Test fun dayLabels() {
         val utc = ZoneOffset.UTC
         val now = 1_760_000_000_000L

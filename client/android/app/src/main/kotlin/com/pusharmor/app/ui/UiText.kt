@@ -385,6 +385,8 @@ object UiText {
     val FIRST_DEVICE_STEPS = listOf("Install PushArmor on another device.", "Log in with the same account.", "When it shows below, tap Pair, then tap Codes match when the codes match.")
     /** Added date of a device from its created time (seconds), as YYYY-MM-DD in the device's time zone. */
     fun addedDate(created: Long, zone: ZoneId = ZoneId.systemDefault()): String = Instant.ofEpochSecond(created).atZone(zone).toLocalDate().toString()
+    /** The Added line of a device card, or null when the created time is not known (0). */
+    fun addedLine(created: Long, zone: ZoneId = ZoneId.systemDefault()): String? = if (created > 0) "Added: ${addedDate(created, zone)}" else null
     /** The device ID the command line prints for this device. */
     fun shortDeviceId(id: String): String = com.pusharmor.crypto.Ids.deviceId(java.util.Base64.getUrlDecoder().decode(id))
     /** Extra line on an unpaired command line device; the command is monospace with no-break spaces so it never splits. */

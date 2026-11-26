@@ -681,7 +681,7 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
                 LinesBesideIcons({
                     Text(AppEffects.platformLabel(p.platform))
                     Text("ID: ${UiText.shortDeviceId(p.id)}")
-                    Text("Added: ${UiText.addedDate(p.created)}")
+                    UiText.addedLine(p.created)?.let { Text(it) }
                     if (lines.isEmpty()) { val (k, w) = UiText.status(p); StatusLine(k, w) } else for (l in lines) Text(l)
                 }) {
                     val se = ents.firstOrNull { it.id == p.id }
@@ -864,7 +864,7 @@ private fun PairingCard(vm: AppViewModel, p: Peer, row: PairingRow, now: Long, m
                 Text(if (shown || prompted) "Pair with new device: \"$x\"" else x, style = MaterialTheme.typography.titleMedium)
                 Text(AppEffects.platformLabel(p.platform), style = body, color = cs.onSurfaceVariant)
                 Text("ID: ${UiText.shortDeviceId(p.id)}", style = body, color = cs.onSurfaceVariant)
-                Text("Added: ${UiText.addedDate(p.created)}", style = body, color = cs.onSurfaceVariant)
+                UiText.addedLine(p.created)?.let { Text(it, style = body, color = cs.onSurfaceVariant) }
             }
         }
         Spacer(Modifier.height(16.dp))

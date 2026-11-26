@@ -13,6 +13,9 @@ import androidx.test.core.app.ApplicationProvider
 import com.pusharmor.app.PaApp
 import com.pusharmor.app.TestApp
 import com.pusharmor.app.UiHostActivity
+import com.pusharmor.store.PeerEntity
+import com.pusharmor.store.SelfEntity
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -73,5 +76,29 @@ class DevicesScreenTest {
         val dialog = nodes(ShadowDialog.getLatestDialog().window!!.decorView).map { text(it) }
         assertTrue(dialog.toString(), dialog.contains("Pair a new device") && UiText.numbered(UiText.PAIR_HOWTO_STEPS).all { it in dialog })
         c.pause().stop().destroy()
+    }
+
+    /** A device card shows the Added line only when its created time is known, as on the other clients. */
+    @Test fun addedLineOnlyWhenTheDateIsKnown() {
+        val app = ApplicationProvider.getApplicationContext<PaApp>()
+        val t = Thread {
+            app.graph.dao.putSelf(SelfEntity(id = "s".repeat(40), accountPrefix = ByteArray(9), name = "Pixel 9 Pro XL", email = "someone@example.com"))
+            for ((i, created) in listOf(0L, 1_795_392_000L).withIndex()) app.graph.dao.putPeer(PeerEntity(
+                id = ('a' + i).toString().repeat(40), platform = "android", created = created, listSignPub = null, listEncPub = null,
+                signPub = "B".repeat(87), encPub = "C".repeat(87), pairingId = ByteArray(16), approved = true, deniedByMe = false,
+                approveVerified = true, listApprovesMe = true, listDeniesMe = false, listAfterVerify = true, declined = false,
+                reachable = true, loggedOut = false, logoutN = 0, hidden = false, name = "Device $i", nameN = 1, removed = false, missing = false,
+                lastN = 0, channelId = null, storedApprove = null, storedApproveName = null, lastApproveResult = null, lastSendAt = 0, note = null,
+            ))
+        }
+        t.start(); t.join()
+        val vm = AppViewModel(app)
+        while (vm.peers.value.size < 2 || vm.self.value == null) { Thread.sleep(20); idle() }
+        val a = show(vm)
+        val v = a.window.decorView
+        for (i in 0 until 100) { if (nodes(v).any { text(it) == "Device 1" }) break; Thread.sleep(50); idle() }
+        val texts = nodes(v).map { text(it) }
+        assertTrue(texts.toString(), texts.contains("Device 0") && texts.contains("Device 1"))
+        assertEquals(texts.toString(), listOf("Added: " + UiText.addedDate(1_795_392_000L)), texts.filter { it.startsWith("Added: ") })
     }
 }
