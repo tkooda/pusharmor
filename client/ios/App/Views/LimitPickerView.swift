@@ -15,7 +15,11 @@ struct LimitPickerView: View {
                                 if e.oldInstall {
                                     Text(S.thisPhoneOldInstall).font(.caption).foregroundColor(.secondaryText)
                                 }
-                                Text("Created " + Date(timeIntervalSince1970: TimeInterval(e.created)).formatted(date: .abbreviated, time: .omitted))
+                                if let id = PeerId(text: e.id) {
+                                    Text("ID: " + Ids.deviceId(id.raw))
+                                        .font(.caption).foregroundColor(.secondaryText)
+                                }
+                                Text("Added: " + PeerLabel.addedDate(e.created))
                                     .font(.caption).foregroundColor(.secondaryText)
                                 Text(S.trusts(e.approves, trustedBy: e.approvedBy))
                                     .font(.caption).foregroundColor(.secondaryText)
