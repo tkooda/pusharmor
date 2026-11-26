@@ -191,8 +191,13 @@ final class ScreenshotTests: XCTestCase {
             history.tap()
             let row = labelled(app, "hiking-trails")
             XCTAssertTrue(row.waitForExistence(timeout: 10))
-            row.tap()
-            XCTAssertTrue(app.buttons["Copy"].waitForExistence(timeout: 10))
+            // a tap that a system banner swallows opens nothing: tap again
+            let copy = app.buttons["Copy"]
+            for _ in 0..<2 where !copy.exists {
+                row.tap()
+                _ = copy.waitForExistence(timeout: 10)
+            }
+            XCTAssertTrue(copy.exists)
             sleep(1)
             shot("97-history-open-\(theme)")
             app.terminate()
