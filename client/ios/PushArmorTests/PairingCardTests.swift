@@ -28,4 +28,12 @@ final class PairingCardTests: XCTestCase {
         XCTAssertTrue(src.contains("Button(\"Pair\") { Task { await model.pairAgain(p) } }"))
         XCTAssertTrue(src.contains("StatusLine(kind: .notPaired, text: Core.pairAgainStatus(p))"))
     }
+
+    /// While a device pairs, its card shows no more (ellipsis) button and no long-press menu.
+    func testNoMoreMenuWhilePairing() throws {
+        let src = try peersView()
+        XCTAssertTrue(src.contains("if (!p.pinned || again) && entry == nil {\n"))
+        XCTAssertTrue(src.contains("if (!p.pinned || again) && entry == nil { peerActions }"))
+        XCTAssertFalse(src.contains("if !p.pinned || again {"))
+    }
 }

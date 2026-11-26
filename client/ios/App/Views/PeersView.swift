@@ -291,9 +291,10 @@ struct PairingCardView: View {
                 }
                 .accessibilityElement(children: .combine)
                 Spacer(minLength: 0)
-                if !p.pinned || again {
+                if (!p.pinned || again) && entry == nil {
                     // A peer not yet paired (or back under Waiting to pair) has no row under
                     // Paired devices: its switches and Remove live here.
+                    // While it pairs, the card's own Cancel pairing request is its only action.
                     Menu { peerActions } label: {
                         Image(systemName: "ellipsis.circle")
                             .font(.title3)
@@ -327,7 +328,7 @@ struct PairingCardView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .contextMenu {
             // Long press: a shortcut to the same actions as the More actions button.
-            if !p.pinned || again { peerActions }
+            if (!p.pinned || again) && entry == nil { peerActions }
         }
         .confirmationDialog(S.removeConfirm(label), isPresented: $confirmRemove, titleVisibility: .visible) {
             Button("Remove", role: .destructive) { Task { await model.remove(p) } }
