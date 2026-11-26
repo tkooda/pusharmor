@@ -94,3 +94,13 @@ Do not restore the config directory (the one holding `keys/` and `devices.toml`)
 - `pusharmor devices` lists ID, ADDED, PLATFORM, STATUS, and NAME, has `--json` and
   `--tsv` for scripts, and lists a rejected device last. `pusharmor pair` needs an ID;
   run `pusharmor devices` to see device IDs.
+
+## Changes since 0.0.57
+
+- Device names show the device ID only when two paired devices share a name.
+  A device that is not paired shows its ID when any other device has its name.
+- If two devices have the same Device ID, the error names both and says how to remove one:
+  `pusharmor delete ID`. On a terminal, `pusharmor delete` now asks which one to remove.
+- A device name over 32 characters is refused with a message that says so.
+- A device with no name reads {UNKNOWN}, without quotes.
+- Long file names in error lines are cut in the middle.
