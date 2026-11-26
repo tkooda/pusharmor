@@ -563,12 +563,12 @@ final class FileTransfers: NSObject, URLSessionDownloadDelegate, URLSessionDataD
         case .final(let c, let t)?:
             let name = (try? core.store.file(e.id))?.name ?? ""
             try? core.fileSendFailed(e.id, dir: dir, code: c, text: t)
-            report(e.id, .failed(t ?? (c == .tooLarge ? "\"" + name + "\" is too large to send" : Self.sendFailedText(name))))
+            report(e.id, .failed(t ?? (c == .tooLarge ? FileUi.tooLarge(name) : Self.sendFailedText(name))))
         case nil: break
         }
     }
 
-    static func sendFailedText(_ name: String) -> String { "Unable to send \"" + name + "\"" }
+    static func sendFailedText(_ name: String) -> String { "Unable to send \"" + FileUi.cutName(name) + "\"" }
 
     private func report(_ id: Int64, _ o: SendOutcome) {
         if onSendResult?(id, o) == true { return }

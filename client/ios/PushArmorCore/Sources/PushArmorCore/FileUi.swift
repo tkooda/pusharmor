@@ -15,21 +15,31 @@ public enum FileUi {
     public static let removeFile = "Remove file"
     public static let willSendFile = "Will be sent as file"
     public static let expired = "Expired"
-    /// A decrypt that could not run (not a damaged file and not short of memory).
-    public static func openFailed(_ name: String) -> String { "Unable to decrypt \"" + name + "\"\nTry again" }
+    /// The longest file name in a toast or error, in characters; a longer one is cut in the middle.
+    public static let toastNameMax = 24
 
-    public static func noMemoryToast(_ name: String) -> String { "Not enough memory to decrypt \"" + name + "\"" }
-    public static func tooLarge(_ name: String) -> String { "\"" + name + "\" is too large to send" }
-    public static func unreadable(_ name: String) -> String { "Unable to read \"" + name + "\"" }
-    public static func noApp(_ name: String) -> String { "No app can open \"" + name + "\"" }
-    public static func saved(_ name: String) -> String { "Saved \"" + name + "\"" }
-    public static func copyFailed(_ name: String) -> String { "Unable to copy \"" + name + "\"" }
+    /// A file name in a toast or error: at most toastNameMax characters, cut in the middle with
+    /// "...", so its start and its extension show.
+    public static func cutName(_ name: String) -> String {
+        guard name.count > toastNameMax else { return name }
+        return String(name.prefix(toastNameMax - 10)) + "..." + String(name.suffix(7))
+    }
+
+    /// A decrypt that could not run (not a damaged file and not short of memory).
+    public static func openFailed(_ name: String) -> String { "Unable to decrypt \"" + cutName(name) + "\"\nTry again" }
+
+    public static func noMemoryToast(_ name: String) -> String { "Not enough memory to decrypt \"" + cutName(name) + "\"" }
+    public static func tooLarge(_ name: String) -> String { "\"" + cutName(name) + "\" is too large to send" }
+    public static func unreadable(_ name: String) -> String { "Unable to read \"" + cutName(name) + "\"" }
+    public static func noApp(_ name: String) -> String { "No app can open \"" + cutName(name) + "\"" }
+    public static func saved(_ name: String) -> String { "Saved \"" + cutName(name) + "\"" }
+    public static func copyFailed(_ name: String) -> String { "Unable to copy \"" + cutName(name) + "\"" }
 
     /// The toast after Save, nil when the user cancelled: a full disk says so on a second line.
     public static func saveFailed(_ name: String, _ e: Error) -> String? {
         let code = (e as? CocoaError)?.code
         if code == .userCancelled { return nil }
-        let head = "Unable to save \"" + name + "\""
+        let head = "Unable to save \"" + cutName(name) + "\""
         return code == .fileWriteOutOfSpace ? head + "\nStorage is full. Free some space and try again" : head
     }
 

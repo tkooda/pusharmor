@@ -44,7 +44,7 @@ public enum FileRules {
     public static func enoughStorage(free: Int64?, size: Int64) -> Bool { free.map { $0 >= 2 * size + freeMargin } ?? true }
 
     public static func storageFullText(upload: Bool, name: String) -> String {
-        "Not enough storage to " + (upload ? "send" : "download") + " \"" + name + "\""
+        "Not enough storage to " + (upload ? "send" : "download") + " \"" + FileUi.cutName(name) + "\""
     }
 
     public enum FinalCode: String, Equatable, Sendable {
