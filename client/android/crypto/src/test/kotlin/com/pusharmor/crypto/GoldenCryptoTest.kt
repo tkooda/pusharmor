@@ -69,6 +69,12 @@ class GoldenCryptoTest {
         }
     }
 
+    @Test fun deviceId() {
+        for (c in Golden.cases("device_id")) {
+            assertEquals(c.str("name"), c.str("device_id"), Ids.deviceId(B64url.decode(c.str("id"))))
+        }
+    }
+
     @Test fun oauthNonce() {
         for (c in Golden.cases("oauth_nonce")) {
             val sp = B64url.decode(c.str("sign_pub"))

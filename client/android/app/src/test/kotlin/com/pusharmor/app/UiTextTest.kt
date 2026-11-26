@@ -402,9 +402,9 @@ class UiTextTest {
         val raw = ByteArray(30) { it.toByte() }
         raw[9] = 0x38; raw[10] = 0x58; raw[11] = 0x05
         val id = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(raw)
-        assertEquals("385805", UiText.shortDeviceId(id))
+        assertEquals("994-894-349", UiText.shortDeviceId(id))
         val t = UiText.pairCommandLine("Server", id)
-        assertEquals("To pair, run this on \"Server\": pusharmor\u00A0pair\u00A0385805", t.text)
+        assertEquals("To pair, run this on \"Server\": pusharmor\u00A0pair\u00A0994-894-349", t.text)
         assertTrue(t.spanStyles.any { it.item.fontFamily == androidx.compose.ui.text.font.FontFamily.Monospace })
     }
 

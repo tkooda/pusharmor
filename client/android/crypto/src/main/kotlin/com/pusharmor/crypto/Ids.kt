@@ -30,6 +30,14 @@ object Ids {
         return id.copyOfRange(ACCOUNT_BYTES, ACCOUNT_BYTES + KEYHASH_BYTES).contentEquals(keyhash(signPub, encPub))
     }
 
+    /** Device ID shown to users: raw id bytes 9..14 as a big-endian unsigned integer, mod 1e9, as "NNN-NNN-NNN". */
+    fun deviceId(idRaw: ByteArray): String {
+        var v = 0L
+        for (i in ACCOUNT_BYTES until ACCOUNT_BYTES + 5) v = (v shl 8) or (idRaw[i].toLong() and 0xFF)
+        val d = (v % 1_000_000_000L).toString().padStart(9, '0')
+        return "${d.substring(0, 3)}-${d.substring(3, 6)}-${d.substring(6)}"
+    }
+
     fun hasAccount(id: ByteArray, ownAccount: ByteArray): Boolean =
         id.size == ID_BYTES && id.copyOf(ACCOUNT_BYTES).contentEquals(ownAccount)
 
