@@ -31,8 +31,8 @@ struct PeersView: View {
 
     @ViewBuilder private var devices: some View {
         let pairing = PeerLabel.sorted(visible.filter { inPairing($0) })
-        // A pinned peer that pairs again keeps its row (switches, Remove) under its card.
-        let listed = PeerLabel.sorted(visible.filter { $0.pinned || !inPairing($0) })
+        // A peer in a pairing shows only its card, never a second row.
+        let listed = PeerLabel.sorted(visible.filter { !inPairing($0) })
         NavigationStack {
             ScrollViewReader { proxy in
                 List {
@@ -190,13 +190,15 @@ struct PairHowToView: View {
 struct PeerPendingLines: View {
     let p: Peer
     var showCancel = true
+    /// The pairing card's title already says it awaits the other device.
+    var showWaiting = true
     @EnvironmentObject var model: AppModel
 
     private var label: String { model.label(p) }
 
     var body: some View {
         if p.state == .approved && !p.approveVerified {
-            Text(S.waiting(label)).font(.subheadline)
+            if showWaiting { Text(S.waiting(label)).font(.subheadline) }
             if let r = p.approveResult, r != "sent", r != "stored", r != "denied" {
                 TimelineView(.periodic(from: .now, by: 5)) { ctx in
                     let ready = ctx.date.timeIntervalSince1970 >= Double((p.approveSentAt ?? 0) + 60)
@@ -299,7 +301,7 @@ struct PairingCardView: View {
             TimelineView(.periodic(from: .now, by: 5)) { _ in
                 VStack(alignment: .leading, spacing: 12) {
                     stateBlock
-                    PeerPendingLines(p: p, showCancel: false)
+                    PeerPendingLines(p: p, showCancel: false, showWaiting: false)
                     if entry == nil && p.platform == "cli" && !p.pinned && !p.hidden, let me = model.me?.id {
                         // The command never splits: it moves to its own line as a whole.
                         (Text(S.pairCommandPrefix(label)) + Text(S.pairCommand(me)).font(.system(.footnote, design: .monospaced)))
@@ -373,6 +375,10 @@ struct PairingCardView: View {
                     .disabled(model.busy.contains("reply:" + p.id.text))
             case .prompted, .replied:
                 EmptyView()
+            case .shown where awaiting:
+                // This device confirmed: Codes match and Codes differ are gone; Cancel pairing
+                // request below covers a change of mind.
+                FingerprintPlate(code: p.fingerprint ?? "")
             case .shown:
                 FingerprintPlate(code: p.fingerprint ?? "")
                     .onAppear { model.fingerprintShown(p) }
