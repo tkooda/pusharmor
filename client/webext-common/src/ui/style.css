@@ -446,12 +446,13 @@ dialog.sendprog { width: min(340px, calc(100vw - 48px)); }
   .hselallbox { min-width: 48px; min-height: 48px; justify-content: center; }
 }
 
-/* Send: "Page URL" and "Choose file..." at the bottom right inside the empty box; a chosen file replaces the box. */
+/* Send: "Page URL" and "Or choose a file..." (a small text button) at the bottom right inside the empty box; a chosen file replaces the box. */
 .compose { position: relative; }
 .compose[hidden] { display: none; }
 .compose textarea { padding-bottom: 46px; }
 .inbtns { position: absolute; right: 24px; bottom: 8px; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 .inbtns button.inb { height: 28px; padding: 0 10px 0 8px; gap: 5px; font-size: 12px; border-radius: 14px; background: var(--card); color: var(--ink); }
+.inbtns button.quiet { height: 28px; padding: 0 8px; gap: 5px; font-size: 12px; }
 .inbtns button[hidden] { display: none; }
 .filecard { display: flex; align-items: center; gap: 12px; margin: 12px 16px 0; min-height: 86px; padding: 12px 4px 12px 12px; border: 1px solid var(--ctl); border-radius: var(--rc); background: var(--card); }
 .filecard[hidden] { display: none; }

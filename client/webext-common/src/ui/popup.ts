@@ -365,7 +365,7 @@ export async function sendView(env: UiEnv, root: HTMLElement, st: StateView, pre
   field.value = prefill ?? "";
   const pageHref = await env.activeUrl().catch(() => "");
   const pageBtn = h("button", { type: "button", class: "inb" }, icon("link", 16), F.PAGE_URL) as HTMLButtonElement;
-  const fileBtn = h("button", { type: "button", class: "inb" }, icon("attach", 16), F.CHOOSE_FILE) as HTMLButtonElement;
+  const fileBtn = h("button", { type: "button", class: "quiet" }, icon("attach", 16), F.CHOOSE_FILE) as HTMLButtonElement;
   const fileInput = h("input", { type: "file", hidden: true, "aria-hidden": "true", tabindex: "-1" }) as HTMLInputElement;
   const box = h("div", { class: "compose" }, field, h("div", { class: "inbtns" }, pageBtn, fileBtn));
   const card = h("div", { class: "filecard", hidden: true });
