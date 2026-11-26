@@ -77,14 +77,19 @@ final class BrandScreensTests: XCTestCase {
         XCTAssertTrue(app.buttons["Codes match"].exists)
         XCTAssertTrue(app.buttons["Codes differ"].exists)
         XCTAssertTrue(app.staticTexts["Confirm the other device shows this code."].exists)
+        // while a device pairs, its card has no more menu
+        XCTAssertFalse(app.buttons["More actions"].exists)
     }
 
     func testUnpairedPeerActionsHaveAVisibleButton() {
-        // no paired device yet: the first-pair screen holds the pairing card
-        let app = launch(["-PAScreenshotsPairing"])
+        // no paired device yet: the first-pair screen holds the card of a device that waits
+        // to pair (no pairing started), with Reject, Pair, and the more menu
+        let app = launch(["-PAScreenshotsPairing", "-PAScreenshotsWaiting"])
         XCTAssertTrue(app.navigationBars["Pair your first device"].waitForExistence(timeout: 30))
         let more = app.buttons["More actions"]
         XCTAssertTrue(more.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Reject"].exists)
+        XCTAssertTrue(app.buttons["Pair"].exists)
         // on a slow CI simulator the first tap can land before the menu takes taps.
         let remove = app.buttons["Remove device from account"]
         for _ in 0..<2 where !remove.exists {

@@ -6,7 +6,8 @@ import PushArmorCore
 /// Store screenshot mode (debug builds only; tools/check-release-bundle.sh fails on it in a
 /// release app). The launch argument -PAScreenshots opens a sample database in the temporary
 /// directory: no App Group, no Keychain, no Core, so no Worker call. -PAScreenshotsPairing
-/// adds an open pairing; -PAScreenshotsNotify posts a local sample notification;
+/// adds an open pairing (with -PAScreenshotsWaiting: the device waits to pair, no pairing
+/// started); -PAScreenshotsNotify posts a local sample notification;
 /// -PAScreenshotsSignIn opens the sign-in screen (review images only); -PAScreenshotsEmpty
 /// has no other device at all (the first-pair screen). Screen review only: -PAScreenshotsNoHistory
 /// has no messages; -PAScreenshotsSent shows send results that stay on screen
@@ -122,6 +123,7 @@ enum ScreenshotSample {
                 INSERT INTO peers (id, state, listed, reachable, platform, created, name, name_n, fingerprint)
                 VALUES (?, 'unruled', 1, 1, 'chrome', ?, 'New laptop', 1, 'K7QD')
                 """, [.text(id("N")), .int(now - 50 * 86400)])  // oldest: the first row on screen
+            if args.contains("-PAScreenshotsWaiting") { return store }
             try store.db.exec("""
                 INSERT INTO pairing (peer_id, role, state, r, authorized, started_at, last_send_at)
                 VALUES (?, 'X', 'shown', ?, 1, ?, ?)
