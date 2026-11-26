@@ -1265,7 +1265,14 @@ private fun DeviceChip(icon: ImageVector, name: String, selected: Boolean, enabl
     val cs = MaterialTheme.colorScheme
     FilterChip(selected = selected && enabled, onClick = onClick,
         modifier = Modifier.alpha(if (enabled) 1f else 0.5f).semantics { if (status != null) contentDescription = UiText.chipLabel(name, status) },
-        label = { Text(name, Modifier.widthIn(max = 240.dp), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        label = {
+            // A name with its ID is cut in the name, so the ID shows whole; the screen reader gets the full name.
+            val m = rememberTextMeasurer()
+            val style = LocalTextStyle.current
+            val max = with(LocalDensity.current) { 240.dp.roundToPx() }
+            val shown = remember(name, style, max) { UiText.keepIdCut(name) { s -> m.measure(s, style, maxLines = 1, softWrap = false).size.width <= max } }
+            Text(shown, Modifier.widthIn(max = 240.dp).semantics { if (shown != name) contentDescription = name }, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        },
         leadingIcon = { Icon(if (selected && enabled) PaIcons.Check else icon, null, Modifier.size(18.dp)) },
         colors = FilterChipDefaults.filterChipColors(containerColor = LocalPaExtra.current.tile, selectedContainerColor = softGreenFill(LocalPaExtra.current.dark),
             selectedLabelColor = softGreenText(LocalPaExtra.current.dark), selectedLeadingIconColor = softGreenText(LocalPaExtra.current.dark)),

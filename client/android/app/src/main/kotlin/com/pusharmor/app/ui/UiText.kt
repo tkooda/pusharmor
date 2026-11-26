@@ -551,6 +551,17 @@ object UiText {
     fun days(d: Int): String = if (d == 1) "1 day" else "$d days"
 
     /**
+     * [label] cut to what [fits]: a "Pixel 8 (907-331-064)" label shortens only its name (see [middleEllipsis]),
+     * so the ID always shows whole; any other label comes back as is.
+     */
+    fun keepIdCut(label: String, fits: (String) -> Boolean): String {
+        if (fits(label)) return label
+        val id = ID_SUFFIX.find(label)?.value ?: return label
+        return middleEllipsis(label.dropLast(id.length)) { fits(it + id) } + id
+    }
+    private val ID_SUFFIX = Regex(" \\(\\d{3}-\\d{3}-\\d{3}\\)$")
+
+    /**
      * Longest "head...tail" form of [text] that [fits] (about two thirds head), or [text] itself
      * when it fits. Binary search on the number of kept characters.
      */
