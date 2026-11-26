@@ -49,9 +49,28 @@ class DeviceMenuTest {
     @Config(qualifiers = "w412dp-h480dp-420dpi", fontScale = 2f)
     @Test fun rejectedRowMenuHasNoCancel() = withMenu(declined = true)
 
-    private fun withMenu(declined: Boolean) {
+    /**
+     * The menu: the two "Show" items, a line, the content items, a line, then Remove; the card's status icons in the
+     * same order as the menu items.
+     */
+    @Config(qualifiers = "w412dp-h900dp-420dpi")
+    @Test fun menuGroupsTheShowItemsAndIconsFollowItsOrder() = withMenu(declined = false) { popup, a ->
+        val order = listOf("Show device on Send screen", "Show shortcut in sharing menu", "Show message content in notifications",
+            "Show message content on lock screen", "Send messages to watch", "Remove device from account")
+        val items = nodes(popup).filter { text(it) in order }.sortedBy { it.boundsInRoot.top }
+        org.junit.Assert.assertEquals(order, items.map(::text))
+        // a line takes room between the groups only: after the "Show" items and above Remove
+        val rows = items.map { n -> generateSequence(n) { it.parent }.first { it.config.getOrNull(SemanticsActions.OnClick) != null }.boundsInRoot }
+        val gaps = rows.zipWithNext { x, y -> y.top - x.bottom }
+        assertTrue("$gaps", gaps[0] < 0.5f && gaps[1] >= 0.5f && gaps[2] < 0.5f && gaps[3] < 0.5f && gaps[4] >= 0.5f)
+        val icons = nodes(a.window.decorView).mapNotNull { n -> n.config.getOrNull(SemanticsProperties.ContentDescription)?.firstOrNull { it.startsWith("Send screen") } }.single()
+        org.junit.Assert.assertEquals(listOf("Send screen", "Sharing shortcut", "Content in notifications", "Content on lock screen", "Watch"),
+            icons.split("; ").map { it.substringBeforeLast(' ') })
+    }
+
+    private fun withMenu(declined: Boolean, inspect: ((View, android.app.Activity) -> Unit)? = null) {
         val c = Robolectric.buildActivity(UiHostActivity::class.java)
-        try { check(c, declined) } finally {
+        try { check(c, declined, inspect) } finally {
             // Close the menu and the activity, so no popup keeps posting into the next test.
             windows().filter { (it.layoutParams as android.view.WindowManager.LayoutParams).type >= 1000 }.forEach { v ->
                 v.dispatchKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_BACK))
@@ -62,7 +81,7 @@ class DeviceMenuTest {
         }
     }
 
-    private fun check(c: org.robolectric.android.controller.ActivityController<UiHostActivity>, declined: Boolean) {
+    private fun check(c: org.robolectric.android.controller.ActivityController<UiHostActivity>, declined: Boolean, inspect: ((View, android.app.Activity) -> Unit)?) {
         unstickFrames()
         val app = ApplicationProvider.getApplicationContext<PaApp>()
         val t = Thread {
@@ -101,6 +120,7 @@ class DeviceMenuTest {
         }
         assertNotNull("menu did not open", popup)
         popup!!
+        if (inspect != null) { inspect(popup, a); return }
         val screen = a.window.decorView.height
         // Short enough for the stock menu to place it between its 48 dp margins (the test window draws no system bars).
         val margin = 48 * a.resources.displayMetrics.density

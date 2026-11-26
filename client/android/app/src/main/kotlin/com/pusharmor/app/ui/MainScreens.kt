@@ -730,11 +730,12 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
                     val se = ents.firstOrNull { it.id == p.id }
                     if (p.pinned && se != null) {
                         PeerStatusIcons(listOf(
+                            // In the order of the menu items.
                             PaIcons.Send to PeerStatus("Send screen", !p.hidden),
+                            PaIcons.Share to PeerStatus("Sharing shortcut", shareShown),
                             PaIcons.Notifications to PeerStatus("Content in notifications", se.showContent && Policy.peerSwitchEnabled(Settings.flagOf(prefs, Settings.K.SHOW_CONTENT, true))),
                             PaIcons.Lock to PeerStatus("Content on lock screen", se.lockScreen && Policy.peerLockEnabled(Settings.flagOf(prefs, Settings.K.SHOW_CONTENT, true), Settings.flagOf(prefs, Settings.K.LOCK_SCREEN, true), se.showContent)),
                             PaIcons.Watch to PeerStatus("Watch", se.watch && Policy.peerSwitchEnabled(Settings.flagOf(prefs, Settings.K.WATCH, true))),
-                            PaIcons.Share to PeerStatus("Sharing shortcut", shareShown),
                         ))
                     }
                 }
@@ -754,13 +755,15 @@ private fun PeerRow(vm: AppViewModel, p: Peer, now: Long, highlighted: Boolean, 
                         val lockOn = Policy.peerLockEnabled(gs.showContent, gs.lockScreen, e?.showContent ?: true)
                         // The tick is the state, so each row reads as a checkbox; "Show device on Send screen" is stored as the inverse (hidden).
                         if (p.pinned) CheckItem("Show device on Send screen", !p.hidden) { menu = false; vm.setHidden(p.id, !p.hidden) }
+                        // Per device, on by default.
+                        if (p.pinned) CheckItem("Show shortcut in sharing menu", shareShown) { menu = false; vm.setShareShown(p.id, !shareShown) }
                         if (p.pinned && e != null) {
+                            // The two "Show" items, then a line; with no content items next, the line above Remove sets them apart.
+                            HorizontalDivider()
                             CheckItem("Show message content in notifications", e.showContent && showOn, showOn) { vm.setPeerSwitch(p.id, showContent = !e.showContent) }
                             CheckItem("Show message content on lock screen", e.lockScreen && lockOn, lockOn) { vm.setPeerSwitch(p.id, lock = !e.lockScreen) }
                             CheckItem("Send messages to watch", e.watch && Policy.peerSwitchEnabled(gs.watch), Policy.peerSwitchEnabled(gs.watch)) { vm.setPeerSwitch(p.id, watch = !e.watch) }
                         }
-                        // Per device, on by default.
-                        if (p.pinned) CheckItem("Show shortcut in sharing menu", shareShown) { menu = false; vm.setShareShown(p.id, !shareShown) }
                         HorizontalDivider()
                         if (p.missing) DropdownMenuItem(text = { Text("Delete") }, onClick = { menu = false; onDelete() })
                         DropdownMenuItem(text = { Text("Remove device from account") }, onClick = { menu = false; onRemove() })
