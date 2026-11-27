@@ -105,13 +105,13 @@ export async function renderPeers(env: UiEnv, root: HTMLElement, full: boolean, 
           h("li", {}, h("span", { class: "fp-num", "aria-hidden": "true" }, String(i + 1)), h("span", {}, t)),
         ),
       ),
+      ...section("Pairing", pairing.filter(shown), true),
       ...(waiting.some(shown) || pairing.some(shown)
         ? section("Waiting to pair", waiting.filter(shown), true)
         : [sh("Waiting to pair"), group(h("div", { class: "fp-wait", role: "status" }, h("span", { class: "fp-spin", "aria-hidden": "true" }), "Waiting for another device to log in."))]),
-      ...section("Pairing", pairing.filter(shown), true),
     );
   } else {
-    root.append(...section("Waiting to pair", waiting), ...section("Pairing", pairing), ...section("Paired devices", paired));
+    root.append(...section("Pairing", pairing), ...section("Waiting to pair", waiting), ...section("Paired devices", paired));
     if (!listed.length) {
       root.append(
         h(
