@@ -1,1 +1,1 @@
-Tap a device in Devices to send to just that device. A message sent to several devices now reads "Sent to 3 devices" and lists each device under Recipients. History file items open collapsed, and a tap shows their buttons. File storage now starts at 1 GB, with a 10 GB option. Settings shows Files above History, with clearer text and clearer errors for files that are too large.
+Devices now lists the devices you are pairing with first, above the devices waiting to pair.
