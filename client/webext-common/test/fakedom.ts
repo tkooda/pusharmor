@@ -1,4 +1,6 @@
 // A small fake DOM for UI tests that only need elements, text, and the body.
+/** the listeners added for the capture phase */
+export const captured = new WeakSet<(ev: unknown) => void>();
 export class N {
   tag: string;
   attrs: Record<string, string> = {};
@@ -18,8 +20,9 @@ export class N {
   getAttribute(k: string) {
     return this.attrs[k] ?? null;
   }
-  addEventListener(k: string, f: (ev: unknown) => void) {
+  addEventListener(k: string, f: (ev: unknown) => void, capture?: boolean) {
     (this.on[k] ??= []).push(f);
+    if (capture) captured.add(f);
   }
   removeEventListener(k: string, f: (ev: unknown) => void) {
     this.on[k] = (this.on[k] ?? []).filter((x) => x !== f);
@@ -60,6 +63,9 @@ export class N {
   focus() {}
   showModal() {}
   close() {}
+  get id(): string {
+    return this.attrs.id ?? "";
+  }
   get parentElement(): N | null {
     return this.parent;
   }

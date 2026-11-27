@@ -512,7 +512,7 @@ test("history row: a tap on the selected row collapses it, with aria-expanded an
   const { readFileSync } = await import("node:fs");
   const pop = readFileSync(new URL("../src/ui/popup.ts", import.meta.url), "utf8");
   assert.match(pop, /const markRead = \(\) => \{\s*if \(row\.classList\.contains\("sel"\)\) return collapse\(\);/);
-  assert.match(pop, /closest\("\.acts, \.rcpt"\)\) return;/);
+  assert.match(pop, /closest\("\.acts, \.rcpt, \.hselcell"\)\) return;/);
   assert.match(pop, /setAttribute\("aria-expanded", String\(row\.classList\.contains\("sel"\)\)\)/);
   assert.match(pop, /ev\.key !== "Enter" && ev\.key !== " "/);
   assert.match(readFileSync(new URL("../src/ui/style.css", import.meta.url), "utf8"), /\.hrow\.closed:not\(\.sel\) \.acts \{ display: none; \}/);

@@ -237,6 +237,9 @@ body.page .foot { position: static; }
 .hrow.sel, .hrow:focus-within { background: var(--s1); }
 .hrow.msel, .hrow.hck { grid-template-columns: 20px 32px minmax(0, 1fr); }
 .hrow.msel .acts { display: none; }
+/* the checkbox column: the full height of the row, so a click off the checkbox still toggles it */
+.hselcell { align-self: stretch; display: flex; }
+.hrow.event .hselcell { align-items: center; }
 input.hsel, input.hselall { margin: 2px 0 0; width: 18px; height: 18px; accent-color: var(--primary); cursor: pointer; }
 .hselallbox { display: inline-flex; align-items: center; }
 .hselallbox[hidden] { display: none; }

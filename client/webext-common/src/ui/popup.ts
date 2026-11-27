@@ -809,10 +809,12 @@ export async function historyView(env: UiEnv, root: HTMLElement, focus?: string,
     filter.replaceChildren(...opts.map((c) => h("option", { value: c.key, selected: c.key === key }, filterLabel(c.key, c.label))));
     filter.value = key;
     filter.hidden = opts.length < 2;
+    // a redrawn row keeps its open or closed state (a check or uncheck must not open or close any row)
+    const prev = new Map(Array.from(list.children, (e) => [e.id, e as HTMLElement]));
     clear(list);
     visible = f.rows.flatMap((r) => (r.id === undefined ? [] : [r.id]));
     const now = Date.now();
-    for (const r of f.rows) list.append(historyRow(env, r, now, ctl));
+    for (const r of f.rows) list.append(historyRow(env, r, now, ctl, prev.get("h-" + r.id)));
     // a filter that matches nothing stays on and says so; only All shows every message
     if (!f.rows.length) list.append(h("div", { class: "nomatch", role: "status" }, "No matching messages"));
     const n = visible.filter((id) => picked?.has(id)).length;
@@ -923,8 +925,8 @@ let longPressAt = -Infinity;
 function wireSelect(row: HTMLElement, id: number, ctl: SelectCtl, labelIds: string): void {
   if (ctl.on()) {
     row.classList.add(ctl.always ? "hck" : "msel");
-    // the checkbox is named by the row's sender and content
-    row.prepend(h("input", { type: "checkbox", class: "hsel", "aria-labelledby": labelIds, checked: ctl.has(id) }));
+    // the checkbox is named by the row's sender and content; a click anywhere in its column toggles it
+    row.prepend(h("span", { class: "hselcell" }, h("input", { type: "checkbox", class: "hsel", "aria-labelledby": labelIds, checked: ctl.has(id) })));
   }
   let timer: ReturnType<typeof setTimeout> | undefined;
   let suppress = false;
@@ -961,7 +963,7 @@ function wireSelect(row: HTMLElement, id: number, ctl: SelectCtl, labelIds: stri
     else ctl.start(id);
   });
   // capture: while the mode is on (Firefox for Android), a tap toggles and never expands the row or reaches its buttons;
-  // on desktop only a click on the checkbox toggles
+  // on desktop only a click in the checkbox column toggles
   row.addEventListener("click", (ev: Event) => {
     if (suppress) {
       suppress = false;
@@ -970,7 +972,7 @@ function wireSelect(row: HTMLElement, id: number, ctl: SelectCtl, labelIds: stri
     }
     const e = ev as MouseEvent;
     const mod = e.ctrlKey || e.metaKey;
-    const box = !!(ev.target as Element | null)?.closest?.("input.hsel");
+    const box = !!(ev.target as Element | null)?.closest?.(".hselcell");
     if (!(ctl.on() && (!ctl.always || box)) && !mod && !e.shiftKey) return;
     // Ctrl (Cmd on a Mac) + click toggles a row; Shift + click selects the range from the last toggled row
     ev.preventDefault();
@@ -1221,7 +1223,7 @@ function historyRow(env: UiEnv, r: HistRow, now: number, ctl: SelectCtl, prev?: 
   });
   row.addEventListener("click", (ev: Event) => {
     const t = ev.target as Element | null;
-    if (t?.closest(".acts, .rcpt")) return;
+    if (t?.closest(".acts, .rcpt, .hselcell")) return;
     if (t?.closest(".content") || row.classList.contains("sel")) markRead();
     else select();
   });

@@ -1,11 +1,38 @@
 import assert from "node:assert/strict";
 import { mock, test } from "node:test";
-import { N } from "./fakedom.ts";
+import { captured, N } from "./fakedom.ts";
 import { historyView } from "../src/ui/popup.ts";
 import type { UiEnv } from "../src/ui/dom.ts";
 
 const find = (n: N, f: (x: N) => boolean): N | undefined => (f(n) ? n : n.kids.map((k) => find(k, f)).find(Boolean));
 const all = (n: N, f: (x: N) => boolean): N[] => [...(f(n) ? [n] : []), ...n.kids.flatMap((k) => all(k, f))];
+const isOpen = (root: N, id: number) => find(root, (x) => x.attrs.id === "h-" + id)!.classList.contains("sel");
+
+// closest() for selectors like "input.a, .b.c"
+const matches = (n: N, sel: string) => sel.split(",").some((one) => {
+  const [tag, ...cls] = one.trim().split(".");
+  const has = (c: string) => n.cls.has(c) || (n.attrs.class ?? "").split(" ").includes(c);
+  return (!tag || n.tag === tag) && cls.every(has);
+});
+const closest = (n: N, sel: string): N | null => {
+  for (let x: N | null = n; x; x = x.parent) if (matches(x, sel)) return x;
+  return null;
+};
+
+// a click as the browser sends it: capture listeners from the top down, then the others from the target up,
+// until a listener stops it (listeners on the same element still run)
+const dispatch = (target: N, mods: Record<string, unknown> = {}) => {
+  const path: N[] = [];
+  for (let x: N | null = target; x; x = x.parent) path.push(x);
+  let stopped = false;
+  const ev = { target: Object.assign(target, { closest: (q: string) => closest(target, q) }), preventDefault() {}, stopPropagation() { stopped = true; }, ...mods };
+  for (const [nodes, cap] of [[[...path].reverse(), true], [path, false]] as const) {
+    for (const n of nodes) {
+      for (const f of [...(n.on.click ?? [])]) if (captured.has(f) === cap) f(ev);
+      if (stopped) return;
+    }
+  }
+};
 
 // Firefox for Android is told apart by its user agent
 const ua = (android: boolean) => Object.defineProperty(globalThis, "navigator", { value: { userAgent: android ? "Mozilla/5.0 (Android 14; Mobile; rv:140.0) Gecko/140.0 Firefox/140.0" : "Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0" }, configurable: true });
@@ -23,16 +50,21 @@ async function mount(android = false) {
   // a click on the row's text, or on its checkbox (box)
   const click = (id: number, mods: Record<string, boolean> = {}, box = false) => {
     const row = find(root, (x) => x.attrs.id === "h-" + id)!;
-    const content = find(row, (x) => (x.attrs.class ?? "").includes("content"))!;
-    const target = Object.assign(content, { closest: (q: string) => (box && q === "input.hsel" ? content : null) });
-    for (const f of row.on.click ?? []) f({ target, preventDefault() {}, stopPropagation() {}, ...mods });
+    dispatch(find(row, (x) => (box ? x.tag === "input" && x.attrs.class === "hsel" : (x.attrs.class ?? "").includes("content")))!, mods);
+  };
+  // a click in the checkbox column off the checkbox itself: on the element of that column (the row, when the
+  // column has no element of its own)
+  const clickColumn = (id: number) => {
+    const row = find(root, (x) => x.attrs.id === "h-" + id)!;
+    const box = find(row, (x) => x.tag === "input" && x.attrs.class === "hsel")!;
+    dispatch(box.parent!);
   };
   const longPress = (id: number) => {
     const row = find(root, (x) => x.attrs.id === "h-" + id)!;
     for (const f of row.on.pointerdown ?? []) f({ button: 0, clientX: 10, clientY: 10, offsetX: 5, offsetY: 5, target: { closest: () => null, clientWidth: 300, clientHeight: 60 } });
     mock.timers.tick(600);
   };
-  return { root, btn, boxes, checked, click, longPress };
+  return { root, btn, boxes, checked, click, clickColumn, longPress };
 }
 
 test("History has no Select button; on desktop every row shows its checkbox without any action", async () => {
@@ -121,7 +153,7 @@ test("History: the multi-select delete confirmation names the devices by the Syn
     const root = new N("div");
     ua(false);
     await historyView(env, root as unknown as HTMLElement, undefined, { toDevices: () => undefined, toSend: () => undefined });
-    for (const f of find(root, (x) => x.attrs.id === "h-1")!.on.click!) f({ target: Object.assign(find(find(root, (x) => x.attrs.id === "h-1")!, (x) => (x.attrs.class ?? "").includes("content"))!, { closest: (q: string) => (q === "input.hsel" ? {} : null) }), preventDefault() {}, stopPropagation() {} });
+    dispatch(find(find(root, (x) => x.attrs.id === "h-1")!, (x) => x.tag === "input" && x.attrs.class === "hsel")!);
     const del = find(root, (x) => x.tag === "button" && (x.attrs.class ?? "").includes("dellight"))!;
     const p = Promise.all(del.on.click!.map((f) => (f as () => Promise<void>)()));
     await new Promise((r) => setImmediate(r));
@@ -130,4 +162,32 @@ test("History: the multi-select delete confirmation names the devices by the Syn
     void p;
     dlg.remove();
   }
+});
+
+test("History on desktop: a click anywhere in the checkbox column checks the row and never opens or closes it", async () => {
+  const v = await mount();
+  v.clickColumn(2); // off the checkbox, in its column
+  assert.deepEqual(v.checked(), [false, true, false, false]);
+  assert.equal(isOpen(v.root, 2), false);
+  v.click(3); // open a row, then check it on its checkbox: it stays open
+  assert.equal(isOpen(v.root, 3), true);
+  v.click(3, {}, true);
+  assert.deepEqual(v.checked(), [false, true, true, false]);
+  assert.equal(isOpen(v.root, 3), true);
+  v.clickColumn(3);
+  assert.deepEqual(v.checked(), [false, true, false, false]);
+  assert.equal(isOpen(v.root, 3), true);
+});
+
+test("History: checking or unchecking one row keeps another open row open", async () => {
+  const v = await mount();
+  v.click(1);
+  assert.equal(isOpen(v.root, 1), true);
+  v.click(4, {}, true);
+  assert.deepEqual(v.checked(), [false, false, false, true]);
+  assert.equal(isOpen(v.root, 1), true);
+  v.click(4, {}, true);
+  assert.deepEqual(v.checked(), [false, false, false, false]);
+  assert.equal(isOpen(v.root, 1), true);
+  assert.deepEqual([2, 3, 4].map((id) => isOpen(v.root, id)), [false, false, false]);
 });
