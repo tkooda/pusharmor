@@ -25,21 +25,21 @@ struct PeersView: View {
     }
 
     @ViewBuilder private var devices: some View {
-        // Waiting to pair, Pairing, Paired devices, then Rejected devices; each hidden when
+        // Pairing, Waiting to pair, Paired devices, then Rejected devices; each hidden when
         // empty. A peer in a pairing shows only its card, never a second row.
         let s = DeviceList.sections(visible, open: Set(model.pairings.keys),
                                     again: Set(visible.filter { model.offersPairAgain($0) }.map { $0.id.text }))
         NavigationStack {
             ScrollViewReader { proxy in
                 List {
-                    if !s.waiting.isEmpty {
-                        Section("Waiting to pair") {
-                            ForEach(s.waiting, id: \.id.text) { p in card(p) }
-                        }
-                    }
                     if !s.pairing.isEmpty {
                         Section("Pairing") {
                             ForEach(s.pairing, id: \.id.text) { p in card(p) }
+                        }
+                    }
+                    if !s.waiting.isEmpty {
+                        Section("Waiting to pair") {
+                            ForEach(s.waiting, id: \.id.text) { p in card(p) }
                         }
                     }
                     if s.waiting.isEmpty && s.pairing.isEmpty && s.paired.isEmpty {
