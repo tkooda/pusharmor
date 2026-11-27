@@ -287,12 +287,12 @@ fun PeersScreen(vm: AppViewModel, onChoosePush: () -> Unit = {}, onSend: () -> U
     // The highlight scrolls once per visit; leaving the screen clears it.
     var aimed by remember { mutableStateOf<String?>(null) }
     DisposableEffect(Unit) { onDispose { vm.highlight.value = null } }
-    // Item order: banners, [steps], [waiting header, rows], [pairing header, cards], [paired header, rows].
+    // Item order: banners, [steps], [pairing header, cards], [waiting header, rows], [paired header, rows].
     LaunchedEffect(highlight, list.size) {
         highlight?.takeIf { it != aimed }?.let { h ->
             var base = 1 + (if (firstDevice) 1 else 0)
             var idx: Int? = null
-            for (section in listOf(waiting, pairing, paired)) {
+            for (section in listOf(pairing, waiting, paired)) {
                 if (section.isEmpty()) continue
                 val i = section.indexOfFirst { it.id == h }
                 if (i >= 0) { idx = base + 1 + i; break }
@@ -337,7 +337,14 @@ fun PeersScreen(vm: AppViewModel, onChoosePush: () -> Unit = {}, onSend: () -> U
                 if (firstDevice) item(key = "steps") {
                     Column { SectionHeader(UiText.FIRST_DEVICE_TITLE); FirstDeviceSteps() }
                 }
-                // Sections in order, each only when it has a device: Waiting to pair, Pairing, Paired devices, then Rejected devices.
+                // Sections in order, each only when it has a device: Pairing, Waiting to pair, Paired devices, then Rejected devices.
+                if (pairing.isNotEmpty()) {
+                    item(key = "pairing-header") { SectionHeader("Pairing") }
+                    itemsIndexed(pairing, key = { _, p -> "pair-" + p.id }) { i, p ->
+                        val row = rows.first { it.peerId == p.id }
+                        PairingCard(vm, p, row, now, Modifier.padding(top = if (i > 0) 12.dp else 0.dp))
+                    }
+                }
                 if (waiting.isNotEmpty()) {
                     item(key = "waiting-header") { SectionHeader("Waiting to pair") }
                     itemsIndexed(waiting, key = { _, p -> p.id }) { i, p ->
@@ -349,13 +356,6 @@ fun PeersScreen(vm: AppViewModel, onChoosePush: () -> Unit = {}, onSend: () -> U
                         ListItem(modifier = Modifier.padding(horizontal = 16.dp), colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                             leadingContent = { CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 3.dp) },
                             headlineContent = { Text(UiText.FIRST_DEVICE_WAITING, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant) })
-                    }
-                }
-                if (pairing.isNotEmpty()) {
-                    item(key = "pairing-header") { SectionHeader("Pairing") }
-                    itemsIndexed(pairing, key = { _, p -> "pair-" + p.id }) { i, p ->
-                        val row = rows.first { it.peerId == p.id }
-                        PairingCard(vm, p, row, now, Modifier.padding(top = if (i > 0) 12.dp else 0.dp))
                     }
                 }
                 if (paired.isNotEmpty()) {
