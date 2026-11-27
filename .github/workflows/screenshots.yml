@@ -20,7 +20,7 @@ permissions: {}
 
 env:
   # The version the screens show (Android build, Chrome and Firefox build, iOS MARKETING_VERSION)
-  PA_VERSION: "0.0.58"
+  PA_VERSION: "0.0.59"
   JAVA_VERSION: "17.0.20+8"
   XCODE_APP: /Applications/Xcode_26.6.app
   XCODE_VERSION: "Xcode 26.6"

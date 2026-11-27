@@ -31,7 +31,7 @@ const PAGE_URL = q.has("store") ? "https://www.nasa.gov/image-of-the-day/" : "ht
 
 const state: StateView = {
   reg: "registered", banner: null, email: null, name: "Laptop", settings: DEFAULT_SETTINGS,
-  platform: THIS, isAndroid: false, receiveMode: null, receiveNote: null, setupNeeded: false, updateRequired: false, recheckLocked: false, pushIssue: null, keysBroken: false, version: "0.0.58",
+  platform: THIS, isAndroid: false, receiveMode: null, receiveNote: null, setupNeeded: false, updateRequired: false, recheckLocked: false, pushIssue: null, keysBroken: false, version: "0.0.59",
 };
 
 const paired = (pid: string, label: string, platform: string, greyed: string | null = null): PeerView => ({
